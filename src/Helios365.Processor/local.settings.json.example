@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "CosmosDbConnectionString": "YOUR_COSMOS_CONNECTION_STRING",
+    "CosmosDbDatabaseName": "helios365",
+    "CosmosDbAlertsContainer": "alerts",
+    "CosmosDbCustomersContainer": "customers"
+  }
+}

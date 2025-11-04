@@ -1,0 +1,110 @@
+@page
+@model Helios365.Platform.Pages.IndexModel
+@{
+    ViewData["Title"] = "Helios365 Dashboard";
+}
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>🌞 Helios365 Dashboard</h1>
+            <p class="lead">24/7/365 Automated Incident Response for Azure</p>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Active Alerts</h5>
+                    <p class="card-text display-4">@Model.ActiveAlertsCount</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Resolved Today</h5>
+                    <p class="card-text display-4">@Model.ResolvedTodayCount</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Escalated</h5>
+                    <p class="card-text display-4">@Model.EscalatedCount</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Customers</h5>
+                    <p class="card-text display-4">@Model.CustomersCount</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h3>Recent Alerts</h3>
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Alert ID</th>
+                        <th>Customer</th>
+                        <th>Resource Type</th>
+                        <th>Status</th>
+                        <th>Severity</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var alert in Model.RecentAlerts)
+                    {
+                        <tr>
+                            <td><a asp-page="./Alerts/Details" asp-route-id="@alert.Id">@alert.Id.Substring(0, 8)...</a></td>
+                            <td>@alert.CustomerId</td>
+                            <td>@alert.ResourceType</td>
+                            <td><span class="badge bg-@GetStatusBadge(alert.Status)">@alert.Status</span></td>
+                            <td><span class="badge bg-@GetSeverityBadge(alert.Severity)">@alert.Severity</span></td>
+                            <td>@alert.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@functions {
+    private string GetStatusBadge(Helios365.Core.Models.AlertStatus status)
+    {
+        return status switch
+        {
+            Helios365.Core.Models.AlertStatus.Received => "secondary",
+            Helios365.Core.Models.AlertStatus.Checking => "info",
+            Helios365.Core.Models.AlertStatus.Remediating => "warning",
+            Helios365.Core.Models.AlertStatus.Resolved => "success",
+            Helios365.Core.Models.AlertStatus.Healthy => "success",
+            Helios365.Core.Models.AlertStatus.Escalated => "danger",
+            Helios365.Core.Models.AlertStatus.Failed => "danger",
+            _ => "secondary"
+        };
+    }
+
+    private string GetSeverityBadge(Helios365.Core.Models.AlertSeverity severity)
+    {
+        return severity switch
+        {
+            Helios365.Core.Models.AlertSeverity.Critical => "danger",
+            Helios365.Core.Models.AlertSeverity.High => "warning",
+            Helios365.Core.Models.AlertSeverity.Medium => "info",
+            Helios365.Core.Models.AlertSeverity.Low => "secondary",
+            Helios365.Core.Models.AlertSeverity.Info => "light",
+            _ => "secondary"
+        };
+    }
+}
