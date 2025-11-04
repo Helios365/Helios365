@@ -8,21 +8,33 @@ namespace Helios365.Processor.Activities;
 
 public class AlertActivities
 {
-    private readonly ILogger<AlertActivities> _logger;
     private readonly IAlertRepository _alertRepository;
     private readonly ICustomerRepository _customerRepository;
-    private readonly IHealthCheckService _healthCheckService;
+    private readonly IResourceRepository _resourceRepository;
+    private readonly IServicePrincipalRepository _servicePrincipalRepository;
+    private readonly IActionRepository _actionRepository;
+    private readonly IActionExecutor _actionExecutor;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<AlertActivities> _logger;
 
     public AlertActivities(
-        ILogger<AlertActivities> logger,
         IAlertRepository alertRepository,
         ICustomerRepository customerRepository,
-        IHealthCheckService healthCheckService)
+        IResourceRepository resourceRepository,
+        IServicePrincipalRepository servicePrincipalRepository,
+        IActionRepository actionRepository,
+        IActionExecutor actionExecutor,
+        IEmailService emailService,
+        ILogger<AlertActivities> logger)
     {
-        _logger = logger;
         _alertRepository = alertRepository;
         _customerRepository = customerRepository;
-        _healthCheckService = healthCheckService;
+        _resourceRepository = resourceRepository;
+        _servicePrincipalRepository = servicePrincipalRepository;
+        _actionRepository = actionRepository;
+        _actionExecutor = actionExecutor;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     [Function(nameof(UpdateAlertActivity))]
@@ -32,6 +44,14 @@ public class AlertActivities
         await _alertRepository.UpdateAsync(alert.Id, alert);
     }
 
+    [Function(nameof(LoadResourceActivity))]
+    public async Task<Resource?> LoadResourceActivity([ActivityTrigger] (string customerId, string resourceId) input)
+    {
+        var (customerId, resourceId) = input;
+        _logger.LogInformation("Loading resource {ResourceId} for customer {CustomerId}", resourceId, customerId);
+        return await _resourceRepository.GetByResourceIdAsync(customerId, resourceId);
+    }
+
     [Function(nameof(LoadCustomerActivity))]
     public async Task<Customer?> LoadCustomerActivity([ActivityTrigger] string customerId)
     {
@@ -39,88 +59,101 @@ public class AlertActivities
         return await _customerRepository.GetAsync(customerId);
     }
 
-    [Function(nameof(HealthCheckActivity))]
-    public async Task<bool> HealthCheckActivity([ActivityTrigger] Alert alert)
+    [Function(nameof(LoadServicePrincipalActivity))]
+    public async Task<ServicePrincipal?> LoadServicePrincipalActivity([ActivityTrigger] string servicePrincipalId)
     {
-        _logger.LogInformation("Performing health check for alert {AlertId}", alert.Id);
+        _logger.LogInformation("Loading service principal {ServicePrincipalId}", servicePrincipalId);
+        return await _servicePrincipalRepository.GetAsync(servicePrincipalId);
+    }
 
-        if (string.IsNullOrEmpty(alert.HealthCheckUrl))
-        {
-            _logger.LogWarning("No health check URL configured for alert {AlertId}", alert.Id);
-            return false;
-        }
+    [Function(nameof(LoadActionsActivity))]
+    public async Task<List<ActionBase>> LoadActionsActivity([ActivityTrigger] (string customerId, string? resourceId) input)
+    {
+        var (customerId, resourceId) = input;
+        _logger.LogInformation("Loading automatic actions for customer {CustomerId}, resource {ResourceId}", 
+            customerId, resourceId ?? "default");
+
+        var actions = await _actionRepository.ListAutomaticActionsAsync(customerId, resourceId);
+        return actions.OrderBy(a => a.Order).ToList();
+    }
+
+    [Function(nameof(ExecuteActionActivity))]
+    public async Task<bool> ExecuteActionActivity(
+        [ActivityTrigger] (ActionBase action, Resource resource, ServicePrincipal servicePrincipal) input)
+    {
+        var (action, resource, servicePrincipal) = input;
+        
+        _logger.LogInformation("Executing action {ActionId} ({ActionType}) for resource {ResourceId}",
+            action.Id, action.Type, resource.ResourceId);
 
         try
         {
-            var config = new HealthCheckConfig
+            var result = await _actionExecutor.ExecuteAsync(action, resource, servicePrincipal);
+            
+            if (result)
             {
-                Type = HealthCheckType.HttpGet,
-                Endpoint = alert.HealthCheckUrl,
-                ExpectedStatusCode = 200,
-                TimeoutSeconds = 30
-            };
-
-            return await _healthCheckService.CheckAsync(config);
+                _logger.LogInformation("Action {ActionId} executed successfully", action.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Action {ActionId} executed but returned failure", action.Id);
+            }
+            
+            return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Health check failed for alert {AlertId}", alert.Id);
+            _logger.LogError(ex, "Error executing action {ActionId}", action.Id);
             return false;
         }
     }
 
-    [Function(nameof(RemediationActivity))]
-    public async Task<bool> RemediationActivity(
-        [ActivityTrigger] (Alert alert, Customer customer) input)
+    [Function(nameof(SendEscalationEmailActivity))]
+    public async Task SendEscalationEmailActivity([ActivityTrigger] string alertId)
     {
-        var (alert, customer) = input;
-        _logger.LogInformation("Triggering remediation for alert {AlertId}", alert.Id);
-
-        // TODO: Implement remediation logic
-        // This would call the customer's Agent function to restart/scale the resource
-        // For now, just log and return success
-        
-        if (string.IsNullOrEmpty(customer.Config.Helios365Endpoint))
-        {
-            _logger.LogWarning("No Helios365 endpoint configured for customer {CustomerId}", customer.Id);
-            return false;
-        }
+        _logger.LogInformation("Sending escalation email for alert {AlertId}", alertId);
 
         try
         {
-            // Example: POST to customer's Agent function
-            // var httpClient = new HttpClient();
-            // var response = await httpClient.PostAsJsonAsync(
-            //     $"{customer.Config.Helios365Endpoint}/api/remediate",
-            //     new { ResourceId = alert.ResourceId, Action = "restart" });
-            // return response.IsSuccessStatusCode;
+            // Load alert
+            var alert = await _alertRepository.GetAsync(alertId);
+            if (alert == null)
+            {
+                _logger.LogWarning("Alert {AlertId} not found for escalation email", alertId);
+                return;
+            }
 
-            _logger.LogInformation("Remediation triggered successfully for alert {AlertId}", alert.Id);
-            return true;
+            // Load customer
+            var customer = await _customerRepository.GetAsync(alert.CustomerId);
+            if (customer == null)
+            {
+                _logger.LogWarning("Customer {CustomerId} not found for escalation email", alert.CustomerId);
+                return;
+            }
+
+            // Try to load resource (may be null)
+            Resource? resource = null;
+            try
+            {
+                resource = await _resourceRepository.GetByResourceIdAsync(alert.CustomerId, alert.ResourceId);
+            }
+            catch
+            {
+                // Resource not found is OK for escalation emails
+            }
+
+            // Load attempted actions (those with same alert context)
+            // For now, just pass empty list - in production you'd track this
+            var attemptedActions = new List<ActionBase>();
+
+            await _emailService.SendEscalationEmailAsync(alert, resource, customer, attemptedActions);
+            
+            _logger.LogInformation("Escalation email sent successfully for alert {AlertId}", alertId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Remediation failed for alert {AlertId}", alert.Id);
-            return false;
+            _logger.LogError(ex, "Error sending escalation email for alert {AlertId}", alertId);
+            // Don't throw - we don't want email failures to stop the orchestration
         }
-    }
-
-    [Function(nameof(SendNotificationActivity))]
-    public async Task SendNotificationActivity(
-        [ActivityTrigger] (Alert alert, Customer customer) input)
-    {
-        var (alert, customer) = input;
-        _logger.LogInformation("Sending notification for alert {AlertId}", alert.Id);
-
-        // TODO: Implement notification logic
-        // This would send email/Slack/Teams notifications
-        // For now, just log
-        
-        foreach (var email in customer.Config.NotificationEmails)
-        {
-            _logger.LogInformation("Would send notification to {Email} for alert {AlertId}", email, alert.Id);
-        }
-
-        await Task.CompletedTask;
     }
 }

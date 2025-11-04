@@ -25,10 +25,17 @@ public class AlertTests
     }
 
     [Fact]
-    public void MarkStatus_UpdatesStatus()
+    public void MarkStatus_UpdatesStatusAndTimestamp()
     {
         // Arrange
-        var alert = new Alert { Id = "test-1", CustomerId = "cust-1", ResourceId = "res-1", ResourceType = "type", AlertType = "type" };
+        var alert = new Alert 
+        { 
+            Id = "test-1", 
+            CustomerId = "cust-1", 
+            ResourceId = "res-1", 
+            ResourceType = "type", 
+            AlertType = "type" 
+        };
         var originalTime = alert.UpdatedAt;
 
         // Act
@@ -44,7 +51,14 @@ public class AlertTests
     public void MarkStatus_Resolved_SetsResolvedAt()
     {
         // Arrange
-        var alert = new Alert { Id = "test-1", CustomerId = "cust-1", ResourceId = "res-1", ResourceType = "type", AlertType = "type" };
+        var alert = new Alert 
+        { 
+            Id = "test-1", 
+            CustomerId = "cust-1", 
+            ResourceId = "res-1", 
+            ResourceType = "type", 
+            AlertType = "type" 
+        };
         Assert.Null(alert.ResolvedAt);
 
         // Act
@@ -57,33 +71,65 @@ public class AlertTests
     }
 
     [Fact]
-    public void IsActive_ReturnsFalse_WhenResolved()
+    public void MarkStatus_Escalated_SetsEscalatedAt()
     {
         // Arrange
-        var alert = new Alert { Id = "test-1", CustomerId = "cust-1", ResourceId = "res-1", ResourceType = "type", AlertType = "type" };
-        alert.MarkStatus(AlertStatus.Resolved);
+        var alert = new Alert 
+        { 
+            Id = "test-1", 
+            CustomerId = "cust-1", 
+            ResourceId = "res-1", 
+            ResourceType = "type", 
+            AlertType = "type" 
+        };
+        Assert.Null(alert.EscalatedAt);
 
-        // Act & Assert
-        Assert.False(alert.IsActive());
+        // Act
+        alert.MarkStatus(AlertStatus.Escalated);
+
+        // Assert
+        Assert.Equal(AlertStatus.Escalated, alert.Status);
+        Assert.NotNull(alert.EscalatedAt);
+        Assert.True(alert.IsActive()); // Escalated is still active
     }
 
     [Fact]
     public void IsActive_ReturnsFalse_WhenHealthy()
     {
         // Arrange
-        var alert = new Alert { Id = "test-1", CustomerId = "cust-1", ResourceId = "res-1", ResourceType = "type", AlertType = "type" };
+        var alert = new Alert 
+        { 
+            Id = "test-1", 
+            CustomerId = "cust-1", 
+            ResourceId = "res-1", 
+            ResourceType = "type", 
+            AlertType = "type" 
+        };
         alert.MarkStatus(AlertStatus.Healthy);
 
         // Act & Assert
         Assert.False(alert.IsActive());
     }
 
-    [Fact]
-    public void IsActive_ReturnsTrue_WhenChecking()
+    [Theory]
+    [InlineData(AlertStatus.Received)]
+    [InlineData(AlertStatus.Routing)]
+    [InlineData(AlertStatus.Checking)]
+    [InlineData(AlertStatus.Remediating)]
+    [InlineData(AlertStatus.Rechecking)]
+    [InlineData(AlertStatus.Escalated)]
+    public void IsActive_ReturnsTrue_ForActiveStatuses(AlertStatus status)
     {
         // Arrange
-        var alert = new Alert { Id = "test-1", CustomerId = "cust-1", ResourceId = "res-1", ResourceType = "type", AlertType = "type" };
-        alert.MarkStatus(AlertStatus.Checking);
+        var alert = new Alert 
+        { 
+            Id = "test-1", 
+            CustomerId = "cust-1", 
+            ResourceId = "res-1", 
+            ResourceType = "type", 
+            AlertType = "type" 
+        };
+        alert.MarkStatus(status);
 
         // Act & Assert
         Assert.True(alert.IsActive());

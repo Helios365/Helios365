@@ -2,22 +2,28 @@ using System.Text.Json.Serialization;
 
 namespace Helios365.Core.Models;
 
-public class Customer
+public class Resource
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
+    [JsonPropertyName("customerId")]
+    public string CustomerId { get; set; } = string.Empty;
+
+    [JsonPropertyName("servicePrincipalId")]
+    public string ServicePrincipalId { get; set; } = string.Empty;
+
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    [JsonPropertyName("apiKey")]
-    public string ApiKey { get; set; } = string.Empty;
+    [JsonPropertyName("resourceId")]
+    public string ResourceId { get; set; } = string.Empty;
 
-    [JsonPropertyName("notificationEmails")]
-    public List<string> NotificationEmails { get; set; } = new();
+    [JsonPropertyName("resourceType")]
+    public string ResourceType { get; set; } = string.Empty;
 
-    [JsonPropertyName("escalationTimeoutMinutes")]
-    public int EscalationTimeoutMinutes { get; set; } = 5;
+    [JsonPropertyName("useDefaultActions")]
+    public bool UseDefaultActions { get; set; } = true;
 
     [JsonPropertyName("active")]
     public bool Active { get; set; } = true;

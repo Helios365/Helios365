@@ -4,107 +4,207 @@
     ViewData["Title"] = "Helios365 Dashboard";
 }
 
-<div class="container">
-    <div class="row">
-        <div class="col-md-12">
-            <h1>🌞 Helios365 Dashboard</h1>
-            <p class="lead">24/7/365 Automated Incident Response for Azure</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f5f7fa; }
+        .header-gradient { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-5px); }
+        .badge-status { font-size: 0.75rem; padding: 0.35em 0.65em; }
+    </style>
+</head>
+<body>
+    <div class="header-gradient text-white py-4 mb-4">
+        <div class="container">
+            <h1 class="display-4 mb-0">🌞 Helios365</h1>
+            <p class="lead mb-0">24/7/365 Automated Incident Response</p>
         </div>
     </div>
 
-    <div class="row mt-4">
-        <div class="col-md-3">
-            <div class="card text-white bg-primary mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">Active Alerts</h5>
-                    <p class="card-text display-4">@Model.ActiveAlertsCount</p>
+    <div class="container">
+        <!-- Stats Cards -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="display-4 text-primary mb-2">@Model.ActiveAlertsCount</div>
+                        <h6 class="text-muted mb-0">Active Alerts</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="display-4 text-success mb-2">@Model.ResolvedTodayCount</div>
+                        <h6 class="text-muted mb-0">Resolved Today</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="display-4 text-warning mb-2">@Model.EscalatedCount</div>
+                        <h6 class="text-muted mb-0">Escalated</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="display-4 text-info mb-2">@Model.CustomersCount</div>
+                        <h6 class="text-muted mb-0">Customers</h6>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-success mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">Resolved Today</h5>
-                    <p class="card-text display-4">@Model.ResolvedTodayCount</p>
+
+        <!-- Recent Alerts -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0">Recent Alerts</h5>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.RecentAlerts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Alert ID</th>
+                                    <th>Customer</th>
+                                    <th>Resource Type</th>
+                                    <th>Alert Type</th>
+                                    <th>Status</th>
+                                    <th>Severity</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var alert in Model.RecentAlerts)
+                                {
+                                    <tr>
+                                        <td>
+                                            <code>@alert.Id.Substring(0, Math.Min(8, alert.Id.Length))...</code>
+                                        </td>
+                                        <td>
+                                            @if (Model.Customers.TryGetValue(alert.CustomerId, out var customer))
+                                            {
+                                                @customer.Name
+                                            }
+                                            else
+                                            {
+                                                <small class="text-muted">@alert.CustomerId</small>
+                                            }
+                                        </td>
+                                        <td><small>@alert.ResourceType</small></td>
+                                        <td>@alert.AlertType</td>
+                                        <td>
+                                            <span class="badge badge-status @GetStatusBadgeClass(alert.Status)">
+                                                @alert.Status
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-status @GetSeverityBadgeClass(alert.Severity)">
+                                                @alert.Severity
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <small>@alert.CreatedAt.ToString("yyyy-MM-dd HH:mm")</small>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5 text-muted">
+                        <p class="mb-0">No alerts yet</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="card-title">System Status</h6>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Total Resources</span>
+                            <strong>@Model.ResourcesCount</strong>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Active Customers</span>
+                            <strong>@Model.CustomersCount</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="card-title">Today's Activity</h6>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Total Alerts</span>
+                            <strong>@Model.RecentAlerts.Count(a => a.CreatedAt.Date == DateTime.UtcNow.Date)</strong>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Auto-Resolved</span>
+                            <strong class="text-success">@Model.ResolvedTodayCount</strong>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-warning mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">Escalated</h5>
-                    <p class="card-text display-4">@Model.EscalatedCount</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-info mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">Customers</h5>
-                    <p class="card-text display-4">@Model.CustomersCount</p>
-                </div>
-            </div>
+
+        <div class="text-center text-muted mt-5 mb-3">
+            <small>Helios365 - Automated Incident Response Platform</small>
         </div>
     </div>
 
-    <div class="row mt-4">
-        <div class="col-md-12">
-            <h3>Recent Alerts</h3>
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Alert ID</th>
-                        <th>Customer</th>
-                        <th>Resource Type</th>
-                        <th>Status</th>
-                        <th>Severity</th>
-                        <th>Created</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var alert in Model.RecentAlerts)
-                    {
-                        <tr>
-                            <td><a asp-page="./Alerts/Details" asp-route-id="@alert.Id">@alert.Id.Substring(0, 8)...</a></td>
-                            <td>@alert.CustomerId</td>
-                            <td>@alert.ResourceType</td>
-                            <td><span class="badge bg-@GetStatusBadge(alert.Status)">@alert.Status</span></td>
-                            <td><span class="badge bg-@GetSeverityBadge(alert.Severity)">@alert.Severity</span></td>
-                            <td>@alert.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
 
 @functions {
-    private string GetStatusBadge(Helios365.Core.Models.AlertStatus status)
+    private string GetStatusBadgeClass(Helios365.Core.Models.AlertStatus status)
     {
         return status switch
         {
-            Helios365.Core.Models.AlertStatus.Received => "secondary",
-            Helios365.Core.Models.AlertStatus.Checking => "info",
-            Helios365.Core.Models.AlertStatus.Remediating => "warning",
-            Helios365.Core.Models.AlertStatus.Resolved => "success",
-            Helios365.Core.Models.AlertStatus.Healthy => "success",
-            Helios365.Core.Models.AlertStatus.Escalated => "danger",
-            Helios365.Core.Models.AlertStatus.Failed => "danger",
-            _ => "secondary"
+            Helios365.Core.Models.AlertStatus.Received => "bg-secondary",
+            Helios365.Core.Models.AlertStatus.Routing => "bg-info",
+            Helios365.Core.Models.AlertStatus.Checking => "bg-info",
+            Helios365.Core.Models.AlertStatus.Remediating => "bg-warning text-dark",
+            Helios365.Core.Models.AlertStatus.Rechecking => "bg-info",
+            Helios365.Core.Models.AlertStatus.Resolved => "bg-success",
+            Helios365.Core.Models.AlertStatus.Healthy => "bg-success",
+            Helios365.Core.Models.AlertStatus.Escalated => "bg-danger",
+            Helios365.Core.Models.AlertStatus.Failed => "bg-danger",
+            _ => "bg-secondary"
         };
     }
 
-    private string GetSeverityBadge(Helios365.Core.Models.AlertSeverity severity)
+    private string GetSeverityBadgeClass(Helios365.Core.Models.AlertSeverity severity)
     {
         return severity switch
         {
-            Helios365.Core.Models.AlertSeverity.Critical => "danger",
-            Helios365.Core.Models.AlertSeverity.High => "warning",
-            Helios365.Core.Models.AlertSeverity.Medium => "info",
-            Helios365.Core.Models.AlertSeverity.Low => "secondary",
-            Helios365.Core.Models.AlertSeverity.Info => "light",
-            _ => "secondary"
+            Helios365.Core.Models.AlertSeverity.Critical => "bg-danger",
+            Helios365.Core.Models.AlertSeverity.High => "bg-warning text-dark",
+            Helios365.Core.Models.AlertSeverity.Medium => "bg-info",
+            Helios365.Core.Models.AlertSeverity.Low => "bg-secondary",
+            Helios365.Core.Models.AlertSeverity.Info => "bg-light text-dark",
+            _ => "bg-secondary"
         };
     }
 }

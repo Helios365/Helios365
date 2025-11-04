@@ -53,12 +53,6 @@ public class Alert
     [JsonPropertyName("description")]
     public string? Description { get; set; }
 
-    [JsonPropertyName("healthCheckUrl")]
-    public string? HealthCheckUrl { get; set; }
-
-    [JsonPropertyName("remediationAction")]
-    public string? RemediationAction { get; set; }
-
     [JsonPropertyName("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -67,6 +61,9 @@ public class Alert
 
     [JsonPropertyName("resolvedAt")]
     public DateTime? ResolvedAt { get; set; }
+
+    [JsonPropertyName("escalatedAt")]
+    public DateTime? EscalatedAt { get; set; }
 
     [JsonPropertyName("metadata")]
     public Dictionary<string, string> Metadata { get; set; } = new();
@@ -79,6 +76,11 @@ public class Alert
         if (status is AlertStatus.Resolved or AlertStatus.Healthy)
         {
             ResolvedAt = DateTime.UtcNow;
+        }
+
+        if (status is AlertStatus.Escalated)
+        {
+            EscalatedAt = DateTime.UtcNow;
         }
     }
 

@@ -20,12 +20,18 @@ public class AlertRepository : IAlertRepository
     {
         try
         {
-            var response = await _container.ReadItemAsync<Alert>(id, new PartitionKey(id), cancellationToken: cancellationToken);
-            return response.Resource;
-        }
-        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            _logger.LogDebug("Alert {AlertId} not found", id);
+            // Cross-partition query to find alert by id
+            var query = new QueryDefinition("SELECT * FROM c WHERE c.id = @id")
+                .WithParameter("@id", id);
+
+            var iterator = _container.GetItemQueryIterator<Alert>(query);
+            
+            if (iterator.HasMoreResults)
+            {
+                var response = await iterator.ReadNextAsync(cancellationToken);
+                return response.FirstOrDefault();
+            }
+
             return null;
         }
         catch (Exception ex)
@@ -39,8 +45,8 @@ public class AlertRepository : IAlertRepository
     {
         try
         {
-            var response = await _container.CreateItemAsync(item, new PartitionKey(item.Id), cancellationToken: cancellationToken);
-            _logger.LogInformation("Created alert {AlertId}", item.Id);
+            var response = await _container.CreateItemAsync(item, new PartitionKey(item.CustomerId), cancellationToken: cancellationToken);
+            _logger.LogInformation("Created alert {AlertId} for customer {CustomerId}", item.Id, item.CustomerId);
             return response.Resource;
         }
         catch (Exception ex)
@@ -56,13 +62,9 @@ public class AlertRepository : IAlertRepository
         {
             item.Id = id;
             item.UpdatedAt = DateTime.UtcNow;
-            var response = await _container.UpsertItemAsync(item, new PartitionKey(id), cancellationToken: cancellationToken);
+            var response = await _container.UpsertItemAsync(item, new PartitionKey(item.CustomerId), cancellationToken: cancellationToken);
             _logger.LogInformation("Updated alert {AlertId}", id);
             return response.Resource;
-        }
-        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            throw new ResourceNotFoundException($"Alert {id} not found");
         }
         catch (Exception ex)
         {
@@ -75,14 +77,16 @@ public class AlertRepository : IAlertRepository
     {
         try
         {
-            await _container.DeleteItemAsync<Alert>(id, new PartitionKey(id), cancellationToken: cancellationToken);
+            // Need to get the item first to know the partition key
+            var alert = await GetAsync(id, cancellationToken);
+            if (alert == null)
+            {
+                return false;
+            }
+
+            await _container.DeleteItemAsync<Alert>(id, new PartitionKey(alert.CustomerId), cancellationToken: cancellationToken);
             _logger.LogInformation("Deleted alert {AlertId}", id);
             return true;
-        }
-        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            _logger.LogDebug("Alert {AlertId} not found for deletion", id);
-            return false;
         }
         catch (Exception ex)
         {
@@ -152,7 +156,11 @@ public class AlertRepository : IAlertRepository
                 .WithParameter("@customerId", customerId);
 
             var results = new List<Alert>();
-            var iterator = _container.GetItemQueryIterator<Alert>(query);
+            var iterator = _container.GetItemQueryIterator<Alert>(query, requestOptions: new QueryRequestOptions
+            {
+                PartitionKey = new PartitionKey(customerId)
+            });
+            
             var count = 0;
 
             while (iterator.HasMoreResults && count < limit)

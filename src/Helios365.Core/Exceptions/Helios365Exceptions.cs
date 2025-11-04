@@ -35,23 +35,16 @@ public class ServiceException : Helios365Exception
     public ServiceException(string message, Exception inner) : base(message, inner) { }
 }
 
-public class HealthCheckException : ServiceException
+public class ActionExecutionException : ServiceException
 {
-    public HealthCheckException() { }
-    public HealthCheckException(string message) : base(message) { }
-    public HealthCheckException(string message, Exception inner) : base(message, inner) { }
+    public ActionExecutionException() { }
+    public ActionExecutionException(string message) : base(message) { }
+    public ActionExecutionException(string message, Exception inner) : base(message, inner) { }
 }
 
-public class RemediationException : ServiceException
+public class EmailException : ServiceException
 {
-    public RemediationException() { }
-    public RemediationException(string message) : base(message) { }
-    public RemediationException(string message, Exception inner) : base(message, inner) { }
-}
-
-public class NotificationException : ServiceException
-{
-    public NotificationException() { }
-    public NotificationException(string message) : base(message) { }
-    public NotificationException(string message, Exception inner) : base(message, inner) { }
+    public EmailException() { }
+    public EmailException(string message) : base(message) { }
+    public EmailException(string message, Exception inner) : base(message, inner) { }
 }

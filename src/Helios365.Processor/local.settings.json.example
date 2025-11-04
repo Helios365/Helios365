@@ -5,7 +5,12 @@
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "CosmosDbConnectionString": "YOUR_COSMOS_CONNECTION_STRING",
     "CosmosDbDatabaseName": "helios365",
+    "CosmosDbCustomersContainer": "customers",
+    "CosmosDbResourcesContainer": "resources",
+    "CosmosDbServicePrincipalsContainer": "servicePrincipals",
+    "CosmosDbActionsContainer": "actions",
     "CosmosDbAlertsContainer": "alerts",
-    "CosmosDbCustomersContainer": "customers"
+    "KeyVaultUri": "https://your-keyvault.vault.azure.net/",
+    "AzureCommunicationServicesConnectionString": "YOUR_ACS_CONNECTION_STRING"
   }
 }

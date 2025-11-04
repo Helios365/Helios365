@@ -1,5 +1,4 @@
 using Helios365.Core.Repositories;
-using Helios365.Core.Services;
 using Microsoft.Azure.Cosmos;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,15 +15,6 @@ builder.Services.AddSingleton<CosmosClient>(sp =>
 });
 
 // Repositories
-builder.Services.AddScoped<IAlertRepository>(sp =>
-{
-    var cosmosClient = sp.GetRequiredService<CosmosClient>();
-    var logger = sp.GetRequiredService<ILogger<AlertRepository>>();
-    var databaseName = builder.Configuration["CosmosDb:DatabaseName"] ?? "helios365";
-    var containerName = builder.Configuration["CosmosDb:AlertsContainer"] ?? "alerts";
-    return new AlertRepository(cosmosClient, databaseName, containerName, logger);
-});
-
 builder.Services.AddScoped<ICustomerRepository>(sp =>
 {
     var cosmosClient = sp.GetRequiredService<CosmosClient>();
@@ -34,8 +24,41 @@ builder.Services.AddScoped<ICustomerRepository>(sp =>
     return new CustomerRepository(cosmosClient, databaseName, containerName, logger);
 });
 
-// Services
-builder.Services.AddHttpClient<IHealthCheckService, HealthCheckService>();
+builder.Services.AddScoped<IAlertRepository>(sp =>
+{
+    var cosmosClient = sp.GetRequiredService<CosmosClient>();
+    var logger = sp.GetRequiredService<ILogger<AlertRepository>>();
+    var databaseName = builder.Configuration["CosmosDb:DatabaseName"] ?? "helios365";
+    var containerName = builder.Configuration["CosmosDb:AlertsContainer"] ?? "alerts";
+    return new AlertRepository(cosmosClient, databaseName, containerName, logger);
+});
+
+builder.Services.AddScoped<IResourceRepository>(sp =>
+{
+    var cosmosClient = sp.GetRequiredService<CosmosClient>();
+    var logger = sp.GetRequiredService<ILogger<ResourceRepository>>();
+    var databaseName = builder.Configuration["CosmosDb:DatabaseName"] ?? "helios365";
+    var containerName = builder.Configuration["CosmosDb:ResourcesContainer"] ?? "resources";
+    return new ResourceRepository(cosmosClient, databaseName, containerName, logger);
+});
+
+builder.Services.AddScoped<IServicePrincipalRepository>(sp =>
+{
+    var cosmosClient = sp.GetRequiredService<CosmosClient>();
+    var logger = sp.GetRequiredService<ILogger<ServicePrincipalRepository>>();
+    var databaseName = builder.Configuration["CosmosDb:DatabaseName"] ?? "helios365";
+    var containerName = builder.Configuration["CosmosDb:ServicePrincipalsContainer"] ?? "servicePrincipals";
+    return new ServicePrincipalRepository(cosmosClient, databaseName, containerName, logger);
+});
+
+builder.Services.AddScoped<IActionRepository>(sp =>
+{
+    var cosmosClient = sp.GetRequiredService<CosmosClient>();
+    var logger = sp.GetRequiredService<ILogger<ActionRepository>>();
+    var databaseName = builder.Configuration["CosmosDb:DatabaseName"] ?? "helios365";
+    var containerName = builder.Configuration["CosmosDb:ActionsContainer"] ?? "actions";
+    return new ActionRepository(cosmosClient, databaseName, containerName, logger);
+});
 
 var app = builder.Build();
 

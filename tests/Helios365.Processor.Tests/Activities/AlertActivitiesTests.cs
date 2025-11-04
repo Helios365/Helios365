@@ -12,7 +12,11 @@ public class AlertActivitiesTests
 {
     private readonly Mock<IAlertRepository> _mockAlertRepo;
     private readonly Mock<ICustomerRepository> _mockCustomerRepo;
-    private readonly Mock<IHealthCheckService> _mockHealthCheckService;
+    private readonly Mock<IResourceRepository> _mockResourceRepo;
+    private readonly Mock<IServicePrincipalRepository> _mockSpRepo;
+    private readonly Mock<IActionRepository> _mockActionRepo;
+    private readonly Mock<IActionExecutor> _mockActionExecutor;
+    private readonly Mock<IEmailService> _mockEmailService;
     private readonly Mock<ILogger<AlertActivities>> _mockLogger;
     private readonly AlertActivities _activities;
 
@@ -20,14 +24,22 @@ public class AlertActivitiesTests
     {
         _mockAlertRepo = new Mock<IAlertRepository>();
         _mockCustomerRepo = new Mock<ICustomerRepository>();
-        _mockHealthCheckService = new Mock<IHealthCheckService>();
+        _mockResourceRepo = new Mock<IResourceRepository>();
+        _mockSpRepo = new Mock<IServicePrincipalRepository>();
+        _mockActionRepo = new Mock<IActionRepository>();
+        _mockActionExecutor = new Mock<IActionExecutor>();
+        _mockEmailService = new Mock<IEmailService>();
         _mockLogger = new Mock<ILogger<AlertActivities>>();
 
         _activities = new AlertActivities(
-            _mockLogger.Object,
             _mockAlertRepo.Object,
             _mockCustomerRepo.Object,
-            _mockHealthCheckService.Object
+            _mockResourceRepo.Object,
+            _mockSpRepo.Object,
+            _mockActionRepo.Object,
+            _mockActionExecutor.Object,
+            _mockEmailService.Object,
+            _mockLogger.Object
         );
     }
 
@@ -88,87 +100,64 @@ public class AlertActivitiesTests
     }
 
     [Fact]
-    public async Task HealthCheckActivity_WithValidUrl_CallsHealthCheckService()
+    public async Task LoadResourceActivity_ReturnsResource()
     {
         // Arrange
-        var alert = new Alert
+        var customerId = "customer-1";
+        var resourceId = "/subscriptions/test/sites/app";
+        var resource = new Resource
         {
-            Id = "alert-1",
-            CustomerId = "customer-1",
-            ResourceId = "/subscriptions/test",
-            ResourceType = "Microsoft.Web/sites",
-            AlertType = "ServiceHealthAlert",
-            HealthCheckUrl = "https://example.com/health"
+            Id = "resource-1",
+            CustomerId = customerId,
+            ResourceId = resourceId,
+            Name = "Test App"
         };
 
-        _mockHealthCheckService
-            .Setup(x => x.CheckAsync(It.IsAny<HealthCheckConfig>(), It.IsAny<CancellationToken>()))
+        _mockResourceRepo
+            .Setup(x => x.GetByResourceIdAsync(customerId, resourceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resource);
+
+        // Act
+        var result = await _activities.LoadResourceActivity((customerId, resourceId));
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(resourceId, result.ResourceId);
+    }
+
+    [Fact]
+    public async Task ExecuteActionActivity_CallsActionExecutor()
+    {
+        // Arrange
+        var action = new HealthCheckAction
+        {
+            Id = "action-1",
+            Url = "https://example.com/health"
+        };
+        var resource = new Resource
+        {
+            Id = "resource-1",
+            ResourceId = "/subscriptions/test"
+        };
+        var sp = new ServicePrincipal
+        {
+            Id = "sp-1",
+            TenantId = "tenant-1",
+            ClientId = "client-1"
+        };
+
+        _mockActionExecutor
+            .Setup(x => x.ExecuteAsync(action, resource, sp, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         // Act
-        var result = await _activities.HealthCheckActivity(alert);
+        var result = await _activities.ExecuteActionActivity((action, resource, sp));
 
         // Assert
         Assert.True(result);
-        _mockHealthCheckService.Verify(
-            x => x.CheckAsync(It.IsAny<HealthCheckConfig>(), It.IsAny<CancellationToken>()),
+        _mockActionExecutor.Verify(
+            x => x.ExecuteAsync(action, resource, sp, It.IsAny<CancellationToken>()),
             Times.Once
         );
-    }
-
-    [Fact]
-    public async Task HealthCheckActivity_WithoutUrl_ReturnsFalse()
-    {
-        // Arrange
-        var alert = new Alert
-        {
-            Id = "alert-1",
-            CustomerId = "customer-1",
-            ResourceId = "/subscriptions/test",
-            ResourceType = "Microsoft.Web/sites",
-            AlertType = "ServiceHealthAlert",
-            HealthCheckUrl = null // No URL
-        };
-
-        // Act
-        var result = await _activities.HealthCheckActivity(alert);
-
-        // Assert
-        Assert.False(result);
-        _mockHealthCheckService.Verify(
-            x => x.CheckAsync(It.IsAny<HealthCheckConfig>(), It.IsAny<CancellationToken>()),
-            Times.Never
-        );
-    }
-
-    [Fact]
-    public async Task RemediationActivity_WithoutEndpoint_ReturnsFalse()
-    {
-        // Arrange
-        var alert = new Alert
-        {
-            Id = "alert-1",
-            CustomerId = "customer-1",
-            ResourceId = "/subscriptions/test",
-            ResourceType = "Microsoft.Web/sites",
-            AlertType = "ServiceHealthAlert"
-        };
-
-        var customer = new Customer
-        {
-            Id = "customer-1",
-            Name = "Test Customer",
-            Config = new CustomerConfig
-            {
-                TenantId = "tenant-1",
-                Helios365Endpoint = null // No endpoint
-            }
-        };
-
-        // Act
-        var result = await _activities.RemediationActivity((alert, customer));
-
-        // Assert
-        Assert.False(result);
     }
 }

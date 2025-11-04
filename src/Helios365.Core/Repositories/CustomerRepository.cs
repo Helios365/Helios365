@@ -35,6 +35,30 @@ public class CustomerRepository : ICustomerRepository
         }
     }
 
+    public async Task<Customer?> GetByApiKeyAsync(string apiKey, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var query = new QueryDefinition("SELECT * FROM c WHERE c.apiKey = @apiKey")
+                .WithParameter("@apiKey", apiKey);
+
+            var iterator = _container.GetItemQueryIterator<Customer>(query);
+            
+            if (iterator.HasMoreResults)
+            {
+                var response = await iterator.ReadNextAsync(cancellationToken);
+                return response.FirstOrDefault();
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving customer by API key");
+            throw new RepositoryException($"Failed to retrieve customer by API key: {ex.Message}", ex);
+        }
+    }
+
     public async Task<Customer> CreateAsync(Customer item, CancellationToken cancellationToken = default)
     {
         try

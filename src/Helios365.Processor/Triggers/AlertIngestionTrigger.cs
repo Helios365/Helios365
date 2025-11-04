@@ -1,25 +1,36 @@
 using Helios365.Core.Models;
 using Helios365.Core.Repositories;
+using Helios365.Core.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.Json;
+using System.Web;
 
 namespace Helios365.Processor.Triggers;
 
 public class AlertIngestionTrigger
 {
-    private readonly ILogger<AlertIngestionTrigger> _logger;
+    private readonly ICustomerRepository _customerRepository;
+    private readonly IResourceRepository _resourceRepository;
     private readonly IAlertRepository _alertRepository;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<AlertIngestionTrigger> _logger;
 
     public AlertIngestionTrigger(
-        ILogger<AlertIngestionTrigger> logger,
-        IAlertRepository alertRepository)
+        ICustomerRepository customerRepository,
+        IResourceRepository resourceRepository,
+        IAlertRepository alertRepository,
+        IEmailService emailService,
+        ILogger<AlertIngestionTrigger> logger)
     {
-        _logger = logger;
+        _customerRepository = customerRepository;
+        _resourceRepository = resourceRepository;
         _alertRepository = alertRepository;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     [Function(nameof(AlertIngestion))]
@@ -31,64 +42,116 @@ public class AlertIngestionTrigger
 
         try
         {
-            // Parse request body
+            // 1. Extract and validate API key
+            var queryParams = HttpUtility.ParseQueryString(req.Url.Query);
+            var apiKey = queryParams["apiKey"];
+
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                _logger.LogWarning("Alert ingestion request missing API key");
+                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badRequest.WriteAsJsonAsync(new { error = "API key is required" });
+                return badRequest;
+            }
+
+            // 2. Validate customer
+            var customer = await _customerRepository.GetByApiKeyAsync(apiKey);
+            if (customer == null || !customer.Active)
+            {
+                _logger.LogWarning("Invalid or inactive API key: {ApiKey}", apiKey);
+                var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+                await unauthorized.WriteAsJsonAsync(new { error = "Invalid API key" });
+                return unauthorized;
+            }
+
+            _logger.LogInformation("Alert from customer {CustomerId} ({CustomerName})", customer.Id, customer.Name);
+
+            // 3. Parse alert payload
             var body = await req.ReadAsStringAsync();
             if (string.IsNullOrEmpty(body))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteStringAsync("Request body is required");
+                await badRequest.WriteAsJsonAsync(new { error = "Request body is required" });
                 return badRequest;
             }
 
-            var alertData = JsonSerializer.Deserialize<AlertPayload>(body);
-            if (alertData == null)
+            var alertPayload = JsonSerializer.Deserialize<AlertPayload>(body);
+            if (alertPayload == null || string.IsNullOrEmpty(alertPayload.ResourceId))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteStringAsync("Invalid alert payload");
+                await badRequest.WriteAsJsonAsync(new { error = "Invalid alert payload. ResourceId is required." });
                 return badRequest;
             }
 
-            // Create alert
+            // 4. Look up resource
+            var resource = await _resourceRepository.GetByResourceIdAsync(customer.Id, alertPayload.ResourceId);
+            
+            // 5. Create alert
             var alert = new Alert
             {
                 Id = Guid.NewGuid().ToString(),
-                CustomerId = alertData.CustomerId,
-                ResourceId = alertData.ResourceId,
-                ResourceType = alertData.ResourceType,
-                AlertType = alertData.AlertType,
-                Title = alertData.Title,
-                Description = alertData.Description,
-                Severity = alertData.Severity,
-                HealthCheckUrl = alertData.HealthCheckUrl,
-                Status = AlertStatus.Received
+                CustomerId = customer.Id,
+                ResourceId = alertPayload.ResourceId,
+                ResourceType = alertPayload.ResourceType ?? "Unknown",
+                AlertType = alertPayload.AlertType ?? "Unknown",
+                Title = alertPayload.Title,
+                Description = alertPayload.Description,
+                Severity = alertPayload.Severity,
+                Status = AlertStatus.Received,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
-            // Save to database
             await _alertRepository.CreateAsync(alert);
+            _logger.LogInformation("Created alert {AlertId}", alert.Id);
 
-            // Start durable orchestration
-            string instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
+            // 6. If resource not found → Escalate immediately
+            if (resource == null)
+            {
+                _logger.LogWarning("Resource {ResourceId} not found for customer {CustomerId}. Escalating immediately.", 
+                    alertPayload.ResourceId, customer.Id);
+
+                alert.MarkStatus(AlertStatus.Escalated);
+                await _alertRepository.UpdateAsync(alert.Id, alert);
+
+                // Send escalation email
+                await _emailService.SendEscalationEmailAsync(alert, null, customer, new List<ActionBase>());
+
+                var response = req.CreateResponse(HttpStatusCode.Accepted);
+                await response.WriteAsJsonAsync(new
+                {
+                    alertId = alert.Id,
+                    status = "escalated",
+                    message = "Resource not found in Helios365. Alert escalated to on-call."
+                });
+
+                return response;
+            }
+
+            // 7. Start durable orchestration
+            var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
                 "AlertOrchestrator",
                 alert);
 
             _logger.LogInformation("Started orchestration {InstanceId} for alert {AlertId}", instanceId, alert.Id);
 
-            // Return response
-            var response = req.CreateResponse(HttpStatusCode.Accepted);
-            await response.WriteAsJsonAsync(new
+            // 8. Return response
+            var acceptedResponse = req.CreateResponse(HttpStatusCode.Accepted);
+            await acceptedResponse.WriteAsJsonAsync(new
             {
                 alertId = alert.Id,
                 instanceId = instanceId,
-                status = "accepted"
+                status = "processing",
+                message = "Alert received and processing started"
             });
 
-            return response;
+            return acceptedResponse;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing alert ingestion");
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await errorResponse.WriteStringAsync("Internal server error");
+            await errorResponse.WriteAsJsonAsync(new { error = "Internal server error" });
             return errorResponse;
         }
     }
@@ -96,13 +159,11 @@ public class AlertIngestionTrigger
     // DTO for incoming alert payload
     public class AlertPayload
     {
-        public string CustomerId { get; set; } = string.Empty;
         public string ResourceId { get; set; } = string.Empty;
-        public string ResourceType { get; set; } = string.Empty;
-        public string AlertType { get; set; } = string.Empty;
+        public string? ResourceType { get; set; }
+        public string? AlertType { get; set; }
         public string? Title { get; set; }
         public string? Description { get; set; }
         public AlertSeverity Severity { get; set; } = AlertSeverity.Medium;
-        public string? HealthCheckUrl { get; set; }
     }
 }

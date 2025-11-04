@@ -1,210 +1,102 @@
-# Helios365
+# Helios365 - .NET 8 Version
 
-🌞 24/7/365 Automated Incident Response for Azure
+🌞 24/7/365 Automated Incident Response for Azure (Refactored Architecture)
 
-## Overview
+## Architecture Changes
 
-Helios365 is an intelligent incident response platform that automatically detects, validates, and remediates Azure resource issues before they impact your users.
+### What Changed
+- ❌ **Removed Agent project** - No customer-side deployment needed
+- ✅ **Service Principal based** - Processor uses customer SPs directly
+- ✅ **Action system** - Flexible, ordered actions per resource
+- ✅ **Email escalation** - Azure Communication Services
 
-## Solution Structure
+### New Models
+
+**Customer**
+- Added: `ApiKey` (for webhook authentication)
+- Added: `NotificationEmails` (escalation recipients)
+- Added: `EscalationTimeoutMinutes`
+
+**ServicePrincipal** (NEW)
+- Stores Azure SP credentials
+- Supports multiple Azure clouds
+- References Key Vault for secrets
+
+**Resource** (NEW)
+- Maps Azure resources to customers
+- Links to Service Principal
+- Can use default or custom actions
+
+**Actions** (NEW - replaces RemediationRule)
+- `HealthCheckAction` - HTTP/TCP health checks
+- `RestartAction` - Restart Azure resources
+- `ScaleAction` - Scale up/down resources
+- Ordered execution
+- Manual or Automatic mode
+
+### Workflow
 
 ```
-Helios365/
+Alert arrives → Validate ApiKey → Find Resource → Load Actions → Execute in Order → Escalate if needed
+```
+
+1. **Alert Ingestion**: POST /api/alerts?apiKey={key}
+2. **Resource Lookup**: Find by (CustomerId + ResourceId)
+3. **Action Resolution**: Get actions (default or resource-specific)
+4. **Execute Actions**: In order, using Service Principal
+5. **Escalation**: Email if all actions fail
+
+## Project Structure
+
+```
+helios365/
 ├── src/
-│   ├── Helios365.Core/              # Core library (models, services, repositories)
-│   ├── Helios365.Processor/         # Azure Functions (alert processing)
-│   ├── Helios365.Platform/          # Web dashboard (Razor Pages)
-│   └── Helios365.Agent/             # Customer-side function template
-├── tests/
-│   ├── Helios365.Core.Tests/
-│   └── Helios365.Processor.Tests/
-└── infrastructure/
-    └── bicep/                       # Azure infrastructure as code
+│   ├── Helios365.Core/           # ✅ Models, Interfaces
+│   ├── Helios365.Processor/      # 🔄 Azure Functions (TO IMPLEMENT)
+│   └── Helios365.Platform/       # 🔄 Web Dashboard (TO IMPLEMENT)
+└── tests/
+    ├── Helios365.Core.Tests/     # 🔄 TO IMPLEMENT
+    ├── Helios365.Processor.Tests/
+    └── Helios365.Platform.Tests/
 ```
 
-## Quick Start
+## What's Implemented
 
-### Prerequisites
+### Core (Partial ✅)
+- ✅ All Models defined
+- ✅ Repository interfaces
+- ✅ Service interfaces  
+- ⏳ Repository implementations (TODO)
+- ⏳ Service implementations (TODO)
 
-- .NET 8 SDK
-- Azure subscription
-- Azure Cosmos DB instance
-- Visual Studio 2022 or VS Code
+### Processor (Not Started)
+- Need to implement all
 
-### Setup
+### Platform (Not Started)
+- Need to implement all
 
-```bash
-# Clone the repository
-git clone https://github.com/helios365/helios365.git
-cd helios365
+## Next Steps
 
-# Restore packages
-dotnet restore
-
-# Build solution
-dotnet build
-
-# Run tests
-dotnet test
-```
-
-### Running Locally
-
-**Processor (Azure Functions):**
-```bash
-cd src/Helios365.Processor
-func start
-```
-
-**Platform (Web Dashboard):**
-```bash
-cd src/Helios365.Platform
-dotnet run
-```
+1. Implement repository classes (Cosmos DB)
+2. Implement ActionExecutor service
+3. Implement EmailService (Azure Communication Services)
+4. Create Processor with new workflow
+5. Create Platform pages for managing SPs, Resources, Actions
 
 ## Configuration
 
-### local.settings.json (Processor)
+### Cosmos DB Containers
+- customers (partition: /id)
+- servicePrincipals (partition: /customerId)
+- resources (partition: /customerId)
+- actions (partition: /customerId)
+- alerts (partition: /customerId)
 
-```json
-{
-  "IsEncrypted": false,
-  "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-    "CosmosDbConnectionString": "your-cosmos-connection-string",
-    "CosmosDbDatabaseName": "helios365",
-    "CosmosDbAlertsContainer": "alerts",
-    "CosmosDbCustomersContainer": "customers"
-  }
-}
-```
+### Key Vault
+Store Service Principal secrets:
+- Format: `sp-{servicePrincipalId}`
+- Value: Client Secret
 
-### appsettings.json (Platform)
+### Azure Communication Services
+For sending escalation emails
 
-```json
-{
-  "CosmosDb": {
-    "ConnectionString": "your-cosmos-connection-string",
-    "DatabaseName": "helios365",
-    "AlertsContainer": "alerts",
-    "CustomersContainer": "customers"
-  }
-}
-```
-
-## Architecture
-
-### Alert Processing Workflow
-
-1. **Alert Received** → HTTP trigger ingests alert from Azure Monitor
-2. **Routing** → Identifies customer and loads configuration
-3. **Health Check** → Validates if the issue is real (HTTP/TCP checks)
-4. **Remediation** → Automatically restarts/scales resource if configured
-5. **Recheck** → Waits 5 minutes and validates fix
-6. **Escalation** → Notifies on-call if still failing
-
-### Technologies
-
-- **.NET 9** - Modern C# with latest features
-- **Azure Functions (Isolated Worker)** - Serverless compute
-- **Durable Functions** - Workflow orchestration
-- **Azure Cosmos DB** - NoSQL database
-- **ASP.NET Core Razor Pages** - Web dashboard
-- **Azure Identity** - Authentication
-
-## Projects
-
-### Helios365.Core
-
-Shared library containing:
-- **Models**: Alert, Customer, HealthCheckConfig, NotificationConfig, RemediationRule
-- **Services**: HealthCheckService, NotificationService
-- **Repositories**: AlertRepository, CustomerRepository (Cosmos SDK)
-- **Exceptions**: Custom exception hierarchy
-
-### Helios365.Processor
-
-Azure Functions app:
-- **Triggers**: HTTP endpoint for alert ingestion
-- **Orchestrators**: Durable function for alert workflow
-- **Activities**: SaveAlert, HealthCheck, Remediation, Notification
-
-### Helios365.Platform
-
-ASP.NET Core web app:
-- **Dashboard**: Real-time alert monitoring
-- **Alerts Page**: View and manage alerts
-- **Customers Page**: Manage customer configurations
-
-### Helios365.Agent
-
-Customer-side function template:
-- Deploys in customer's Azure tenant
-- Executes remediation actions with Managed Identity
-- Limited permissions (restart, scale only)
-
-## Development
-
-### Building
-
-```bash
-dotnet build
-```
-
-### Testing
-
-```bash
-dotnet test
-dotnet test --collect:"XPlat Code Coverage"
-```
-
-### Code Formatting
-
-```bash
-dotnet format
-```
-
-## Deployment
-
-### Deploy to Azure
-
-```bash
-cd infrastructure/bicep
-az deployment group create \
-  --resource-group helios365-prod \
-  --template-file main.bicep \
-  --parameters environmentName=prod
-```
-
-### CI/CD
-
-GitHub Actions workflows are included:
-- `.github/workflows/build.yml` - Build and test
-- `.github/workflows/deploy.yml` - Deploy to Azure
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Support
-
-- [Documentation](https://docs.helios365.io)
-- [GitHub Issues](https://github.com/helios365/helios365/issues)
-- [Discussions](https://github.com/helios365/helios365/discussions)
-
-## Roadmap
-
-- [ ] Multi-cloud support (AWS, GCP)
-- [ ] Machine learning for anomaly detection
-- [ ] Mobile app
-- [ ] Advanced analytics dashboard
-- [ ] Slack/Teams bot integration
-
----
-
-Built with ☀️ by the Helios365 team
