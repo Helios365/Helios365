@@ -28,8 +28,8 @@ public class IndexModel : PageModel
     public int EscalatedCount { get; set; }
     public int CustomersCount { get; set; }
     public int ResourcesCount { get; set; }
-    public List<Alert> RecentAlerts { get; set; } = new();
-    public Dictionary<string, Customer> Customers { get; set; } = new();
+    public List<Alert> RecentAlerts { get; set; } = [];
+    public Dictionary<string, Customer> Customers { get; set; } = [];
 
     public async Task OnGetAsync()
     {

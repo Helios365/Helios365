@@ -1,0 +1,24 @@
+{
+    "azureFunctions.projectSubpath": "src\\Helios365.Processor",
+    "azureFunctions.deploySubpath": "src\\Helios365.Processor/bin/Release/net8.0/publish",
+    "azureFunctions.projectLanguage": "C#",
+    "azureFunctions.projectRuntime": "~4",
+    "azureFunctions.preDeployTask": "publish (functions)",
+    
+    // Debugging and file watching optimizations
+    "debug.internalConsoleOptions": "neverOpen",
+    "files.watcherExclude": {
+        "**/bin/**": true,
+        "**/obj/**": true,
+        "**/.git/**": true,
+        "**/node_modules/**": true,
+        "**/WorkerExtensions/**": true,
+        "**/__azurite_db*": true,
+        "**/__blobstorage__/**": true,
+        "**/__queuestorage__/**": true
+    },
+    
+    // Reduce build conflicts
+    "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": false,
+    "omnisharp.enableEditorConfigSupport": true
+}

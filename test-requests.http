@@ -1,0 +1,25 @@
+### Test Alert Ingestion
+POST http://localhost:7071/api/alerts?apiKey=test-api-key
+Content-Type: application/json
+
+{
+  "ResourceId": "test-resource-123",
+  "ResourceType": "VirtualMachine",
+  "AlertType": "HighCPU", 
+  "Title": "High CPU Usage",
+  "Description": "CPU usage is above 90%",
+  "Severity": 2
+}
+
+### Test with different severity
+POST http://localhost:7071/api/alerts?apiKey=test-api-key
+Content-Type: application/json
+
+{
+  "ResourceId": "test-vm-456",
+  "ResourceType": "VirtualMachine",
+  "AlertType": "DiskSpace",
+  "Title": "Low Disk Space", 
+  "Description": "Disk space is below 10%",
+  "Severity": 1
+}

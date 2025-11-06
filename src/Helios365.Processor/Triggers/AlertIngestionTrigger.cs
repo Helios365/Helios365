@@ -46,6 +46,8 @@ public class AlertIngestionTrigger
             var queryParams = HttpUtility.ParseQueryString(req.Url.Query);
             var apiKey = queryParams["apiKey"];
 
+            _logger.LogInformation("Received alert ingestion request with API key: {ApiKey}", apiKey);
+
             if (string.IsNullOrEmpty(apiKey))
             {
                 _logger.LogWarning("Alert ingestion request missing API key");
