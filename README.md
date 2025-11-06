@@ -2,6 +2,25 @@
 
 🌞 24/7/365 Automated Incident Response for Azure
 
+## Deploy to Azure
+
+Deploy the complete Helios365 infrastructure to Azure in minutes:
+
+### Development Environment
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2Fhelios365%2Fmain%2Finfrastructure%2Fdeploy.bicep)
+
+### Production Environment  
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2Fhelios365%2Fmain%2Finfrastructure%2Fdeploy.bicep)
+
+**What gets deployed:**
+- ✅ Azure Functions (Processor) - Serverless alert processing
+- ✅ Cosmos DB with containers - NoSQL database for all data
+- ✅ Storage Account - Function runtime storage
+- ✅ Key Vault - Secure secrets management
+- ✅ Application Insights - Monitoring and telemetry
+- ✅ Azure Communication Services - Email notifications
+- ✅ Proper RBAC permissions - Secure access configuration
+
 
 ## Workflow
 

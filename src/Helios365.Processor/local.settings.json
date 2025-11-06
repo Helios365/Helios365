@@ -12,6 +12,10 @@
     "CosmosDbActionsContainer": "actions",
     "KeyVaultUri": "",
     "AzureCommunicationServicesConnectionString": "",
-    "FromEmail": "alerts@helios365.io"
+    "FromEmail": "alerts@helios365.io",
+    "ASPNETCORE_ENVIRONMENT": "Development",
+    "AZURE_FUNCTIONS_ENVIRONMENT": "Development",
+    "AzureWebJobsDisableHomepage": "true",
+    "languageWorkers__workersDirectory": ""
   }
 }

@@ -22,21 +22,38 @@ public static class ServiceCollectionExtensions
             // For production - use the actual connection string
             services.AddSingleton<CosmosClient>(sp =>
             {
-                return new CosmosClient(connectionString);
+                var options = new CosmosClientOptions
+                {
+                    ApplicationName = "Helios365.Processor",
+                    MaxRetryAttemptsOnRateLimitedRequests = 3,
+                    MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(10),
+                    RequestTimeout = TimeSpan.FromSeconds(10)
+                };
+                return new CosmosClient(connectionString, options);
             });
         }
         else if (!string.IsNullOrEmpty(connectionString))
         {
-            // For local development with emulator
+            // For local development with emulator - optimized for fast startup
             services.AddSingleton<CosmosClient>(sp =>
             {
                 var cosmosClientOptions = new CosmosClientOptions
                 {
+                    ApplicationName = "Helios365.Processor.Dev",
                     HttpClientFactory = () => new HttpClient(new HttpClientHandler()
                     {
                         ServerCertificateCustomValidationCallback = (req, cert, chain, errors) => true
                     }),
-                    ConnectionMode = ConnectionMode.Gateway
+                    ConnectionMode = ConnectionMode.Gateway,
+                    // Optimize for local development
+                    RequestTimeout = TimeSpan.FromSeconds(5), // Shorter timeout for local
+                    MaxRetryAttemptsOnRateLimitedRequests = 1, // Fewer retries for local
+                    MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(1),
+                    OpenTcpConnectionTimeout = TimeSpan.FromSeconds(5),
+                    IdleTcpConnectionTimeout = TimeSpan.FromMinutes(10),
+                    MaxRequestsPerTcpConnection = 10,
+                    MaxTcpConnectionsPerEndpoint = 2,
+                    EnableContentResponseOnWrite = false // Skip reading response body for writes
                 };
                 return new CosmosClient(connectionString, cosmosClientOptions);
             });
@@ -52,9 +69,10 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddRepositories(this IServiceCollection services)
     {
-        // Use factory pattern instead of direct service provider access
+        // Use lazy initialization to speed up startup - repositories are created only when needed
         services.AddScoped<ICustomerRepository>(sp =>
         {
+            // Lazy resolution - services resolved only when repository is actually used
             var cosmosClient = sp.GetRequiredService<CosmosClient>();
             var logger = sp.GetRequiredService<ILogger<CustomerRepository>>();
             var configuration = sp.GetRequiredService<IConfiguration>();

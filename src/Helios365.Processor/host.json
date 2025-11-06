@@ -1,6 +1,12 @@
 {
   "version": "2.0",
   "logging": {
+    "logLevel": {
+      "default": "Information",
+      "Microsoft.Azure.Functions.Worker": "Warning",
+      "Microsoft.Azure.Cosmos": "Warning",
+      "Azure.Core": "Warning"
+    },
     "applicationInsights": {
       "samplingSettings": {
         "isEnabled": true,
@@ -14,8 +20,9 @@
       "storageProvider": {
         "connectionStringName": "AzureWebJobsStorage"
       },
-      "maxConcurrentActivityFunctions": 100,
-      "maxConcurrentOrchestratorFunctions": 100
+      "maxConcurrentActivityFunctions": 10,
+      "maxConcurrentOrchestratorFunctions": 10
     }
-  }
+  },
+  "functionTimeout": "00:05:00"
 }

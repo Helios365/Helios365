@@ -54,6 +54,8 @@ TestResult.xml
 nunit-*.xml
 
 .DS_Store
-__blobstorage__
-__queuestorage__
-__azurite*
+.azurite/
+
+# Bicep compiled ARM templates (auto-generated)
+infrastructure/*.json
+!infrastructure/*.parameters.json
