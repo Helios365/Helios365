@@ -56,6 +56,4 @@ nunit-*.xml
 .DS_Store
 .azurite/
 
-# Bicep compiled ARM templates (auto-generated)
-infrastructure/*.json
-!infrastructure/*.parameters.json
+infrastructure/*.parameters.*.json

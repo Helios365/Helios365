@@ -7,7 +7,7 @@
 Deploy the complete Helios365 infrastructure to Azure in minutes:
 
 ### Deploy
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2FHelios365%2Frefs%2Fheads%2Fmain%2Finfrastructure%2Fdeploy.bicep)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2FHelios365%2Frefs%2Fheads%2Fmain%2Finfrastructure%2Fazuredeploy.json)
 
 **What gets deployed:**
 - ✅ Azure Functions (Processor) - Serverless alert processing
@@ -63,3 +63,12 @@ Store Service Principal secrets:
 ### Azure Communication Services
 For sending escalation emails
 
+
+# Development
+
+## Generate ARM template
+
+``` bash
+az bicep build --file .\infrastructure\deploy.bicep --outfile .\infrastructure\azuredeploy.json
+
+```
