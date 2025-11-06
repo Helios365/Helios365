@@ -6,11 +6,8 @@
 
 Deploy the complete Helios365 infrastructure to Azure in minutes:
 
-### Development Environment
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2Fhelios365%2Fmain%2Finfrastructure%2Fdeploy.bicep)
-
-### Production Environment  
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2Fhelios365%2Fmain%2Finfrastructure%2Fdeploy.bicep)
+### Deploy
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2FHelios365%2Frefs%2Fheads%2Fmain%2Finfrastructure%2Fdeploy.bicep)
 
 **What gets deployed:**
 - ✅ Azure Functions (Processor) - Serverless alert processing
