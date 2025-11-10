@@ -6,7 +6,7 @@
 
 Deploy the complete Helios365 infrastructure to Azure in minutes:
 
-### Deploy
+### Deploy Infrastructure
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2FHelios365%2Frefs%2Fheads%2Fmain%2Finfrastructure%2Fazuredeploy.json)
 
 **What gets deployed:**
@@ -18,6 +18,12 @@ Deploy the complete Helios365 infrastructure to Azure in minutes:
 - ✅ Azure Communication Services - Email notifications
 - ✅ Proper RBAC permissions - Secure access configuration
 
+### Deploy Entra Application
+
+``` powershell
+New-AzADApplication -DisplayName "Helios365-Dev" -Web @{ RedirectUri = @("https://localhost:5000/signin-oidc") } | Select-Object -ExpandProperty AppId
+
+```
 
 ## Workflow
 

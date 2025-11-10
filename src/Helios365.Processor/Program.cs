@@ -19,7 +19,7 @@ var host = new HostBuilder()
         var configuration = context.Configuration;
 
         // Clean, organized service registration
-        services.AddCosmosDb(configuration);
+        services.AddCosmosDb(configuration, context.HostingEnvironment.IsDevelopment());
         services.AddRepositories();
         services.AddExternalServices(configuration);
     })

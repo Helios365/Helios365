@@ -12,58 +12,26 @@ namespace Helios365.Processor.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddCosmosDb(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddCosmosDb(this IServiceCollection services, IConfiguration configuration, bool isDevelopment)
     {
-        var connectionString = configuration["CosmosDbConnectionString"];
-        
-        // Only register if connection string is valid
-        if (!string.IsNullOrEmpty(connectionString) && !connectionString.Contains("localhost:8081"))
+        services.AddSingleton<CosmosClient>(sp =>
         {
-            // For production - use the actual connection string
-            services.AddSingleton<CosmosClient>(sp =>
+            var connectionString = configuration["CosmosDbConnectionString"]
+                ?? throw new InvalidOperationException("CosmosDbConnectionString is required");
+            
+            var options = new CosmosClientOptions()
             {
-                var options = new CosmosClientOptions
-                {
-                    ApplicationName = "Helios365.Processor",
-                    MaxRetryAttemptsOnRateLimitedRequests = 3,
-                    MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(10),
-                    RequestTimeout = TimeSpan.FromSeconds(10)
-                };
-                return new CosmosClient(connectionString, options);
-            });
-        }
-        else if (!string.IsNullOrEmpty(connectionString))
-        {
-            // For local development with emulator - optimized for fast startup
-            services.AddSingleton<CosmosClient>(sp =>
-            {
-                var cosmosClientOptions = new CosmosClientOptions
-                {
-                    ApplicationName = "Helios365.Processor.Dev",
-                    HttpClientFactory = () => new HttpClient(new HttpClientHandler()
-                    {
-                        ServerCertificateCustomValidationCallback = (req, cert, chain, errors) => true
-                    }),
-                    ConnectionMode = ConnectionMode.Gateway,
-                    // Optimize for local development
-                    RequestTimeout = TimeSpan.FromSeconds(5), // Shorter timeout for local
-                    MaxRetryAttemptsOnRateLimitedRequests = 1, // Fewer retries for local
-                    MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(1),
-                    OpenTcpConnectionTimeout = TimeSpan.FromSeconds(5),
-                    IdleTcpConnectionTimeout = TimeSpan.FromMinutes(10),
-                    MaxRequestsPerTcpConnection = 10,
-                    MaxTcpConnectionsPerEndpoint = 2,
-                    EnableContentResponseOnWrite = false // Skip reading response body for writes
-                };
-                return new CosmosClient(connectionString, cosmosClientOptions);
-            });
-        }
-        else
-        {
-            // Mock for testing - you could implement ICosmosClient interface
-            throw new InvalidOperationException("CosmosDbConnectionString is required");
-        }
-        
+                ApplicationName = "Helios365.Processor",
+                // Use Gateway mode in Development (firewall-friendly), Direct mode in Production (better performance)
+                ConnectionMode = isDevelopment ? ConnectionMode.Gateway : ConnectionMode.Direct,
+                MaxRetryAttemptsOnRateLimitedRequests = isDevelopment ? 1 : 3,
+                MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(isDevelopment ? 5 : 10),
+                RequestTimeout = TimeSpan.FromSeconds(isDevelopment ? 10 : 30)
+            };
+            
+            return new CosmosClient(connectionString, options);
+        });
+
         return services;
     }
 
@@ -136,7 +104,7 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddExternalServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // KeyVault - only if properly configured
+        // Key Vault
         var keyVaultUri = configuration["KeyVaultUri"];
         if (!string.IsNullOrEmpty(keyVaultUri))
         {
@@ -152,47 +120,18 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
-        // Email Service - with fallback for local development
-        var acsConnectionString = configuration["AzureCommunicationServicesConnectionString"];
-        if (!string.IsNullOrEmpty(acsConnectionString))
+        // Email Service - now always uses real Azure Communication Services
+        var acsConnectionString = configuration["AzureCommunicationServicesConnectionString"]
+            ?? throw new InvalidOperationException("AzureCommunicationServicesConnectionString is required");
+
+        services.AddSingleton<IEmailService>(sp =>
         {
-            services.AddSingleton<IEmailService>(sp =>
-            {
-                var fromEmail = configuration["FromEmail"] ?? "alerts@helios365.io";
-                var emailClient = new EmailClient(acsConnectionString);
-                var logger = sp.GetRequiredService<ILogger<EmailService>>();
-                return new EmailService(emailClient, fromEmail, logger);
-            });
-        }
-        else
-        {
-            // Local development mock
-            services.AddSingleton<IEmailService, LocalDevEmailService>();
-        }
+            var fromEmail = configuration["FromEmail"] ?? "alerts@helios365.io";
+            var emailClient = new EmailClient(acsConnectionString);
+            var logger = sp.GetRequiredService<ILogger<EmailService>>();
+            return new EmailService(emailClient, fromEmail, logger);
+        });
 
         return services;
-    }
-}
-
-// Simple local development email service
-public class LocalDevEmailService : IEmailService
-{
-    private readonly ILogger<LocalDevEmailService> _logger;
-
-    public LocalDevEmailService(ILogger<LocalDevEmailService> logger)
-    {
-        _logger = logger;
-    }
-
-    public Task SendEscalationEmailAsync(
-        Core.Models.Alert alert, 
-        Core.Models.Resource? resource, 
-        Core.Models.Customer customer, 
-        List<Core.Models.ActionBase> attemptedActions, 
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("LOCAL DEV: Email notification for alert {AlertId} from {CustomerName}", 
-            alert.Id, customer.Name);
-        return Task.CompletedTask;
     }
 }

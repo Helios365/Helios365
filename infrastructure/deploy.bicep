@@ -28,6 +28,9 @@ param azureAdTenantId string = ''
 @description('Azure AD Client ID for authentication')
 param azureAdClientId string = ''
 
+@description('Allowed IP addresses for Cosmos DB access')
+param allowedIpAddresses array = []
+
 // Variables
 var uniqueSuffix = substring(uniqueString(resourceGroup().id), 0, 4)
 var resourceNames = {
@@ -41,6 +44,10 @@ var resourceNames = {
   logAnalytics: '${environment}-${appName}-${uniqueSuffix}-law'
   communicationService: '${environment}-${appName}-${uniqueSuffix}-acs'
 }
+
+var cosmosIpRules = [for ip in allowedIpAddresses: {
+  ipAddressOrRange: ip
+}]
 
 var environmentConfig = {
   dev: {
@@ -170,6 +177,7 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
     enableMultipleWriteLocations: false
     disableKeyBasedMetadataWriteAccess: true
     disableLocalAuth: false
+    ipRules: cosmosIpRules
     networkAclBypass: 'AzureServices'
     publicNetworkAccess: 'Enabled'
   }
@@ -396,7 +404,7 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       scmMinTlsVersion: '1.2'
-      use32BitWorkerProcess: false
+      use32BitWorkerProcess: environment == 'dev' ? true : false
       appSettings: [
         { name: 'ASPNETCORE_ENVIRONMENT', value: environment == 'dev' ? 'Development' : 'Production' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
