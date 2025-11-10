@@ -1,0 +1,121 @@
+@model Helios365.Platform.Pages.IndexModel
+
+<!-- Quick Stats and Activity -->
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0">
+                    <i class="bi bi-speedometer2 me-2"></i>System Status
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-server text-primary me-2"></i>
+                        <span>Total Resources</span>
+                    </div>
+                    <div class="text-end">
+                        <div class="h5 mb-0">@Model.ResourcesCount</div>
+                        <small class="text-muted">monitored</small>
+                    </div>
+                </div>
+                <div class="progress mb-3" style="height: 4px;">
+                    <div class="progress-bar bg-primary" style="width: 85%"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-people text-info me-2"></i>
+                        <span>Active Customers</span>
+                    </div>
+                    <div class="text-end">
+                        <div class="h5 mb-0">@Model.CustomersCount</div>
+                        <small class="text-muted">tenants</small>
+                    </div>
+                </div>
+                <div class="progress" style="height: 4px;">
+                    <div class="progress-bar bg-info" style="width: 70%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0">
+                    <i class="bi bi-activity me-2"></i>Today's Activity
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-bell text-warning me-2"></i>
+                        <span>Total Alerts</span>
+                    </div>
+                    <div class="text-end">
+                        <div class="h5 mb-0">@Model.RecentAlerts.Count(a => a.CreatedAt.Date == DateTime.UtcNow.Date)</div>
+                        <small class="text-muted">today</small>
+                    </div>
+                </div>
+                <div class="progress mb-3" style="height: 4px;">
+                    <div class="progress-bar bg-warning" style="width: 60%"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        <span>Auto-Resolved</span>
+                    </div>
+                    <div class="text-end">
+                        <div class="h5 mb-0 text-success">@Model.ResolvedTodayCount</div>
+                        <small class="text-muted">automated</small>
+                    </div>
+                </div>
+                <div class="progress" style="height: 4px;">
+                    <div class="progress-bar bg-success" style="width: 90%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Metrics Row -->
+<div class="row g-4 mt-2">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="display-6 text-success mb-2">
+                    @{
+                        var resolutionRate = Model.RecentAlerts.Any() ? 
+                            Math.Round((double)Model.ResolvedTodayCount / Model.RecentAlerts.Count() * 100, 1) : 0;
+                    }
+                    @resolutionRate%
+                </div>
+                <h6 class="text-muted mb-0">Resolution Rate</h6>
+                <small class="text-success">↑ +5.2% from yesterday</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="display-6 text-info mb-2">2.3m</div>
+                <h6 class="text-muted mb-0">Avg Response Time</h6>
+                <small class="text-success">↓ -12s from yesterday</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="display-6 text-primary mb-2">99.8%</div>
+                <h6 class="text-muted mb-0">Uptime</h6>
+                <small class="text-success">↑ +0.1% from yesterday</small>
+            </div>
+        </div>
+    </div>
+</div>

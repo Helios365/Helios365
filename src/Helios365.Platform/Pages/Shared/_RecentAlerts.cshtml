@@ -1,0 +1,148 @@
+@model Helios365.Platform.Pages.IndexModel
+
+<!-- Recent Alerts Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-list-ul me-2"></i>Recent Alerts
+        </h5>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()" 
+                    data-bs-toggle="tooltip" title="Refresh alerts">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <a href="/alerts" class="btn btn-sm btn-primary">
+                <i class="bi bi-eye me-1"></i>View All
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.RecentAlerts.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="border-0">Alert ID</th>
+                            <th class="border-0">Customer</th>
+                            <th class="border-0">Resource Type</th>
+                            <th class="border-0">Alert Type</th>
+                            <th class="border-0">Status</th>
+                            <th class="border-0">Severity</th>
+                            <th class="border-0">Created</th>
+                            <th class="border-0"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var alert in Model.RecentAlerts)
+                        {
+                            <tr class="align-middle">
+                                <td>
+                                    <code class="badge bg-light text-dark">@alert.Id.Substring(0, Math.Min(8, alert.Id.Length))...</code>
+                                </td>
+                                <td>
+                                    @if (Model.Customers.TryGetValue(alert.CustomerId, out var customer))
+                                    {
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-sm rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2">
+                                                @customer.Name.Substring(0, 1).ToUpper()
+                                            </div>
+                                            <div>
+                                                <div class="fw-medium">@customer.Name</div>
+                                                <small class="text-muted">@customer.Id.Substring(0, 8)...</small>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <small class="text-muted">@alert.CustomerId.Substring(0, 8)...</small>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark">@alert.ResourceType</span>
+                                </td>
+                                <td>
+                                    <div class="fw-medium">@alert.AlertType</div>
+                                    @if (!string.IsNullOrEmpty(alert.Description))
+                                    {
+                                        <small class="text-muted d-block">@alert.Description.Substring(0, Math.Min(50, alert.Description.Length))@(alert.Description.Length > 50 ? "..." : "")</small>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @Html.Raw(GetStatusBadgeClass(alert.Status))">
+                                        @alert.Status
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge @Html.Raw(GetSeverityBadgeClass(alert.Severity))">
+                                        @alert.Severity
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="text-nowrap">@alert.CreatedAt.ToString("MMM dd, yyyy")</div>
+                                    <small class="text-muted">@alert.CreatedAt.ToString("HH:mm")</small>
+                                </td>
+                                <td>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item" href="/alerts/@alert.Id"><i class="bi bi-eye me-2"></i>View Details</a></li>
+                                            <li><a class="dropdown-item" href="/alerts/@alert.Id/logs"><i class="bi bi-list-ul me-2"></i>View Logs</a></li>
+                                            @if (alert.Status != Helios365.Core.Models.AlertStatus.Resolved)
+                                            {
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-warning" href="/alerts/@alert.Id/escalate"><i class="bi bi-arrow-up me-2"></i>Escalate</a></li>
+                                            }
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted mb-3"></i>
+                <h5 class="text-muted">No alerts yet</h5>
+                <p class="text-muted">When incidents occur, they'll appear here for monitoring and management.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@functions {
+    private string GetStatusBadgeClass(Helios365.Core.Models.AlertStatus status)
+    {
+        return status switch
+        {
+            Helios365.Core.Models.AlertStatus.Received => "bg-secondary",
+            Helios365.Core.Models.AlertStatus.Routing => "bg-info",
+            Helios365.Core.Models.AlertStatus.Checking => "bg-info",
+            Helios365.Core.Models.AlertStatus.Remediating => "bg-warning text-dark",
+            Helios365.Core.Models.AlertStatus.Rechecking => "bg-info",
+            Helios365.Core.Models.AlertStatus.Resolved => "bg-success",
+            Helios365.Core.Models.AlertStatus.Healthy => "bg-success",
+            Helios365.Core.Models.AlertStatus.Escalated => "bg-danger",
+            Helios365.Core.Models.AlertStatus.Failed => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private string GetSeverityBadgeClass(Helios365.Core.Models.AlertSeverity severity)
+    {
+        return severity switch
+        {
+            Helios365.Core.Models.AlertSeverity.Critical => "bg-danger",
+            Helios365.Core.Models.AlertSeverity.High => "bg-warning text-dark",
+            Helios365.Core.Models.AlertSeverity.Medium => "bg-info",
+            Helios365.Core.Models.AlertSeverity.Low => "bg-secondary",
+            Helios365.Core.Models.AlertSeverity.Info => "bg-light text-dark",
+            _ => "bg-secondary"
+        };
+    }
+}
