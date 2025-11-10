@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "16571910739525785188"
+      "templateHash": "3592554818646038010"
     }
   },
   "parameters": {
@@ -63,6 +63,27 @@
       "metadata": {
         "description": "Data location for Azure Communication Services"
       }
+    },
+    "azureAdDomain": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure AD Domain for authentication"
+      }
+    },
+    "azureAdTenantId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure AD Tenant ID for authentication"
+      }
+    },
+    "azureAdClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure AD Client ID for authentication"
+      }
     }
   },
   "variables": {
@@ -71,6 +92,7 @@
       "cosmosDb": "[format('{0}-{1}-{2}-cosmos', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
       "storageAccount": "[toLower(format('{0}{1}{2}st', parameters('environment'), parameters('appName'), variables('uniqueSuffix')))]",
       "functionApp": "[format('{0}-{1}-{2}-func', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
+      "webApp": "[format('{0}-{1}-{2}-web', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
       "appServicePlan": "[format('{0}-{1}-{2}-plan', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
       "keyVault": "[format('{0}-{1}-{2}-kv', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
       "applicationInsights": "[format('{0}-{1}-{2}-ai', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
@@ -241,7 +263,7 @@
     },
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-      "apiVersion": "2024-05-15",
+      "apiVersion": "2025-04-15",
       "name": "[format('{0}/{1}/{2}', variables('resourceNames').cosmosDb, 'helios365', 'customers')]",
       "properties": {
         "resource": {
@@ -276,7 +298,7 @@
     },
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-      "apiVersion": "2024-05-15",
+      "apiVersion": "2025-04-15",
       "name": "[format('{0}/{1}/{2}', variables('resourceNames').cosmosDb, 'helios365', 'resources')]",
       "properties": {
         "resource": {
@@ -311,7 +333,7 @@
     },
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-      "apiVersion": "2024-05-15",
+      "apiVersion": "2025-04-15",
       "name": "[format('{0}/{1}/{2}', variables('resourceNames').cosmosDb, 'helios365', 'alerts')]",
       "properties": {
         "resource": {
@@ -346,7 +368,7 @@
     },
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-      "apiVersion": "2024-05-15",
+      "apiVersion": "2025-04-15",
       "name": "[format('{0}/{1}/{2}', variables('resourceNames').cosmosDb, 'helios365', 'servicePrincipals')]",
       "properties": {
         "resource": {
@@ -381,7 +403,7 @@
     },
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-      "apiVersion": "2024-05-15",
+      "apiVersion": "2025-04-15",
       "name": "[format('{0}/{1}/{2}', variables('resourceNames').cosmosDb, 'helios365', 'actions')]",
       "properties": {
         "resource": {
@@ -572,6 +594,112 @@
       ]
     },
     {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}-webapp', variables('resourceNames').appServicePlan)]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
+      "sku": "[if(equals(parameters('environment'), 'dev'), createObject('name', 'F1', 'tier', 'Free'), createObject('name', 'B1', 'tier', 'Basic'))]",
+      "kind": "linux",
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('resourceNames').webApp]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
+      "kind": "app,linux",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', format('{0}-webapp', variables('resourceNames').appServicePlan))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "linuxFxVersion": "DOTNETCORE|8.0",
+          "ftpsState": "Disabled",
+          "minTlsVersion": "1.2",
+          "scmMinTlsVersion": "1.2",
+          "use32BitWorkerProcess": false,
+          "appSettings": [
+            {
+              "name": "ASPNETCORE_ENVIRONMENT",
+              "value": "[if(equals(parameters('environment'), 'dev'), 'Development', 'Production')]"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference(resourceId('Microsoft.Insights/components', variables('resourceNames').applicationInsights), '2020-02-02').ConnectionString]"
+            },
+            {
+              "name": "ApplicationInsights__InstrumentationKey",
+              "value": "[reference(resourceId('Microsoft.Insights/components', variables('resourceNames').applicationInsights), '2020-02-02').InstrumentationKey]"
+            },
+            {
+              "name": "AzureAd__Domain",
+              "value": "[parameters('azureAdDomain')]"
+            },
+            {
+              "name": "AzureAd__TenantId",
+              "value": "[parameters('azureAdTenantId')]"
+            },
+            {
+              "name": "AzureAd__ClientId",
+              "value": "[parameters('azureAdClientId')]"
+            },
+            {
+              "name": "KeyVault__VaultUri",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), '2023-07-01').vaultUri]"
+            },
+            {
+              "name": "CosmosDb__ConnectionString",
+              "value": "[format('AccountEndpoint={0};AccountKey={1};', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb), '2024-05-15').documentEndpoint, listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb), '2024-05-15').primaryMasterKey)]"
+            },
+            {
+              "name": "CosmosDb__DatabaseName",
+              "value": "helios365"
+            },
+            {
+              "name": "CosmosDb__CustomersContainer",
+              "value": "customers"
+            },
+            {
+              "name": "CosmosDb__ResourcesContainer",
+              "value": "resources"
+            },
+            {
+              "name": "CosmosDb__AlertsContainer",
+              "value": "alerts"
+            },
+            {
+              "name": "CosmosDb__ServicePrincipalsContainer",
+              "value": "servicePrincipals"
+            },
+            {
+              "name": "CosmosDb__ActionsContainer",
+              "value": "actions"
+            },
+            {
+              "name": "Logging__LogLevel__Default",
+              "value": "[if(equals(parameters('environment'), 'dev'), 'Debug', 'Information')]"
+            },
+            {
+              "name": "Logging__LogLevel__Microsoft.AspNetCore",
+              "value": "[if(equals(parameters('environment'), 'dev'), 'Warning', 'Warning')]"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', variables('resourceNames').applicationInsights)]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb)]",
+        "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
+        "[resourceId('Microsoft.Web/serverfarms', format('{0}-webapp', variables('resourceNames').appServicePlan))]"
+      ]
+    },
+    {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[format('Microsoft.KeyVault/vaults/{0}', variables('resourceNames').keyVault)]",
@@ -584,6 +712,21 @@
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp)]",
         "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.KeyVault/vaults/{0}', variables('resourceNames').keyVault)]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '4633458b-17de-408a-b874-0445c86b69e6')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '2023-01-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
+        "[resourceId('Microsoft.Web/sites', variables('resourceNames').webApp)]"
       ]
     }
   ],
@@ -599,6 +742,18 @@
     "functionAppUrl": {
       "type": "string",
       "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), '2023-01-01').defaultHostName)]"
+    },
+    "webAppName": {
+      "type": "string",
+      "value": "[variables('resourceNames').webApp]"
+    },
+    "webAppHostName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '2023-01-01').defaultHostName]"
+    },
+    "webAppUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '2023-01-01').defaultHostName)]"
     },
     "cosmosDbName": {
       "type": "string",
@@ -635,24 +790,6 @@
     "subscriptionId": {
       "type": "string",
       "value": "[subscription().subscriptionId]"
-    },
-    "deploymentInstructions": {
-      "type": "string",
-      "value": "🎉 Helios365 infrastructure deployed successfully!\r\n\r\nNext steps:\r\n1. Deploy Function App code using the post-deployment script\r\n2. Configure monitoring dashboards in Application Insights  \r\n3. Test the alert ingestion API endpoint\r\n4. Add your first customer and resources via the API\r\n\r\nFunction App URL: https://${functionApp.properties.defaultHostName}\r\nKey Vault: ${keyVault.properties.vaultUri}\r\nCosmos DB: ${cosmosDb.properties.documentEndpoint}\r\n"
-    },
-    "costEstimate": {
-      "type": "object",
-      "value": {
-        "environment": "[parameters('environment')]",
-        "estimatedMonthlyCost": "[if(equals(parameters('environment'), 'dev'), '$15-30', if(equals(parameters('environment'), 'staging'), '$50-100', '$150-300'))]",
-        "breakdown": {
-          "cosmosDb": "[if(equals(parameters('environment'), 'dev'), 'Serverless (~$5-15)', 'Provisioned (~$25-50)')]",
-          "functions": "[if(equals(parameters('environment'), 'dev'), 'Consumption (~$1-5)', 'Premium (~$150-200)')]",
-          "storage": "~$1-5",
-          "keyVault": "~$0.50",
-          "other": "~$2-10"
-        }
-      }
     }
   }
 }

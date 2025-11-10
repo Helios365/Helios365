@@ -1,10 +1,27 @@
 using Helios365.Core.Repositories;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Azure.Cosmos;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add local development override configuration
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddJsonFile("appsettings.Development.local.json", optional: true, reloadOnChange: true);
+}
+
+// Authentication & Authorization
+builder.Services
+    .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+
+builder.Services.AddAuthorization();
+
 // Add services to the container
-builder.Services.AddRazorPages();
+builder.Services.AddRazorPages()
+    .AddMicrosoftIdentityUI();
 
 // Cosmos DB
 builder.Services.AddSingleton<CosmosClient>(sp =>
@@ -72,6 +89,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapRazorPages();
 

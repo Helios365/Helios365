@@ -19,12 +19,22 @@ param adminEmail string
 @allowed(['United States', 'Europe', 'Australia', 'United Kingdom', 'France', 'Germany', 'Switzerland', 'Norway', 'Canada', 'India', 'Asia Pacific', 'Africa'])
 param dataLocation string = 'Europe'
 
+@description('Azure AD Domain for authentication')
+param azureAdDomain string = ''
+
+@description('Azure AD Tenant ID for authentication')
+param azureAdTenantId string = ''
+
+@description('Azure AD Client ID for authentication')
+param azureAdClientId string = ''
+
 // Variables
 var uniqueSuffix = substring(uniqueString(resourceGroup().id), 0, 4)
 var resourceNames = {
   cosmosDb: '${environment}-${appName}-${uniqueSuffix}-cosmos'
   storageAccount: toLower('${environment}${appName}${uniqueSuffix}st')
   functionApp: '${environment}-${appName}-${uniqueSuffix}-func'
+  webApp: '${environment}-${appName}-${uniqueSuffix}-web'
   appServicePlan: '${environment}-${appName}-${uniqueSuffix}-plan'
   keyVault: '${environment}-${appName}-${uniqueSuffix}-kv'
   applicationInsights: '${environment}-${appName}-${uniqueSuffix}-ai'
@@ -176,7 +186,7 @@ resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024
 }
 
 // Cosmos DB Containers
-resource customersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+resource customersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
   parent: cosmosDatabase
   name: 'customers'
   properties: {
@@ -195,7 +205,7 @@ resource customersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
   }
 }
 
-resource resourcesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+resource resourcesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
   parent: cosmosDatabase
   name: 'resources'
   properties: {
@@ -214,7 +224,7 @@ resource resourcesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
   }
 }
 
-resource alertsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+resource alertsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
   parent: cosmosDatabase
   name: 'alerts'
   properties: {
@@ -233,7 +243,7 @@ resource alertsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
   }
 }
 
-resource servicePrincipalsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+resource servicePrincipalsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
   parent: cosmosDatabase
   name: 'servicePrincipals'
   properties: {
@@ -252,7 +262,7 @@ resource servicePrincipalsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDa
   }
 }
 
-resource actionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+resource actionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
   parent: cosmosDatabase
   name: 'actions'
   properties: {
@@ -359,6 +369,60 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
+// App Service Plan for Web App (separate from Functions)
+resource webAppServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
+  name: '${resourceNames.appServicePlan}-webapp'
+  location: location
+  tags: commonTags
+  sku: environment == 'dev' ? { name: 'F1', tier: 'Free' } : { name: 'B1', tier: 'Basic' }
+  kind: 'linux'
+  properties: {
+    reserved: true // Linux
+  }
+}
+
+// Web App (Platform)
+resource webApp 'Microsoft.Web/sites@2023-01-01' = {
+  name: resourceNames.webApp
+  location: location
+  tags: commonTags
+  kind: 'app,linux'
+  identity: { type: 'SystemAssigned' }
+  properties: {
+    serverFarmId: webAppServicePlan.id
+    httpsOnly: true
+    siteConfig: {
+      linuxFxVersion: 'DOTNETCORE|8.0'
+      ftpsState: 'Disabled'
+      minTlsVersion: '1.2'
+      scmMinTlsVersion: '1.2'
+      use32BitWorkerProcess: false
+      appSettings: [
+        { name: 'ASPNETCORE_ENVIRONMENT', value: environment == 'dev' ? 'Development' : 'Production' }
+        { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
+        { name: 'ApplicationInsights__InstrumentationKey', value: applicationInsights.properties.InstrumentationKey }
+        // Azure AD Configuration (override appsettings.json)
+        { name: 'AzureAd__Domain', value: azureAdDomain }
+        { name: 'AzureAd__TenantId', value: azureAdTenantId }
+        { name: 'AzureAd__ClientId', value: azureAdClientId }
+        // Key Vault Configuration  
+        { name: 'KeyVault__VaultUri', value: keyVault.properties.vaultUri }
+        // Cosmos DB Configuration
+        { name: 'CosmosDb__ConnectionString', value: 'AccountEndpoint=${cosmosDb.properties.documentEndpoint};AccountKey=${cosmosDb.listKeys().primaryMasterKey};' }
+        { name: 'CosmosDb__DatabaseName', value: 'helios365' }
+        { name: 'CosmosDb__CustomersContainer', value: 'customers' }
+        { name: 'CosmosDb__ResourcesContainer', value: 'resources' }
+        { name: 'CosmosDb__AlertsContainer', value: 'alerts' }
+        { name: 'CosmosDb__ServicePrincipalsContainer', value: 'servicePrincipals' }
+        { name: 'CosmosDb__ActionsContainer', value: 'actions' }
+        // Logging Configuration
+        { name: 'Logging__LogLevel__Default', value: environment == 'dev' ? 'Debug' : 'Information' }
+        { name: 'Logging__LogLevel__Microsoft.AspNetCore', value: environment == 'dev' ? 'Warning' : 'Warning' }
+      ]
+    }
+  }
+}
+
 // Role Assignment - Key Vault Secrets User for Function App
 resource keyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, functionApp.id, '4633458b-17de-408a-b874-0445c86b69e6')
@@ -370,10 +434,24 @@ resource keyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04
   }
 }
 
+// Role Assignment - Key Vault Secrets User for Web App
+resource webAppKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, webApp.id, '4633458b-17de-408a-b874-0445c86b69e6')
+  scope: keyVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+    principalId: webApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // Outputs
 output functionAppName string = functionApp.name
 output functionAppHostName string = functionApp.properties.defaultHostName
 output functionAppUrl string = 'https://${functionApp.properties.defaultHostName}'
+output webAppName string = webApp.name
+output webAppHostName string = webApp.properties.defaultHostName
+output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
 output cosmosDbName string = cosmosDb.name
 output cosmosDbEndpoint string = cosmosDb.properties.documentEndpoint
 output storageAccountName string = storageAccount.name
@@ -383,29 +461,3 @@ output applicationInsightsName string = applicationInsights.name
 output communicationServiceName string = communicationService.name
 output resourceGroupName string = resourceGroup().name
 output subscriptionId string = subscription().subscriptionId
-
-output deploymentInstructions string = '''
-🎉 Helios365 infrastructure deployed successfully!
-
-Next steps:
-1. Deploy Function App code using the post-deployment script
-2. Configure monitoring dashboards in Application Insights  
-3. Test the alert ingestion API endpoint
-4. Add your first customer and resources via the API
-
-Function App URL: https://${functionApp.properties.defaultHostName}
-Key Vault: ${keyVault.properties.vaultUri}
-Cosmos DB: ${cosmosDb.properties.documentEndpoint}
-'''
-
-output costEstimate object = {
-  environment: environment
-  estimatedMonthlyCost: environment == 'dev' ? '$15-30' : environment == 'staging' ? '$50-100' : '$150-300'
-  breakdown: {
-    cosmosDb: environment == 'dev' ? 'Serverless (~$5-15)' : 'Provisioned (~$25-50)'
-    functions: environment == 'dev' ? 'Consumption (~$1-5)' : 'Premium (~$150-200)'
-    storage: '~$1-5'
-    keyVault: '~$0.50'
-    other: '~$2-10'
-  }
-}

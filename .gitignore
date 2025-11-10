@@ -56,4 +56,12 @@ nunit-*.xml
 .DS_Store
 .azurite/
 
+# Local development configuration (contains secrets)
+**/appsettings.Development.local.json
+**/appsettings.*.local.json
+
+# Azure Functions local settings (contains secrets)
+**/local.settings.json
+
+# Infrastructure parameter files (may contain secrets)
 infrastructure/*.parameters.*.json

@@ -66,6 +66,14 @@ For sending escalation emails
 
 # Development
 
+## Create local configuration files
+
+``` powershell
+
+cp src/Helios365.Platform/appsettings.Development.json src/Helios365.Platform/appsettings.Development.local.json 
+cp src/Helios365.Processor/local.settings.json.example src/Helios365.Processor/local.settings.json
+```
+
 ## Generate ARM template
 
 ``` bash
