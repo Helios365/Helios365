@@ -294,28 +294,28 @@ footer a:hover {
 .border-start-danger { border-left: 4px solid var(--danger-color) !important; }
 .border-start-info { border-left: 4px solid var(--info-color) !important; }
 
-/* ===== DASHBOARD HERO ===== */
-.dashboard-hero {
-    background: var(--primary-gradient);
-    padding: 3rem 0 2rem;
-    margin: -1rem -15px 2rem -15px;
-    position: relative;
-    overflow: hidden;
+/* ===== HEADER GRADIENT ===== */
+.header-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.dashboard-hero::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    background: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='m0 40 40-40v40z'/%3E%3Cpath d='m0 0h40v40z'/%3E%3C/g%3E%3C/svg%3E") repeat;
+.header-gradient .nav-link {
+    transition: all 0.2s ease;
+    text-decoration: none;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    background: transparent;
 }
 
-.dashboard-hero .container {
-    position: relative;
-    z-index: 1;
+.header-gradient .nav-link:hover {
+    color: white !important;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.header-gradient .nav-link.active {
+    color: white !important;
+    background: rgba(255, 255, 255, 0.25);
+    font-weight: 600;
 }
 
 /* Avatar utility */
