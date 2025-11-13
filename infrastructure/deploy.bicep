@@ -453,6 +453,31 @@ resource webAppKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2
   }
 }
 
+// Key Vault Secrets
+resource cosmosDbConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  name: 'CosmosDb-ConnectionString'
+  parent: keyVault
+  properties: {
+    value: 'AccountEndpoint=${cosmosDb.properties.documentEndpoint};AccountKey=${cosmosDb.listKeys().primaryMasterKey};'
+  }
+  dependsOn: [
+    keyVaultRoleAssignment
+    webAppKeyVaultRoleAssignment
+  ]
+}
+
+resource communicationServicesConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  name: 'CommunicationServices-ConnectionString'
+  parent: keyVault
+  properties: {
+    value: 'endpoint=${communicationService.properties.hostName};accesskey=${communicationService.listKeys().primaryKey}'
+  }
+  dependsOn: [
+    keyVaultRoleAssignment
+    webAppKeyVaultRoleAssignment
+  ]
+}
+
 // Outputs
 output functionAppName string = functionApp.name
 output functionAppHostName string = functionApp.properties.defaultHostName
@@ -468,4 +493,8 @@ output keyVaultUri string = keyVault.properties.vaultUri
 output applicationInsightsName string = applicationInsights.name
 output communicationServiceName string = communicationService.name
 output resourceGroupName string = resourceGroup().name
+
+// Key Vault Secret Information
+output cosmosDbSecretName string = cosmosDbConnectionStringSecret.name
+output communicationServicesSecretName string = communicationServicesConnectionStringSecret.name
 output subscriptionId string = subscription().subscriptionId

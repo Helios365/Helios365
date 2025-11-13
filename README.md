@@ -21,8 +21,11 @@ Deploy the complete Helios365 infrastructure to Azure in minutes:
 ### Deploy Entra Application
 
 ``` powershell
-New-AzADApplication -DisplayName "Helios365-Dev" -Web @{ RedirectUri = @("https://localhost:5000/signin-oidc") } | Select-Object -ExpandProperty AppId
+# Create App Registration
+./scripts/New-AppRegistration.ps1
 
+# Create App Registration Client Secret
+Set-AzKeyVaultSecret -VaultName dev-helios-xxxx-kv -Name AzureAd-ClientSecret -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
 ```
 
 ## Workflow
@@ -80,9 +83,14 @@ cp src/Helios365.Platform/appsettings.Development.json src/Helios365.Platform/ap
 cp src/Helios365.Processor/local.settings.json.example src/Helios365.Processor/local.settings.json
 ```
 
+## Deploy Bicep
+az deployment group create --resource-group `name of RG` --template-file ./infrastructure/deploy.bicep \
+  --parameters @./infrastructure/deploy.parameters.dev.json \
+  adminEmail="`admin email`"
+
+
 ## Generate ARM template
 
 ``` bash
-az bicep build --file .\infrastructure\deploy.bicep --outfile .\infrastructure\azuredeploy.json
-
+bicep build .\deploy.bicep --outfile .\azuredeploy.json
 ```
