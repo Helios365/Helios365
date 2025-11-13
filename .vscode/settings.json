@@ -1,6 +1,6 @@
 {
-    "azureFunctions.projectSubpath": "src\\Helios365.Processor",
-    "azureFunctions.deploySubpath": "src\\Helios365.Processor/bin/Release/net8.0/publish",
+    "azureFunctions.projectSubpath": "src\\Helios365.Functions",
+    "azureFunctions.deploySubpath": "src\\Helios365.Functions/bin/Debug/net8.0/publish",
     "azureFunctions.projectLanguage": "C#",
     "azureFunctions.projectRuntime": "~4",
     "azureFunctions.preDeployTask": "publish (functions)",

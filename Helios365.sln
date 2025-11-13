@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helios365.Core.Tests", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helios365.Functions.Tests", "tests\Helios365.Functions.Tests\Helios365.Functions.Tests.csproj", "{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D6D136ED-BE2D-4AD8-8CE7-4AC82F85482B}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helios365.Web", "src\Helios365.Web\Helios365.Web.csproj", "{C820E2DD-B150-4B9C-A04E-189F71F9630D}"
 EndProject
 Global
@@ -41,8 +39,5 @@ Global
 		{C820E2DD-B150-4B9C-A04E-189F71F9630D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C820E2DD-B150-4B9C-A04E-189F71F9630D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C820E2DD-B150-4B9C-A04E-189F71F9630D}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{C820E2DD-B150-4B9C-A04E-189F71F9630D} = {D6D136ED-BE2D-4AD8-8CE7-4AC82F85482B}
 	EndGlobalSection
 EndGlobal
