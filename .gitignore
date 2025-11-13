@@ -57,6 +57,7 @@ nunit-*.xml
 .azurite/
 
 # Local development configuration (contains secrets)
+**/appsettings.Development.json
 **/appsettings.Development.local.json
 **/appsettings.*.local.json
 

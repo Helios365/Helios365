@@ -45,13 +45,12 @@ Alert arrives → Validate ApiKey → Find Resource → Load Actions → Execute
 ```
 helios365/
 ├── src/
-│   ├── Helios365.Core/           
-│   ├── Helios365.Processor/     
-│   └── Helios365.Platform/      
+│   ├── Helios365.Core/           # Domain models, repositories, services
+│   ├── Helios365.Functions/      # Azure Functions - alert processing
+│   └── Helios365.Web/           # Blazor Server - web dashboard
 └── tests/
     ├── Helios365.Core.Tests/     
-    ├── Helios365.Processor.Tests/
-    └── Helios365.Platform.Tests/
+    └── Helios365.Functions.Tests/
 ```
 
 
@@ -78,9 +77,9 @@ For sending escalation emails
 ## Create local configuration files
 
 ``` powershell
-
-cp src/Helios365.Platform/appsettings.Development.json src/Helios365.Platform/appsettings.Development.local.json 
-cp src/Helios365.Processor/local.settings.json.example src/Helios365.Processor/local.settings.json
+# Create development settings (not committed to Git)
+cp src/Helios365.Web/appsettings.json src/Helios365.Web/appsettings.Development.json
+cp src/Helios365.Functions/local.settings.json.example src/Helios365.Functions/local.settings.json
 ```
 
 ## Deploy Bicep

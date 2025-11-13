@@ -12,7 +12,7 @@
 			},
 			"problemMatcher": "$msCompile",
 			"options": {
-				"cwd": "${workspaceFolder}/src/Helios365.Processor"
+				"cwd": "${workspaceFolder}/src/Helios365.Functions"
 			}
 		},
 		{
@@ -22,7 +22,7 @@
 			"type": "process",
 			"problemMatcher": "$msCompile",
 			"options": {
-				"cwd": "${workspaceFolder}/src/Helios365.Processor"
+				"cwd": "${workspaceFolder}/src/Helios365.Functions"
 			}
 		}
 	]

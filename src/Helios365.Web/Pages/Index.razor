@@ -1,0 +1,257 @@
+﻿@page "/"
+@using Helios365.Core.Models
+@using Helios365.Core.Repositories
+@inject IAlertRepository AlertRepository
+@inject ICustomerRepository CustomerRepository
+@inject IResourceRepository ResourceRepository
+@inject ILogger<Index> Logger
+
+<PageTitle>Helios365 Dashboard</PageTitle>
+
+<h1 class="display-4 mb-0">🌞 Dashboard</h1>
+<p class="lead mb-4">Real-time monitoring and automated incident response</p>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="display-4 text-primary mb-2">@ActiveAlertsCount</div>
+                    <h6 class="text-muted mb-0">Active Alerts</h6>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="display-4 text-success mb-2">@ResolvedTodayCount</div>
+                    <h6 class="text-muted mb-0">Resolved Today</h6>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="display-4 text-warning mb-2">@EscalatedCount</div>
+                    <h6 class="text-muted mb-0">Escalated</h6>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="display-4 text-info mb-2">@CustomersCount</div>
+                    <h6 class="text-muted mb-0">Customers</h6>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Alerts -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0">Recent Alerts</h5>
+        </div>
+        <div class="card-body p-0">
+            @if (RecentAlerts.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Alert ID</th>
+                                <th>Customer</th>
+                                <th>Resource Type</th>
+                                <th>Alert Type</th>
+                                <th>Status</th>
+                                <th>Severity</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var alert in RecentAlerts)
+                            {
+                                <tr>
+                                    <td>
+                                        <code>@alert.Id.Substring(0, Math.Min(8, alert.Id.Length))...</code>
+                                    </td>
+                                    <td>
+                                        @if (Customers.TryGetValue(alert.CustomerId, out var customer))
+                                        {
+                                            @customer.Name
+                                        }
+                                        else
+                                        {
+                                            <small class="text-muted">@alert.CustomerId</small>
+                                        }
+                                    </td>
+                                    <td><small>@alert.ResourceType</small></td>
+                                    <td>@alert.AlertType</td>
+                                    <td>
+                                        <span class="badge badge-status @GetStatusBadgeClass(alert.Status)">
+                                            @alert.Status
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-status @GetSeverityBadgeClass(alert.Severity)">
+                                            @alert.Severity
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small>@alert.CreatedAt.ToString("yyyy-MM-dd HH:mm")</small>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5 text-muted">
+                    <p class="mb-0">No alerts yet</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title">System Status</h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Total Resources</span>
+                        <strong>@ResourcesCount</strong>
+                    </div>
+                    <hr />
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Active Customers</span>
+                        <strong>@CustomersCount</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title">Today's Activity</h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Total Alerts</span>
+                        <strong>@RecentAlerts.Count(a => a.CreatedAt.Date == DateTime.UtcNow.Date)</strong>
+                    </div>
+                    <hr />
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Auto-Resolved</span>
+                        <strong class="text-success">@ResolvedTodayCount</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    
+    public int ActiveAlertsCount { get; set; }
+    public int ResolvedTodayCount { get; set; }
+    public int EscalatedCount { get; set; }
+    public int CustomersCount { get; set; }
+    public int ResourcesCount { get; set; }
+    public List<Alert> RecentAlerts { get; set; } = new();
+    public Dictionary<string, Customer> Customers { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get recent alerts
+            RecentAlerts = (await AlertRepository.ListAsync(limit: 20)).ToList();
+
+            // Load customers for display
+            var customerIds = RecentAlerts.Select(a => a.CustomerId).Distinct();
+            foreach (var customerId in customerIds)
+            {
+                var customer = await CustomerRepository.GetAsync(customerId);
+                if (customer != null)
+                {
+                    Customers[customerId] = customer;
+                }
+            }
+
+            // Count active alerts (not resolved, healthy, or failed)
+            var allAlerts = await AlertRepository.ListAsync(limit: 1000);
+            ActiveAlertsCount = allAlerts.Count(a => 
+                a.Status != AlertStatus.Resolved && 
+                a.Status != AlertStatus.Healthy && 
+                a.Status != AlertStatus.Failed);
+
+            // Count resolved today
+            ResolvedTodayCount = allAlerts.Count(a =>
+                (a.Status == AlertStatus.Resolved || a.Status == AlertStatus.Healthy) &&
+                a.ResolvedAt.HasValue &&
+                a.ResolvedAt.Value.Date == DateTime.UtcNow.Date);
+
+            // Count escalated
+            EscalatedCount = allAlerts.Count(a => a.Status == AlertStatus.Escalated);
+
+            // Count customers
+            var customers = await CustomerRepository.ListActiveAsync(limit: 1000);
+            CustomersCount = customers.Count();
+
+            // Count resources
+            var resources = await ResourceRepository.ListAsync(limit: 1000);
+            ResourcesCount = resources.Count();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading dashboard data");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetStatusBadgeClass(AlertStatus status)
+    {
+        return status switch
+        {
+            AlertStatus.Received => "bg-secondary",
+            AlertStatus.Routing => "bg-info",
+            AlertStatus.Checking => "bg-info",
+            AlertStatus.Remediating => "bg-warning text-dark",
+            AlertStatus.Rechecking => "bg-info",
+            AlertStatus.Resolved => "bg-success",
+            AlertStatus.Healthy => "bg-success",
+            AlertStatus.Escalated => "bg-danger",
+            AlertStatus.Failed => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private string GetSeverityBadgeClass(AlertSeverity severity)
+    {
+        return severity switch
+        {
+            AlertSeverity.Critical => "bg-danger",
+            AlertSeverity.High => "bg-warning text-dark",
+            AlertSeverity.Medium => "bg-info",
+            AlertSeverity.Low => "bg-secondary",
+            AlertSeverity.Info => "bg-light text-dark",
+            _ => "bg-secondary"
+        };
+    }
+}
