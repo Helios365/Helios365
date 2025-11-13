@@ -1,0 +1,114 @@
+@using System.Text.Json
+@using Helios365.Core.Models
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="editModel" Validated="OnValidated">
+            <MudTextField @bind-Value="editModel.Id" Label="Customer ID" For="() => editModel.Id" Required="true" Disabled="@IsEdit" HelperText="Unique identifier (GUID recommended)" />
+            <MudTextField @bind-Value="editModel.Name" Label="Name" For="() => editModel.Name" Required="true" />
+            <MudTextField @bind-Value="editModel.ApiKey" Label="API Key" For="() => editModel.ApiKey" Required="true" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.AutoAwesome" OnAdornmentClick="GenerateApiKey" />
+            <MudSwitch @bind-Value="editModel.Active" Color="Color.Primary" Label="Active" />
+            <MudNumericField T="int" @bind-Value="editModel.EscalationTimeoutMinutes" Label="Escalation Timeout (minutes)" Min="1" Required="true" />
+
+            <MudTextField T="string" Label="Notification Emails" @bind-Value="notificationEmailsRaw" Lines="3" Placeholder="email1@example.com, email2@example.com" HelperText="Comma or newline separated" />
+
+            <MudTextField T="string" Label="Metadata (JSON)" @bind-Value="metadataJson" Lines="4" Placeholder="{ \"key\": \"value\" }" />
+            @if (!string.IsNullOrWhiteSpace(metadataError))
+            {
+                <MudAlert Severity="Severity.Error">@metadataError</MudAlert>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance? MudDialog { get; set; }
+
+    [Parameter] public Customer? Model { get; set; }
+    [Parameter] public bool IsEdit { get; set; }
+
+    private MudForm? form;
+    private Customer editModel = new();
+    private string notificationEmailsRaw = string.Empty;
+    private string metadataJson = string.Empty;
+    private string metadataError = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        editModel = Model is null ? new Customer() : new Customer
+        {
+            Id = Model.Id,
+            Name = Model.Name,
+            ApiKey = Model.ApiKey,
+            Active = Model.Active,
+            EscalationTimeoutMinutes = Model.EscalationTimeoutMinutes,
+            NotificationEmails = new List<string>(Model.NotificationEmails),
+            CreatedAt = Model.CreatedAt,
+            UpdatedAt = Model.UpdatedAt,
+            Metadata = new Dictionary<string, string>(Model.Metadata)
+        };
+
+        notificationEmailsRaw = string.Join(", ", editModel.NotificationEmails);
+        metadataJson = editModel.Metadata.Count > 0 ? JsonSerializer.Serialize(editModel.Metadata, new JsonSerializerOptions { WriteIndented = true }) : string.Empty;
+
+        if (!IsEdit)
+        {
+            if (string.IsNullOrWhiteSpace(editModel.Id)) editModel.Id = Guid.NewGuid().ToString("N");
+            if (string.IsNullOrWhiteSpace(editModel.ApiKey)) editModel.ApiKey = GenerateKey();
+        }
+    }
+
+    private void GenerateApiKey() => editModel.ApiKey = GenerateKey();
+
+    private static string GenerateKey() => Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+        .Replace("=", string.Empty).Replace("+", string.Empty).Replace("/", string.Empty);
+
+    private async Task Save()
+    {
+        metadataError = string.Empty;
+        if (form is not null)
+        {
+            await form.Validate();
+            if (!form.IsValid)
+                return;
+        }
+
+        editModel.NotificationEmails = notificationEmailsRaw
+            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(e => e.Trim())
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(metadataJson))
+        {
+            try
+            {
+                var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson);
+                editModel.Metadata = dict ?? new Dictionary<string, string>();
+            }
+            catch (Exception ex)
+            {
+                metadataError = $"Invalid metadata JSON: {ex.Message}";
+                StateHasChanged();
+                return;
+            }
+        }
+        else
+        {
+            editModel.Metadata = new Dictionary<string, string>();
+        }
+
+        MudDialog?.Close(DialogResult.Ok(editModel));
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private void OnValidated() { }
+}

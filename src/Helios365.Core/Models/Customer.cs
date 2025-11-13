@@ -1,33 +1,33 @@
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 
 namespace Helios365.Core.Models;
 
 public class Customer
 {
-    [JsonPropertyName("id")]
+    [JsonProperty(PropertyName = "id")]
     public string Id { get; set; } = string.Empty;
 
-    [JsonPropertyName("name")]
+    [JsonProperty(PropertyName = "name")]
     public string Name { get; set; } = string.Empty;
 
-    [JsonPropertyName("apiKey")]
+    [JsonProperty(PropertyName = "apiKey")]
     public string ApiKey { get; set; } = string.Empty;
 
-    [JsonPropertyName("notificationEmails")]
+    [JsonProperty(PropertyName = "notificationEmails")]
     public List<string> NotificationEmails { get; set; } = new();
 
-    [JsonPropertyName("escalationTimeoutMinutes")]
+    [JsonProperty(PropertyName = "escalationTimeoutMinutes")]
     public int EscalationTimeoutMinutes { get; set; } = 5;
 
-    [JsonPropertyName("active")]
+    [JsonProperty(PropertyName = "active")]
     public bool Active { get; set; } = true;
 
-    [JsonPropertyName("createdAt")]
+    [JsonProperty(PropertyName = "createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    [JsonPropertyName("updatedAt")]
+    [JsonProperty(PropertyName = "updatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    [JsonPropertyName("metadata")]
+    [JsonProperty(PropertyName = "metadata")]
     public Dictionary<string, string> Metadata { get; set; } = new();
 }

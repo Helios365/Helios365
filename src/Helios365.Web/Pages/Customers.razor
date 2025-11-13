@@ -1,0 +1,162 @@
+@page "/customers"
+@using Helios365.Core.Models
+@using Helios365.Core.Repositories
+@inject ICustomerRepository CustomerRepository
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject ILogger<Customers> Logger
+
+<PageTitle>Customers</PageTitle>
+
+<h1 class="mb-3">Customers</h1>
+
+<MudPaper Class="pa-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <MudTextField T="string" @bind-Value="search" Placeholder="Search customers..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="me-2" Immediate="true" />
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateCustomer">Add Customer</MudButton>
+    </div>
+
+    <MudTable Items="@FilteredCustomers" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Id</MudTh>
+            <MudTh>Active</MudTh>
+            <MudTh>Escalation (min)</MudTh>
+            <MudTh>Emails</MudTh>
+            <MudTh>Updated</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Id"><MudTooltip Text="@context.Id"><code>@(context.Id.Length > 10 ? context.Id[..10] + "..." : context.Id)</code></MudTooltip></MudTd>
+            <MudTd DataLabel="Active">@(context.Active ? "Yes" : "No")</MudTd>
+            <MudTd DataLabel="Escalation">@context.EscalationTimeoutMinutes</MudTd>
+            <MudTd DataLabel="Emails">@context.NotificationEmails.Count</MudTd>
+            <MudTd DataLabel="Updated">@context.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
+            <MudTd Class="text-end">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="() => EditCustomer(context)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => ConfirmDelete(context)" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No customers found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<Customer> customers = new();
+    private string search = string.Empty;
+
+    private IEnumerable<Customer> FilteredCustomers => string.IsNullOrWhiteSpace(search)
+        ? customers
+        : customers.Where(c =>
+            (c.Name?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (c.Id?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            c.NotificationEmails.Any(e => e.Contains(search, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+    }
+
+    private async Task LoadCustomers()
+    {
+        try
+        {
+            customers = (await CustomerRepository.ListAsync(limit: 1000)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load customers");
+            Snackbar.Add($"Failed to load customers: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CreateCustomer()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(Shared.CustomerEditDialog.Model)] = new Customer(),
+            [nameof(Shared.CustomerEditDialog.IsEdit)] = false
+        };
+        var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = DialogService.Show<Shared.CustomerEditDialog>("Add Customer", parameters, options);
+        var result = await dialog.Result;
+        if (!result.Canceled && result.Data is Customer created)
+        {
+            try
+            {
+                created.CreatedAt = DateTime.UtcNow;
+                created.UpdatedAt = DateTime.UtcNow;
+                await CustomerRepository.CreateAsync(created);
+                Snackbar.Add($"Customer '{created.Name}' created", Severity.Success);
+                await LoadCustomers();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to create customer");
+                Snackbar.Add($"Failed to create customer: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task EditCustomer(Customer customer)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(Shared.CustomerEditDialog.Model)] = customer,
+            [nameof(Shared.CustomerEditDialog.IsEdit)] = true
+        };
+        var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = DialogService.Show<Shared.CustomerEditDialog>($"Edit {customer.Name}", parameters, options);
+        var result = await dialog.Result;
+        if (!result.Canceled && result.Data is Customer edited)
+        {
+            try
+            {
+                await CustomerRepository.UpdateAsync(customer.Id, edited);
+                Snackbar.Add($"Customer '{edited.Name}' updated", Severity.Success);
+                await LoadCustomers();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to update customer");
+                Snackbar.Add($"Failed to update customer: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task ConfirmDelete(Customer customer)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            title: "Delete Customer",
+            markupMessage: (MarkupString)$"Are you sure you want to delete '<strong>{customer.Name}</strong>'?",
+            yesText: "Delete",
+            cancelText: "Cancel",
+            options: new DialogOptions { MaxWidth = MaxWidth.Small });
+
+        if (confirmed == true)
+        {
+            try
+            {
+                var ok = await CustomerRepository.DeleteAsync(customer.Id);
+                if (ok)
+                {
+                    Snackbar.Add($"Customer '{customer.Name}' deleted", Severity.Success);
+                    await LoadCustomers();
+                }
+                else
+                {
+                    Snackbar.Add("Customer not found", Severity.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to delete customer");
+                Snackbar.Add($"Failed to delete customer: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}
+

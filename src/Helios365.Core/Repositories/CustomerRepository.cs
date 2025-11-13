@@ -63,6 +63,15 @@ public class CustomerRepository : ICustomerRepository
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(item.Id))
+            {
+                item.Id = Guid.NewGuid().ToString("N");
+            }
+            if (item.CreatedAt == default)
+            {
+                item.CreatedAt = DateTime.UtcNow;
+            }
+            item.UpdatedAt = DateTime.UtcNow;
             var response = await _container.CreateItemAsync(item, new PartitionKey(item.Id), cancellationToken: cancellationToken);
             _logger.LogInformation("Created customer {CustomerId}", item.Id);
             return response.Resource;

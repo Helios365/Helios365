@@ -4,6 +4,7 @@ using Microsoft.Identity.Web.UI;
 using Helios365.Web.Extensions;
 using Azure.Identity;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +36,7 @@ builder.Services.AddServerSideBlazor()
 // Add Cosmos DB and Helios365 Core services
 builder.Services.AddCosmosDb(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddRepositories(builder.Configuration);
+builder.Services.AddMudServices();
 
 var app = builder.Build();
 
