@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 
 namespace Helios365.Core.Models;
 
@@ -29,31 +29,31 @@ public enum ScaleDirection
 
 public abstract class ActionBase
 {
-    [JsonPropertyName("id")]
+    [JsonProperty("id")]
     public string Id { get; set; } = string.Empty;
 
-    [JsonPropertyName("resourceId")]
+    [JsonProperty("resourceId")]
     public string? ResourceId { get; set; }
 
-    [JsonPropertyName("customerId")]
+    [JsonProperty("customerId")]
     public string CustomerId { get; set; } = string.Empty;
 
-    [JsonPropertyName("type")]
+    [JsonProperty("type")]
     public ActionType Type { get; set; }
 
-    [JsonPropertyName("mode")]
+    [JsonProperty("mode")]
     public ActionMode Mode { get; set; } = ActionMode.Manual;
 
-    [JsonPropertyName("order")]
+    [JsonProperty("order")]
     public int Order { get; set; }
 
-    [JsonPropertyName("enabled")]
+    [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
 
-    [JsonPropertyName("createdAt")]
+    [JsonProperty("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    [JsonPropertyName("updatedAt")]
+    [JsonProperty("updatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public bool IsDefaultAction() => string.IsNullOrEmpty(ResourceId);
@@ -61,19 +61,19 @@ public abstract class ActionBase
 
 public class HealthCheckAction : ActionBase
 {
-    [JsonPropertyName("url")]
+    [JsonProperty("url")]
     public string Url { get; set; } = string.Empty;
 
-    [JsonPropertyName("method")]
+    [JsonProperty("method")]
     public HttpMethod Method { get; set; } = HttpMethod.GET;
 
-    [JsonPropertyName("expectedStatusCode")]
+    [JsonProperty("expectedStatusCode")]
     public int ExpectedStatusCode { get; set; } = 200;
 
-    [JsonPropertyName("timeoutSeconds")]
+    [JsonProperty("timeoutSeconds")]
     public int TimeoutSeconds { get; set; } = 30;
 
-    [JsonPropertyName("headers")]
+    [JsonProperty("headers")]
     public Dictionary<string, string> Headers { get; set; } = new();
 
     public HealthCheckAction()
@@ -84,10 +84,10 @@ public class HealthCheckAction : ActionBase
 
 public class RestartAction : ActionBase
 {
-    [JsonPropertyName("waitBeforeSeconds")]
+    [JsonProperty("waitBeforeSeconds")]
     public int WaitBeforeSeconds { get; set; } = 0;
 
-    [JsonPropertyName("waitAfterSeconds")]
+    [JsonProperty("waitAfterSeconds")]
     public int WaitAfterSeconds { get; set; } = 300;
 
     public RestartAction()
@@ -98,13 +98,13 @@ public class RestartAction : ActionBase
 
 public class ScaleAction : ActionBase
 {
-    [JsonPropertyName("direction")]
+    [JsonProperty("direction")]
     public ScaleDirection Direction { get; set; } = ScaleDirection.Up;
 
-    [JsonPropertyName("targetInstanceCount")]
+    [JsonProperty("targetInstanceCount")]
     public int? TargetInstanceCount { get; set; }
 
-    [JsonPropertyName("targetSku")]
+    [JsonProperty("targetSku")]
     public string? TargetSku { get; set; }
 
     public ScaleAction()

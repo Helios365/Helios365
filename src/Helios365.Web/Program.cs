@@ -4,6 +4,7 @@ using Microsoft.Identity.Web.UI;
 using Helios365.Web.Extensions;
 using Azure.Identity;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
+ 
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,7 +17,6 @@ if (!string.IsNullOrEmpty(keyVaultUri))
         new Uri(keyVaultUri),
         new Azure.Identity.DefaultAzureCredential());
 }
-System.Console.WriteLine($"{builder.Configuration["AzureAd:ClientSecret"]}");
 
 builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApp(options =>

@@ -1,0 +1,158 @@
+@using System.Text.Json
+@using Helios365.Core.Models
+@using Helios365.Web.Models
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" Model="editModel" Validated="OnValidated">
+            <MudTextField @bind-Value="editModel.Id" Label="Service Principal ID" For="() => editModel.Id" Required="true" Disabled="@IsEdit" HelperText="Unique identifier (GUID recommended)" />
+            <MudTextField @bind-Value="editModel.Name" Label="Name" For="() => editModel.Name" Required="true" />
+            <MudTextField @bind-Value="editModel.CustomerId" Label="Customer ID" For="() => editModel.CustomerId" Required="true" />
+            <MudTextField @bind-Value="editModel.TenantId" Label="Tenant ID" For="() => editModel.TenantId" Required="true" />
+            <MudTextField @bind-Value="editModel.ClientId" Label="Client ID (App ID)" For="() => editModel.ClientId" Required="true" />
+            
+            <MudAlert Severity="@((HasSecret) ? Severity.Success : Severity.Warning)" Variant="Variant.Outlined" Class="mb-2">
+                Secret status: <strong>@(HasSecret ? "Set" : "Not set")</strong>
+            </MudAlert>
+            
+            <MudSwitch @bind-Value="rotateSecret" Color="Color.Primary" Label="Set/Rotate Secret" Class="mb-2" />
+            @if (rotateSecret)
+            {
+                <MudTextField @bind-Value="newSecret" Label="New Client Secret" InputType="InputType.Password" For="() => newSecret" Required="@(!IsEdit)" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.AutoAwesome" OnAdornmentClick="GenerateSecret" AutoFocus="true" />
+                <MudTextField @bind-Value="confirmSecret" Label="Confirm Secret" InputType="InputType.Password" For="() => confirmSecret" Required="@(!IsEdit)" />
+                @if (!string.IsNullOrWhiteSpace(secretError))
+                {
+                    <MudAlert Severity="Severity.Error">@secretError</MudAlert>
+                }
+            }
+            <MudSelect T="AzureCloudEnvironment" @bind-Value="editModel.CloudEnvironment" Label="Cloud Environment" Required="true">
+                @foreach (var value in Enum.GetValues<AzureCloudEnvironment>())
+                {
+                    <MudSelectItem Value="value">@value</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSwitch @bind-Value="editModel.Active" Color="Color.Primary" Label="Active" />
+
+            <MudTextField T="string" Label="Metadata (JSON)" @bind-Value="metadataJson" Lines="4" Placeholder="{ \"key\": \"value\" }" />
+            @if (!string.IsNullOrWhiteSpace(metadataError))
+            {
+                <MudAlert Severity="Severity.Error">@metadataError</MudAlert>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
+    </DialogActions>
+    
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance? MudDialog { get; set; }
+
+    [Parameter] public ServicePrincipal? Model { get; set; }
+    [Parameter] public bool IsEdit { get; set; }
+
+    private MudForm? form;
+    private ServicePrincipal editModel = new();
+    private string metadataJson = string.Empty;
+    private string metadataError = string.Empty;
+    private bool rotateSecret;
+    private string newSecret = string.Empty;
+    private string confirmSecret = string.Empty;
+    private string secretError = string.Empty;
+    private bool HasSecret => !string.IsNullOrWhiteSpace(editModel.ClientSecretKeyVaultReference);
+
+    protected override void OnInitialized()
+    {
+        editModel = Model is null ? new ServicePrincipal() : new ServicePrincipal
+        {
+            Id = Model.Id,
+            CustomerId = Model.CustomerId,
+            Name = Model.Name,
+            TenantId = Model.TenantId,
+            ClientId = Model.ClientId,
+            ClientSecretKeyVaultReference = Model.ClientSecretKeyVaultReference,
+            CloudEnvironment = Model.CloudEnvironment,
+            Active = Model.Active,
+            CreatedAt = Model.CreatedAt,
+            UpdatedAt = Model.UpdatedAt,
+            Metadata = new Dictionary<string, string>(Model.Metadata)
+        };
+
+        metadataJson = editModel.Metadata.Count > 0 ? JsonSerializer.Serialize(editModel.Metadata, new JsonSerializerOptions { WriteIndented = true }) : string.Empty;
+
+        if (!IsEdit)
+        {
+            if (string.IsNullOrWhiteSpace(editModel.Id)) editModel.Id = Guid.NewGuid().ToString("N");
+            rotateSecret = true; // Require secret on create
+        }
+    }
+
+    private async Task Save()
+    {
+        metadataError = string.Empty;
+        secretError = string.Empty;
+        if (form is not null)
+        {
+            await form.Validate();
+            if (!form.IsValid)
+                return;
+        }
+
+        if (rotateSecret)
+        {
+            if (string.IsNullOrWhiteSpace(newSecret))
+            {
+                secretError = "Secret is required";
+                StateHasChanged();
+                return;
+            }
+            if (!string.Equals(newSecret, confirmSecret, StringComparison.Ordinal))
+            {
+                secretError = "Secrets do not match";
+                StateHasChanged();
+                return;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(metadataJson))
+        {
+            try
+            {
+                var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson);
+                editModel.Metadata = dict ?? new Dictionary<string, string>();
+            }
+            catch (Exception ex)
+            {
+                metadataError = $"Invalid metadata JSON: {ex.Message}";
+                StateHasChanged();
+                return;
+            }
+        }
+        else
+        {
+            editModel.Metadata = new Dictionary<string, string>();
+        }
+        var result = new ServicePrincipalEditResult
+        {
+            Principal = editModel,
+            NewClientSecret = rotateSecret ? newSecret : null
+        };
+        MudDialog?.Close(DialogResult.Ok(result));
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private void OnValidated() { }
+
+    private void GenerateSecret()
+    {
+        // 48 chars base64-ish from 32 bytes
+        newSecret = Convert.ToBase64String(Guid.NewGuid().ToByteArray().Concat(Guid.NewGuid().ToByteArray()).ToArray())
+            .Replace("=", string.Empty).Replace("+", string.Empty).Replace("/", string.Empty);
+        confirmSecret = newSecret;
+    }
+}

@@ -3,6 +3,8 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Azure.Security.KeyVault.Secrets;
+using Azure.Identity;
 
 namespace Helios365.Web.Extensions;
 
@@ -46,6 +48,20 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddRepositories(this IServiceCollection services, IConfiguration configuration)
     {
+        // Key Vault Secret repository
+        var keyVaultUri = configuration["KeyVault:VaultUri"];
+        if (!string.IsNullOrEmpty(keyVaultUri))
+        {
+            services.AddSingleton(new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
+            services.AddScoped<ISecretRepository, SecretRepository>();
+        }
+        else
+        {
+            // Optional: don't fail startup if KeyVault is not configured; callers that need it will throw
+            // Alternatively, uncomment to enforce config:
+            // throw new InvalidOperationException("KeyVault:VaultUri is required");
+        }
+
         services.AddScoped<ICustomerRepository>(sp =>
         {
             var cosmosClient = sp.GetRequiredService<CosmosClient>();
