@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 
 namespace Helios365.Core.Models;
 
@@ -26,46 +26,46 @@ public enum AlertSeverity
 
 public class Alert
 {
-    [JsonPropertyName("id")]
+    [JsonProperty("id")]
     public string Id { get; set; } = string.Empty;
 
-    [JsonPropertyName("customerId")]
+    [JsonProperty("customerId")]
     public string CustomerId { get; set; } = string.Empty;
 
-    [JsonPropertyName("resourceId")]
+    [JsonProperty("resourceId")]
     public string ResourceId { get; set; } = string.Empty;
 
-    [JsonPropertyName("resourceType")]
+    [JsonProperty("resourceType")]
     public string ResourceType { get; set; } = string.Empty;
 
-    [JsonPropertyName("alertType")]
+    [JsonProperty("alertType")]
     public string AlertType { get; set; } = string.Empty;
 
-    [JsonPropertyName("status")]
+    [JsonProperty("status")]
     public AlertStatus Status { get; set; } = AlertStatus.Received;
 
-    [JsonPropertyName("severity")]
+    [JsonProperty("severity")]
     public AlertSeverity Severity { get; set; } = AlertSeverity.Medium;
 
-    [JsonPropertyName("title")]
+    [JsonProperty("title")]
     public string? Title { get; set; }
 
-    [JsonPropertyName("description")]
+    [JsonProperty("description")]
     public string? Description { get; set; }
 
-    [JsonPropertyName("createdAt")]
+    [JsonProperty("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    [JsonPropertyName("updatedAt")]
+    [JsonProperty("updatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    [JsonPropertyName("resolvedAt")]
+    [JsonProperty("resolvedAt")]
     public DateTime? ResolvedAt { get; set; }
 
-    [JsonPropertyName("escalatedAt")]
+    [JsonProperty("escalatedAt")]
     public DateTime? EscalatedAt { get; set; }
 
-    [JsonPropertyName("metadata")]
+    [JsonProperty("metadata")]
     public Dictionary<string, string> Metadata { get; set; } = new();
 
     public void MarkStatus(AlertStatus status)

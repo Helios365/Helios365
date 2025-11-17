@@ -1,7 +1,7 @@
 param(
     [string]$AppName = "HeliosAppRegistration",
-    [string[]]$RedirectUris = @("https://localhost:5001/signin-oidc"),
-    [string]$LogoutUrl = "https://localhost:5001/signout-oidc",
+    [string[]]$RedirectUris = @("https://localhost:7098/signin-oidc"),
+    [string]$LogoutUrl = "https://localhost:7098/signout-oidc",
     [ValidateSet("AzureADMyOrg", "AzureADMultipleOrgs", "AzureADandPersonalMicrosoftAccount")]
     [string]$SignInAudience = "AzureADMyOrg"
 )
@@ -14,10 +14,6 @@ $App = New-MgApplication `
   -Web @{
       redirectUris = $RedirectUris
       logoutUrl    = $LogoutUrl
-      implicitGrantSettings = @{
-        enableIdTokenIssuance   = $true
-        enableAccessTokenIssuance = $true
-      }
     }
 
 $SP  = New-MgServicePrincipal -AppId $App.AppId

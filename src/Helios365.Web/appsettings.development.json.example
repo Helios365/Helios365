@@ -1,0 +1,24 @@
+{
+  "DetailedErrors": true,
+  "Logging": {
+    "LogLevel": {
+      "Default": "Debug",
+      "Microsoft.AspNetCore": "Information"
+    }
+  },
+  "AzureAd": {
+    "Domain": "<entra domain>",
+    "TenantId": "<tenant id>",
+    "ClientId": "<client id>",
+    "ClientSecret": "<client secret>"
+  },
+  "KeyVault": {
+    "VaultUri": "<key vault uri>"
+  },
+  "CosmosDb": {
+    "ConnectionString": "<cosmos db connection string>"
+  },
+  "CommunicationServices": {
+    "ConnectionString": "<communication services connection string>"
+  }
+}

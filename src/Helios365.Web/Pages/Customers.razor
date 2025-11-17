@@ -95,8 +95,8 @@
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Failed to create customer");
-                Snackbar.Add($"Failed to create customer: {ex.Message}", Severity.Error);
+                Logger.LogError(ex, message:"Failed to create customer");
+                Snackbar.Add(message: $"Failed to create customer: {ex.Message}", Severity.Error);
             }
         }
     }

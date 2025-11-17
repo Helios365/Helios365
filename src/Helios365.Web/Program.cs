@@ -16,10 +16,14 @@ if (!string.IsNullOrEmpty(keyVaultUri))
         new Uri(keyVaultUri),
         new Azure.Identity.DefaultAzureCredential());
 }
+System.Console.WriteLine($"{builder.Configuration["AzureAd:ClientSecret"]}");
 
-// Add services to the container.
 builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+    .AddMicrosoftIdentityWebApp(options =>
+    {
+        builder.Configuration.Bind("AzureAd", options);
+        options.ResponseType = "code"; // Use authorization code flow instead of implicit
+    });
 builder.Services.AddControllersWithViews()
     .AddMicrosoftIdentityUI();
 

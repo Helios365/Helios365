@@ -25,7 +25,7 @@ Deploy the complete Helios365 infrastructure to Azure in minutes:
 ./scripts/New-AppRegistration.ps1
 
 # Create App Registration Client Secret
-Set-AzKeyVaultSecret -VaultName dev-helios-xxxx-kv -Name AzureAd-ClientSecret -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
+Set-AzKeyVaultSecret -VaultName dev-helios-xxxx-kv -Name "AzureAd--ClientSecret" -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
 ```
 
 ## Workflow
