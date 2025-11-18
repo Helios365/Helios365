@@ -106,6 +106,7 @@ public class ActionExecutor : IActionExecutor
             }
 
             // Get service principal secret from Key Vault
+            // TODO: migrate to using ServicePrincipal.ClientSecretKeyVaultReference (see AzureResourceGraphService)
             var secretName = $"sp-{servicePrincipal.Id}";
             var secret = await _secretClient.GetSecretAsync(secretName, cancellationToken: cancellationToken);
 
