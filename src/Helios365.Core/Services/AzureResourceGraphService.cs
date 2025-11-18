@@ -6,7 +6,7 @@ using Azure.ResourceManager;
 using Azure.ResourceManager.Resources;
 using Azure.ResourceManager.ResourceGraph;
 using Azure.ResourceManager.ResourceGraph.Models;
-using Azure.Security.KeyVault.Secrets;
+using Helios365.Core.Repositories;
 using Helios365.Core.Models;
 using Helios365.Core.Utilities;
 using Microsoft.Extensions.Logging;
@@ -55,12 +55,12 @@ public class AzureResourceGraphService : IAzureResourceGraphService
             tags
         """;
 
-    private readonly SecretClient _secretClient;
+    private readonly ISecretRepository _secretRepository;
     private readonly ILogger<AzureResourceGraphService> _logger;
 
-    public AzureResourceGraphService(SecretClient secretClient, ILogger<AzureResourceGraphService> logger)
+    public AzureResourceGraphService(ISecretRepository secretRepository, ILogger<AzureResourceGraphService> logger)
     {
-        _secretClient = secretClient;
+        _secretRepository = secretRepository;
         _logger = logger;
     }
 
@@ -161,7 +161,7 @@ public class AzureResourceGraphService : IAzureResourceGraphService
 
         try
         {
-            var clientSecret = await GetClientSecretAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+            var clientSecret = await _secretRepository.GetServicePrincipalSecretAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
 
             var credential = new ClientSecretCredential(
                 servicePrincipal.TenantId,
@@ -212,41 +212,6 @@ public class AzureResourceGraphService : IAzureResourceGraphService
                 resourceDescription);
             throw;
         }
-    }
-
-    private async Task<string> GetClientSecretAsync(ServicePrincipal servicePrincipal, CancellationToken cancellationToken)
-    {
-        // Preferred path: use the Key Vault reference stored on the ServicePrincipal
-        if (!string.IsNullOrWhiteSpace(servicePrincipal.ClientSecretKeyVaultReference))
-        {
-            try
-            {
-                var referenceUri = new Uri(servicePrincipal.ClientSecretKeyVaultReference);
-                var segments = referenceUri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-                if (segments.Length >= 2 && string.Equals(segments[0], "secrets", StringComparison.OrdinalIgnoreCase))
-                {
-                    var secretName = segments[1];
-                    var secret = await _secretClient.GetSecretAsync(secretName, cancellationToken: cancellationToken).ConfigureAwait(false);
-                    return secret.Value.Value;
-                }
-
-                _logger.LogWarning(
-                    "ClientSecretKeyVaultReference on ServicePrincipal {ServicePrincipalId} did not match expected format: {Reference}",
-                    servicePrincipal.Id,
-                    servicePrincipal.ClientSecretKeyVaultReference);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "Failed to resolve ServicePrincipal secret from ClientSecretKeyVaultReference for {ServicePrincipalId}",
-                    servicePrincipal.Id);
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"ServicePrincipal {servicePrincipal.Id} is missing ClientSecretKeyVaultReference; store a Key Vault reference before querying Azure Resource Graph.");
     }
 
     private async Task<TenantResource> ResolveTenantAsync(ArmClient armClient, CancellationToken cancellationToken)

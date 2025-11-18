@@ -44,6 +44,34 @@ public class SecretRepository : ISecretRepository
         }
     }
 
+    public async Task<string> GetServicePrincipalSecretAsync(ServicePrincipal sp, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sp.ClientSecretKeyVaultReference))
+        {
+            throw new InvalidOperationException($"ServicePrincipal {sp.Id} does not have a ClientSecretKeyVaultReference.");
+        }
+
+        try
+        {
+            var secretUri = new Uri(sp.ClientSecretKeyVaultReference);
+            var segments = secretUri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            if (segments.Length >= 2 && string.Equals(segments[0], "secrets", StringComparison.OrdinalIgnoreCase))
+            {
+                var secretName = segments[1];
+                var secret = await _secretClient.GetSecretAsync(secretName, cancellationToken: cancellationToken).ConfigureAwait(false);
+                return secret.Value.Value;
+            }
+
+            throw new InvalidOperationException($"ClientSecretKeyVaultReference for ServicePrincipal {sp.Id} has unexpected format.");
+        }
+        catch (RequestFailedException ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve secret for ServicePrincipal {ServicePrincipalId}", sp.Id);
+            throw;
+        }
+    }
+
     private static string BuildSecretName(ServicePrincipal sp)
     {
         var customer = SanitizeSegment(sp.CustomerId);

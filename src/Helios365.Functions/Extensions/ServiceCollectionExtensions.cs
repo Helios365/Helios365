@@ -106,13 +106,12 @@ public static class ServiceCollectionExtensions
     {
         // Key Vault
         var keyVaultUri = configuration["KeyVaultUri"];
-        if (!string.IsNullOrEmpty(keyVaultUri))
+        if (string.IsNullOrEmpty(keyVaultUri))
         {
-            services.AddSingleton<SecretClient>(sp =>
-            {
-                return new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential());
-            });
+            throw new InvalidOperationException("KeyVaultUri is required for external service integrations.");
         }
+
+        services.AddSingleton<SecretClient>(_ => new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
 
         // HTTP Client for ActionExecutor
         services.AddHttpClient<IActionExecutor, ActionExecutor>(client =>
@@ -130,6 +129,27 @@ public static class ServiceCollectionExtensions
             var emailClient = new EmailClient(acsConnectionString);
             var logger = sp.GetRequiredService<ILogger<EmailService>>();
             return new EmailService(emailClient, fromEmail, logger);
+        });
+
+        services.AddSingleton<ISecretRepository>(sp =>
+        {
+            var secretClient = sp.GetRequiredService<SecretClient>();
+            var logger = sp.GetRequiredService<ILogger<SecretRepository>>();
+            return new SecretRepository(secretClient, logger);
+        });
+
+        services.AddSingleton<IAzureResourceGraphService>(sp =>
+        {
+            var secretRepository = sp.GetRequiredService<ISecretRepository>();
+            var logger = sp.GetRequiredService<ILogger<AzureResourceGraphService>>();
+            return new AzureResourceGraphService(secretRepository, logger);
+        });
+
+        services.AddSingleton<IAzureResourceService>(sp =>
+        {
+            var secretRepository = sp.GetRequiredService<ISecretRepository>();
+            var logger = sp.GetRequiredService<ILogger<AzureResourceService>>();
+            return new AzureResourceService(secretRepository, logger);
         });
 
         return services;

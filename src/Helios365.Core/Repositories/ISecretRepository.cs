@@ -9,5 +9,9 @@ public interface ISecretRepository
     /// and returns a stable reference (e.g., Key Vault secret URL without version).
     /// </summary>
     Task<string> SetServicePrincipalSecretAsync(ServicePrincipal sp, string plaintextSecret, CancellationToken cancellationToken = default);
-}
 
+    /// <summary>
+    /// Retrieves the plaintext secret for the given Service Principal using the stored reference.
+    /// </summary>
+    Task<string> GetServicePrincipalSecretAsync(ServicePrincipal sp, CancellationToken cancellationToken = default);
+}

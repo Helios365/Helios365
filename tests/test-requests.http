@@ -23,3 +23,17 @@ Content-Type: application/json
   "Description": "Disk space is below 10%",
   "Severity": 1
 }
+
+
+### Test another alert type
+POST http://localhost:7071/api/resources/sync/app-services
+Content-Type: application/json
+
+{
+  "ResourceId": "test-db-789",
+  "ResourceType": "Database",
+  "AlertType": "ConnectionIssues",
+  "Title": "Database Connection Issues", 
+  "Description": "Unable to connect to the database",
+  "Severity": 3
+} 
