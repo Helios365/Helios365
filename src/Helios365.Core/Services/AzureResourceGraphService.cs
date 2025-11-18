@@ -8,6 +8,7 @@ using Azure.ResourceManager.ResourceGraph;
 using Azure.ResourceManager.ResourceGraph.Models;
 using Azure.Security.KeyVault.Secrets;
 using Helios365.Core.Models;
+using Helios365.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
@@ -319,6 +320,7 @@ public class AzureResourceGraphService : IAzureResourceGraphService
             try
             {
                 var id = element.GetProperty("id").GetString() ?? string.Empty;
+                var normalizedId = ResourceIdNormalizer.Normalize(id);
                 var name = element.GetProperty("name").GetString() ?? string.Empty;
                 var resourceGroup = element.TryGetProperty("resourceGroup", out var rgEl) ? rgEl.GetString() ?? string.Empty : string.Empty;
                 var location = element.TryGetProperty("location", out var locEl) ? locEl.GetString() ?? string.Empty : string.Empty;
@@ -346,7 +348,7 @@ public class AzureResourceGraphService : IAzureResourceGraphService
                     CustomerId = servicePrincipal.CustomerId,
                     ServicePrincipalId = servicePrincipal.Id,
                     Name = name,
-                    ResourceId = id,
+                    ResourceId = normalizedId,
                     ResourceType = resourceType,
                     Metadata = metadata
                 };

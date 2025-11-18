@@ -1,5 +1,6 @@
 using Helios365.Core.Exceptions;
 using Helios365.Core.Models;
+using Helios365.Core.Utilities;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 
@@ -46,9 +47,11 @@ public class ResourceRepository : IResourceRepository
     {
         try
         {
+            var normalizedResourceId = ResourceIdNormalizer.Normalize(resourceId);
+
             var query = new QueryDefinition("SELECT * FROM c WHERE c.customerId = @customerId AND c.resourceId = @resourceId")
                 .WithParameter("@customerId", customerId)
-                .WithParameter("@resourceId", resourceId);
+                .WithParameter("@resourceId", normalizedResourceId);
 
             var iterator = _container.GetItemQueryIterator<Resource>(query, requestOptions: new QueryRequestOptions
             {
