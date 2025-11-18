@@ -1,27 +1,62 @@
-@page "/serviceprincipals"
+@page "/customers/{id}"
 @using Helios365.Core.Models
 @using Helios365.Core.Repositories
+@inject ICustomerRepository CustomerRepository
 @inject IServicePrincipalRepository ServicePrincipalRepository
+@inject ISecretRepository SecretRepository
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
-@inject ILogger<ServicePrincipals> Logger
-@inject ISecretRepository SecretRepository
+@inject ILogger<CustomerDetails> Logger
+@inject NavigationManager Nav
+@inject IJSRuntime JS
 
-<PageTitle>Service Principals</PageTitle>
+<PageTitle>Customer Details</PageTitle>
 
-<h1 class="mb-3">Service Principals</h1>
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="BackToCustomers">Back to Customers</MudButton>
+            <h2 class="mt-2">@customer?.Name</h2>
+        </div>
+        @if (customer is not null)
+        {
+            <MudTooltip Text="Copy Customer ID">
+                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Color="Color.Default" OnClick="CopyCustomerId" />
+            </MudTooltip>
+        }
+    </div>
+    @if (customer is not null)
+    {
+        <MudText Class="mb-1"><strong>Status:</strong> @(customer.Active ? "Active" : "Inactive")</MudText>
+        <MudText Class="mb-1"><strong>Escalation:</strong> @customer.EscalationTimeoutMinutes min</MudText>
+        <MudText Class="mb-1"><strong>Emails:</strong> @string.Join(", ", customer.NotificationEmails)</MudText>
+        <MudText Class="text-muted"><small>Updated @customer.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</small></MudText>
+    }
+    else
+    {
+        <MudText Color="Color.Error">Customer not found.</MudText>
+    }
+</MudPaper>
+
+@if (customer is not null)
+{
+    <MudExpansionPanels Dense="true" Class="mb-4">
+        <MudExpansionPanel Text="Technical details">
+            <MudText Class="mb-1"><strong>Customer ID:</strong> <code>@customer.Id</code></MudText>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+}
 
 <MudPaper Class="pa-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <MudTextField T="string" @bind-Value="search" Placeholder="Search service principals..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="me-2" Immediate="true" />
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateServicePrincipal">Add Service Principal</MudButton>
+        <MudText Typo="Typo.h5">Service Principals</MudText>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" Disabled="@(customer is null)" OnClick="CreateServicePrincipal">Add Service Principal</MudButton>
     </div>
 
-    <MudTable T="ServicePrincipal" Items="@items" Filter="@FilterFunc" Dense="true" Hover="true">
+    <MudTable T="ServicePrincipal" Items="@servicePrincipals" Dense="true" Hover="true">
         <HeaderContent>
             <MudTh>Name</MudTh>
             <MudTh>Id</MudTh>
-            <MudTh>Customer</MudTh>
             <MudTh>Tenant</MudTh>
             <MudTh>ClientId</MudTh>
             <MudTh>Cloud</MudTh>
@@ -30,11 +65,10 @@
             <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Name">@OrDash(context.Name)</MudTd>
-            <MudTd DataLabel="Id"><MudTooltip Text="@OrDash(context.Id)"><code>@Short(context.Id)</code></MudTooltip></MudTd>
-            <MudTd DataLabel="Customer">@OrDash(context.CustomerId)</MudTd>
-            <MudTd DataLabel="Tenant">@OrDash(context.TenantId)</MudTd>
-            <MudTd DataLabel="ClientId"><MudTooltip Text="@OrDash(context.ClientId)"><code>@Short(context.ClientId)</code></MudTooltip></MudTd>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Id"><MudTooltip Text="@context.Id"><code>@Short(context.Id)</code></MudTooltip></MudTd>
+            <MudTd DataLabel="Tenant">@context.TenantId</MudTd>
+            <MudTd DataLabel="ClientId"><MudTooltip Text="@context.ClientId"><code>@Short(context.ClientId)</code></MudTooltip></MudTd>
             <MudTd DataLabel="Cloud">@context.CloudEnvironment</MudTd>
             <MudTd DataLabel="Active">@(context.Active ? "Yes" : "No")</MudTd>
             <MudTd DataLabel="Updated">@context.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
@@ -50,47 +84,68 @@
 </MudPaper>
 
 @code {
-    private List<ServicePrincipal> items = new();
-    private string search = string.Empty;
-    private bool FilterFunc(ServicePrincipal sp)
-        => string.IsNullOrWhiteSpace(search)
-            || (sp.Name?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
-            || (sp.Id?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
-            || (sp.CustomerId?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
-            || (sp.TenantId?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
-            || (sp.ClientId?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
+    [Parameter] public string? id { get; set; }
 
-    private static string OrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value!;
-    private static string Short(string? value, int max = 10)
+    private Customer? customer;
+    private List<ServicePrincipal> servicePrincipals = new();
+
+    protected override async Task OnParametersSetAsync()
     {
-        if (string.IsNullOrEmpty(value)) return "-";
-        return value.Length > max ? value.Substring(0, max) + "..." : value;
+        await LoadCustomerAndPrincipals();
     }
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadItems();
-    }
-
-    private async Task LoadItems()
+    private async Task LoadCustomerAndPrincipals()
     {
         try
         {
-            items = (await ServicePrincipalRepository.ListAsync(limit: 1000)).ToList();
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                customer = null;
+                servicePrincipals.Clear();
+                return;
+            }
+
+            customer = await CustomerRepository.GetAsync(id);
+            if (customer is null)
+            {
+                servicePrincipals.Clear();
+                return;
+            }
+
+            servicePrincipals = (await ServicePrincipalRepository.ListByCustomerAsync(customer.Id, limit: 1000)).ToList();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to load service principals");
-            Snackbar.Add($"Failed to load service principals: {ex.Message}", Severity.Error);
+            Logger.LogError(ex, "Failed to load customer or service principals");
+            Snackbar.Add($"Failed to load data: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void BackToCustomers() => Nav.NavigateTo("/customers");
+
+    private async Task CopyCustomerId()
+    {
+        if (customer is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", customer.Id);
+            Snackbar.Add("Customer ID copied", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Failed to copy Customer ID", Severity.Error);
         }
     }
 
     private async Task CreateServicePrincipal()
     {
+        if (customer is null) return;
+        var sp = new ServicePrincipal { CustomerId = customer.Id };
         var parameters = new DialogParameters
         {
-            [nameof(Shared.ServicePrincipalEditDialog.Model)] = new ServicePrincipal(),
-            [nameof(Shared.ServicePrincipalEditDialog.IsEdit)] = false
+            [nameof(Shared.ServicePrincipalEditDialog.Model)] = sp,
+            [nameof(Shared.ServicePrincipalEditDialog.IsEdit)] = false,
+            [nameof(Shared.ServicePrincipalEditDialog.LockCustomerId)] = true
         };
         var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
         var dialog = DialogService.Show<Shared.ServicePrincipalEditDialog>("Add Service Principal", parameters, options);
@@ -100,6 +155,7 @@
             try
             {
                 var created = createResult.Principal;
+                created.CustomerId = customer.Id;
                 created.CreatedAt = DateTime.UtcNow;
                 created.UpdatedAt = DateTime.UtcNow;
 
@@ -115,7 +171,7 @@
 
                 await ServicePrincipalRepository.CreateAsync(created);
                 Snackbar.Add($"Service Principal '{created.Name}' created", Severity.Success);
-                await LoadItems();
+                await LoadCustomerAndPrincipals();
             }
             catch (Exception ex)
             {
@@ -130,7 +186,8 @@
         var parameters = new DialogParameters
         {
             [nameof(Shared.ServicePrincipalEditDialog.Model)] = sp,
-            [nameof(Shared.ServicePrincipalEditDialog.IsEdit)] = true
+            [nameof(Shared.ServicePrincipalEditDialog.IsEdit)] = true,
+            [nameof(Shared.ServicePrincipalEditDialog.LockCustomerId)] = true
         };
         var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
         var dialog = DialogService.Show<Shared.ServicePrincipalEditDialog>($"Edit {sp.Name}", parameters, options);
@@ -140,6 +197,7 @@
             try
             {
                 var edited = editResult.Principal;
+                edited.CustomerId = customer?.Id ?? edited.CustomerId;
                 if (!string.IsNullOrWhiteSpace(editResult.NewClientSecret))
                 {
                     var reference = await SecretRepository.SetServicePrincipalSecretAsync(edited, editResult.NewClientSecret!);
@@ -147,7 +205,7 @@
                 }
                 await ServicePrincipalRepository.UpdateAsync(sp.Id, edited);
                 Snackbar.Add($"Service Principal '{edited.Name}' updated", Severity.Success);
-                await LoadItems();
+                await LoadCustomerAndPrincipals();
             }
             catch (Exception ex)
             {
@@ -174,7 +232,7 @@
                 if (ok)
                 {
                     Snackbar.Add($"Service Principal '{sp.Name}' deleted", Severity.Success);
-                    await LoadItems();
+                    await LoadCustomerAndPrincipals();
                 }
                 else
                 {
@@ -188,4 +246,7 @@
             }
         }
     }
+
+    private static string Short(string? value, int max = 10)
+        => string.IsNullOrEmpty(value) ? "-" : (value!.Length > max ? value.Substring(0, max) + "..." : value);
 }

@@ -2,6 +2,7 @@
 @using Helios365.Core.Models
 @using Helios365.Core.Repositories
 @inject ICustomerRepository CustomerRepository
+@inject NavigationManager Nav
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject ILogger<Customers> Logger
@@ -16,32 +17,41 @@
         <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateCustomer">Add Customer</MudButton>
     </div>
 
-    <MudTable Items="@FilteredCustomers" Dense="true" Hover="true">
-        <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Id</MudTh>
-            <MudTh>Active</MudTh>
-            <MudTh>Escalation (min)</MudTh>
-            <MudTh>Emails</MudTh>
-            <MudTh>Updated</MudTh>
-            <MudTh></MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Id"><MudTooltip Text="@context.Id"><code>@(context.Id.Length > 10 ? context.Id[..10] + "..." : context.Id)</code></MudTooltip></MudTd>
-            <MudTd DataLabel="Active">@(context.Active ? "Yes" : "No")</MudTd>
-            <MudTd DataLabel="Escalation">@context.EscalationTimeoutMinutes</MudTd>
-            <MudTd DataLabel="Emails">@context.NotificationEmails.Count</MudTd>
-            <MudTd DataLabel="Updated">@context.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
-            <MudTd Class="text-end">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="() => EditCustomer(context)" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => ConfirmDelete(context)" />
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <MudText>No customers found.</MudText>
-        </NoRecordsContent>
-    </MudTable>
+    <MudGrid GutterSize="GutterSize.Small">
+        @foreach (var c in FilteredCustomers)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="3">
+                <MudCard Class="mb-3">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <div class="d-flex align-items-center">
+                                <MudIcon Icon="@Icons.Material.Filled.Business" Color="Color.Primary" Class="me-2" />
+                                <MudText Typo="Typo.h6">@c.Name</MudText>
+                            </div>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudText Class="mb-1"><strong>Status:</strong> @(c.Active ? "Active" : "Inactive")</MudText>
+                        <MudText Class="mb-1"><strong>Escalation:</strong> @c.EscalationTimeoutMinutes min</MudText>
+                        <MudText Class="mb-1"><strong>Emails:</strong> @c.NotificationEmails.Count</MudText>
+                        <MudText Class="text-muted"><small>Updated @c.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</small></MudText>
+                    </MudCardContent>
+                    <MudCardActions Class="d-flex justify-content-between">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ManageAccounts" OnClick="() => GoToDetails(c)">Manage</MudButton>
+                        <div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="() => EditCustomer(c)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => ConfirmDelete(c)" />
+                        </div>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+
+    @if (!FilteredCustomers.Any())
+    {
+        <MudText>No customers found.</MudText>
+    }
 </MudPaper>
 
 @code {
@@ -158,5 +168,9 @@
             }
         }
     }
-}
 
+    private void GoToDetails(Customer c) => Nav.NavigateTo($"/customers/{c.Id}");
+
+    private static string Short(string? value, int max = 10)
+        => string.IsNullOrEmpty(value) ? "-" : (value!.Length > max ? value.Substring(0, max) + "..." : value);
+}
