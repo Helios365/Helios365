@@ -152,6 +152,8 @@ public static class ServiceCollectionExtensions
             return new AzureResourceService(secretRepository, logger);
         });
 
+        services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
+
         return services;
     }
 }

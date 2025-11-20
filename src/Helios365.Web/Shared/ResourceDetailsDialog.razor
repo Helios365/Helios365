@@ -1,0 +1,43 @@
+@using System.Text.Json
+@using Helios365.Core.Models
+
+<MudDialog>
+    <DialogContent>
+        <h5>@Resource.Name</h5>
+        <div class="text-muted mb-3">@Resource.ResourceType</div>
+
+        <MudPaper Class="pa-3 mb-3">
+            <div class="mb-2"><strong>Customer:</strong> @CustomerName</div>
+            <div class="mb-2"><strong>Service Principal:</strong> @ServicePrincipalName</div>
+            <div class="mb-2"><strong>Resource Group:</strong> @ResourceGroup</div>
+            <div class="mb-2"><strong>Location:</strong> @Location</div>
+            <div class="mb-2"><strong>Resource ID:</strong></div>
+            <div class="text-monospace small text-break">@Resource.ResourceId</div>
+        </MudPaper>
+
+        @if (Resource.Metadata?.Count > 0)
+        {
+            <MudPaper Class="pa-3">
+                <div class="mb-2"><strong>Metadata</strong></div>
+                <pre class="bg-light rounded p-2 small">@JsonSerializer.Serialize(Resource.Metadata, new JsonSerializerOptions { WriteIndented = true })</pre>
+            </MudPaper>
+        }
+        else
+        {
+            <MudText>No metadata available.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="() => MudDialog?.Close()">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance? MudDialog { get; set; }
+
+    [Parameter] public Resource Resource { get; set; } = new();
+    [Parameter] public string CustomerName { get; set; } = string.Empty;
+    [Parameter] public string ServicePrincipalName { get; set; } = string.Empty;
+    [Parameter] public string ResourceGroup { get; set; } = "-";
+    [Parameter] public string Location { get; set; } = "-";
+}

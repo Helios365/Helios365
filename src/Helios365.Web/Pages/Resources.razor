@@ -1,0 +1,163 @@
+@page "/resources"
+@using Helios365.Core.Models
+@using Helios365.Core.Repositories
+@using Helios365.Core.Services
+@using MudBlazor
+
+<PageTitle>Resources</PageTitle>
+
+<h1 class="mb-3">Resources</h1>
+<p class="text-muted mb-4">Browse and synchronize resources discovered from Azure Resource Graph.</p>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
+        <div class="text-muted">Loading resources...</div>
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-6 text-primary">@resourceViews.Count</div>
+                    <div class="text-muted">Total resources</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-6 text-success">@resourceViews.Count(r => r.Resource.Active)</div>
+                    <div class="text-muted">Active</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-6 text-info">@resourceViews.Count(r => r.Resource.UseDefaultActions)</div>
+                    <div class="text-muted">Using default actions</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-6 text-dark">@resourceViews.Select(r => r.Resource.CustomerId).Distinct().Count()</div>
+                    <div class="text-muted">Customers covered</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <MudPaper Class="pa-4">
+        <div class="d-flex flex-wrap gap-3 mb-3 align-items-center">
+            <MudTextField T="string"
+                          @bind-Value="search"
+                          Placeholder="Search by name or type..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Class="flex-grow-1"
+                          Immediate="true" />
+
+            <MudSelect T="string" @bind-Value="selectedCustomer" Placeholder="Customer" Dense="true" Class="resource-filter-select">
+                <MudSelectItem Value="@string.Empty">All customers</MudSelectItem>
+                @foreach (var option in customerFilterOptions)
+                {
+                    <MudSelectItem Value="@option.Key">@option.Value</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="string" @bind-Value="selectedServicePrincipal" Placeholder="Service principal" Dense="true" Class="resource-filter-select">
+                <MudSelectItem Value="@string.Empty">All service principals</MudSelectItem>
+                @foreach (var option in servicePrincipalFilterOptions)
+                {
+                    <MudSelectItem Value="@option.Key">@option.Value</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="string" @bind-Value="selectedLocation" Placeholder="Location" Dense="true" Class="resource-filter-select">
+                <MudSelectItem Value="@string.Empty">All locations</MudSelectItem>
+                @foreach (var location in locationFilterOptions)
+                {
+                    <MudSelectItem Value="@location">@location</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSwitch @bind-Value="activeOnly"
+                       Color="Color.Success"
+                       Label="Active only"
+                       DisableRipple="true" />
+
+            <MudSwitch @bind-Value="defaultActionsOnly"
+                       Color="Color.Primary"
+                       Label="Default actions"
+                       DisableRipple="true" />
+
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Color="Color.Primary"
+                           Title="Reload"
+                           Disabled="@isLoading"
+                           OnClick="ReloadAsync" />
+
+            <MudIconButton Icon="@Icons.Material.Filled.CloudSync"
+                           Color="Color.Secondary"
+                           Title="Re-sync from Azure Resource Graph"
+                           Disabled="@syncing"
+                           OnClick="SyncResourcesAsync" />
+        </div>
+
+        @if (!FilteredResources.Any())
+        {
+            <MudAlert Severity="Severity.Info">
+                No resources match the current filters.
+            </MudAlert>
+        }
+        else
+        {
+            <MudTable Items="FilteredResources" Dense="true" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh class="text-center"><span class="visually-hidden">Type</span></MudTh>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Resource Group</MudTh>
+                    <MudTh>Location</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh class="text-end">Details</MudTh>
+                    <MudTh class="text-end">Remove</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Type" Class="text-center">
+                        <MudIcon Icon="@GetResourceIcon(context.Resource.ResourceType)" Color="Color.Primary" />
+                    </MudTd>
+                    <MudTd DataLabel="Name">
+                        <div class="fw-bold">@context.Resource.Name</div>
+                    </MudTd>
+                    <MudTd DataLabel="Resource Group">@context.ResourceGroup</MudTd>
+                    <MudTd DataLabel="Location">@context.Location</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip Color="@(context.Resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small">
+                            @(context.Resource.Active ? "Active" : "Disabled")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Details" Class="text-end">
+                        <MudIconButton Icon="@Icons.Material.Filled.Info"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       Title="View details"
+                                       OnClick="@(() => ShowDetails(context))" />
+                    </MudTd>
+                    <MudTd DataLabel="Remove" Class="text-end">
+                        <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       Title="Remove resource"
+                                       OnClick="@(() => DeleteResourceAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+}

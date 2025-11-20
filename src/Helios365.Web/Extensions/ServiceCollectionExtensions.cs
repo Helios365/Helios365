@@ -1,4 +1,5 @@
 using Helios365.Core.Repositories;
+using Helios365.Core.Services;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,12 +55,13 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
             services.AddScoped<ISecretRepository, SecretRepository>();
+            services.AddScoped<IAzureResourceGraphService, AzureResourceGraphService>();
+            services.AddScoped<IAzureResourceService, AzureResourceService>();
+            services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
         }
         else
         {
-            // Optional: don't fail startup if KeyVault is not configured; callers that need it will throw
-            // Alternatively, uncomment to enforce config:
-            // throw new InvalidOperationException("KeyVault:VaultUri is required");
+            // For environments without Key Vault, resource discovery won't be available.
         }
 
         services.AddScoped<ICustomerRepository>(sp =>
