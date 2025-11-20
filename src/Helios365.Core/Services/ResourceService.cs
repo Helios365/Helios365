@@ -9,12 +9,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
 
-public class AzureResourceService : IAzureResourceService
+public class ResourceService : IResourceService
 {
     private readonly ISecretRepository _secretRepository;
-    private readonly ILogger<AzureResourceService> _logger;
+    private readonly ILogger<ResourceService> _logger;
 
-    public AzureResourceService(ISecretRepository secretRepository, ILogger<AzureResourceService> logger)
+    public ResourceService(ISecretRepository secretRepository, ILogger<ResourceService> logger)
     {
         _secretRepository = secretRepository;
         _logger = logger;

@@ -2,7 +2,7 @@ using Helios365.Core.Models;
 
 namespace Helios365.Core.Services;
 
-public interface IAzureResourceGraphService
+public interface IResourceGraphService
 {
     /// <summary>
     /// Queries Azure Resource Graph (using the given Service Principal)

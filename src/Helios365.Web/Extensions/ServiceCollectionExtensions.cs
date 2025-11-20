@@ -55,9 +55,9 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
             services.AddScoped<ISecretRepository, SecretRepository>();
-            services.AddScoped<IAzureResourceGraphService, AzureResourceGraphService>();
-            services.AddScoped<IAzureResourceService, AzureResourceService>();
-            services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
+            services.AddScoped<IResourceGraphService, ResourceGraphService>();
+            services.AddScoped<IResourceService, ResourceService>();
+            services.AddScoped<IResourceSyncService, ResourceSyncService>();
         }
         else
         {
@@ -98,15 +98,6 @@ public static class ServiceCollectionExtensions
             var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
             var containerName = configuration["CosmosDb:ServicePrincipalsContainer"] ?? "servicePrincipals";
             return new ServicePrincipalRepository(cosmosClient, databaseName, containerName, logger);
-        });
-
-        services.AddScoped<IActionRepository>(sp =>
-        {
-            var cosmosClient = sp.GetRequiredService<CosmosClient>();
-            var logger = sp.GetRequiredService<ILogger<ActionRepository>>();
-            var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
-            var containerName = configuration["CosmosDb:ActionsContainer"] ?? "actions";
-            return new ActionRepository(cosmosClient, databaseName, containerName, logger);
         });
 
         return services;

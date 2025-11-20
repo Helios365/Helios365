@@ -2,7 +2,7 @@ using Helios365.Core.Models;
 
 namespace Helios365.Core.Services;
 
-public interface IResourceDiscoveryService
+public interface IResourceSyncService
 {
     Task<ResourceDiscoverySummary> SyncAppServicesAsync(CancellationToken cancellationToken = default);
 }

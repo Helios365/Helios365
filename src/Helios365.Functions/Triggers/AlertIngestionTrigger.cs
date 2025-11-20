@@ -16,20 +16,17 @@ public class AlertIngestionTrigger
     private readonly ICustomerRepository _customerRepository;
     private readonly IResourceRepository _resourceRepository;
     private readonly IAlertRepository _alertRepository;
-    private readonly IEmailService _emailService;
     private readonly ILogger<AlertIngestionTrigger> _logger;
 
     public AlertIngestionTrigger(
         ICustomerRepository customerRepository,
         IResourceRepository resourceRepository,
         IAlertRepository alertRepository,
-        IEmailService emailService,
         ILogger<AlertIngestionTrigger> logger)
     {
         _customerRepository = customerRepository;
         _resourceRepository = resourceRepository;
         _alertRepository = alertRepository;
-        _emailService = emailService;
         _logger = logger;
     }
 
@@ -117,7 +114,7 @@ public class AlertIngestionTrigger
                 await _alertRepository.UpdateAsync(alert.Id, alert);
 
                 // Send escalation email
-                await _emailService.SendEscalationEmailAsync(alert, null, customer, new List<ActionBase>());
+                //await _emailService.SendEscalationEmailAsync(alert, null, customer, new List<ActionBase>());
 
                 var response = req.CreateResponse(HttpStatusCode.Accepted);
                 await response.WriteAsJsonAsync(new

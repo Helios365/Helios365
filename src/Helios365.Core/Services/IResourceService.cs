@@ -3,7 +3,7 @@ using Helios365.Core.Models;
 
 namespace Helios365.Core.Services;
 
-public interface IAzureResourceService
+public interface IResourceService
 {
     Task<TenantResource> GetTenantAsync(ServicePrincipal servicePrincipal, CancellationToken cancellationToken = default);
 

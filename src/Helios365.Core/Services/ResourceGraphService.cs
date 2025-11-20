@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
 
-public class AzureResourceGraphService : IAzureResourceGraphService
+public class ResourceGraphService : IResourceGraphService
 {
     private const string AppServiceQuery = """
         Resources
@@ -56,9 +56,9 @@ public class AzureResourceGraphService : IAzureResourceGraphService
         """;
 
     private readonly ISecretRepository _secretRepository;
-    private readonly ILogger<AzureResourceGraphService> _logger;
+    private readonly ILogger<ResourceGraphService> _logger;
 
-    public AzureResourceGraphService(ISecretRepository secretRepository, ILogger<AzureResourceGraphService> logger)
+    public ResourceGraphService(ISecretRepository secretRepository, ILogger<ResourceGraphService> logger)
     {
         _secretRepository = secretRepository;
         _logger = logger;

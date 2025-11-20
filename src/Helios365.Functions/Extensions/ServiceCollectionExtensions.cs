@@ -87,18 +87,6 @@ public static class ServiceCollectionExtensions
             return new ServicePrincipalRepository(cosmosClient, databaseName, containerName, logger);
         });
 
-        services.AddScoped<IActionRepository>(sp =>
-        {
-            var cosmosClient = sp.GetRequiredService<CosmosClient>();
-            var logger = sp.GetRequiredService<ILogger<ActionRepository>>();
-            var configuration = sp.GetRequiredService<IConfiguration>();
-            
-            var databaseName = configuration["CosmosDbDatabaseName"] ?? "helios365";
-            var containerName = configuration["CosmosDbActionsContainer"] ?? "actions";
-            
-            return new ActionRepository(cosmosClient, databaseName, containerName, logger);
-        });
-
         return services;
     }
 
@@ -113,23 +101,6 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<SecretClient>(_ => new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
 
-        // HTTP Client for ActionExecutor
-        services.AddHttpClient<IActionExecutor, ActionExecutor>(client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(30);
-        });
-
-        // Email Service - now always uses real Azure Communication Services
-        var acsConnectionString = configuration["AzureCommunicationServicesConnectionString"]
-            ?? throw new InvalidOperationException("AzureCommunicationServicesConnectionString is required");
-
-        services.AddSingleton<IEmailService>(sp =>
-        {
-            var fromEmail = configuration["FromEmail"] ?? "alerts@helios365.io";
-            var emailClient = new EmailClient(acsConnectionString);
-            var logger = sp.GetRequiredService<ILogger<EmailService>>();
-            return new EmailService(emailClient, fromEmail, logger);
-        });
 
         services.AddSingleton<ISecretRepository>(sp =>
         {
@@ -138,21 +109,21 @@ public static class ServiceCollectionExtensions
             return new SecretRepository(secretClient, logger);
         });
 
-        services.AddSingleton<IAzureResourceGraphService>(sp =>
+        services.AddSingleton<IResourceGraphService>(sp =>
         {
             var secretRepository = sp.GetRequiredService<ISecretRepository>();
-            var logger = sp.GetRequiredService<ILogger<AzureResourceGraphService>>();
-            return new AzureResourceGraphService(secretRepository, logger);
+            var logger = sp.GetRequiredService<ILogger<ResourceGraphService>>();
+            return new ResourceGraphService(secretRepository, logger);
         });
 
-        services.AddSingleton<IAzureResourceService>(sp =>
+        services.AddSingleton<IResourceService>(sp =>
         {
             var secretRepository = sp.GetRequiredService<ISecretRepository>();
-            var logger = sp.GetRequiredService<ILogger<AzureResourceService>>();
-            return new AzureResourceService(secretRepository, logger);
+            var logger = sp.GetRequiredService<ILogger<ResourceService>>();
+            return new ResourceService(secretRepository, logger);
         });
 
-        services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
+        services.AddScoped<IResourceSyncService, ResourceSyncService>();
 
         return services;
     }

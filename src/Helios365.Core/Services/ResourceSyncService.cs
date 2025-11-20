@@ -5,20 +5,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
 
-public class ResourceDiscoveryService : IResourceDiscoveryService
+public class ResourceSyncService : IResourceSyncService
 {
     private readonly IServicePrincipalRepository _servicePrincipalRepository;
     private readonly IResourceRepository _resourceRepository;
-    private readonly IAzureResourceGraphService _resourceGraphService;
-    private readonly IAzureResourceService _azureResourceService;
-    private readonly ILogger<ResourceDiscoveryService> _logger;
+    private readonly IResourceGraphService _resourceGraphService;
+    private readonly IResourceService _azureResourceService;
+    private readonly ILogger<ResourceSyncService> _logger;
 
-    public ResourceDiscoveryService(
+    public ResourceSyncService(
         IServicePrincipalRepository servicePrincipalRepository,
         IResourceRepository resourceRepository,
-        IAzureResourceGraphService resourceGraphService,
-        IAzureResourceService azureResourceService,
-        ILogger<ResourceDiscoveryService> logger)
+        IResourceGraphService resourceGraphService,
+        IResourceService azureResourceService,
+        ILogger<ResourceSyncService> logger)
     {
         _servicePrincipalRepository = servicePrincipalRepository;
         _resourceRepository = resourceRepository;

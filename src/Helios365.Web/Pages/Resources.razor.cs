@@ -13,7 +13,7 @@ public partial class Resources : ComponentBase
     [Inject] private IResourceRepository ResourceRepository { get; set; } = default!;
     [Inject] private ICustomerRepository CustomerRepository { get; set; } = default!;
     [Inject] private IServicePrincipalRepository ServicePrincipalRepository { get; set; } = default!;
-    [Inject] private IResourceDiscoveryService ResourceDiscoveryService { get; set; } = default!;
+    [Inject] private IResourceSyncService ResourceDiscoveryService { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private ISnackbar Snackbar { get; set; } = default!;
     [Inject] private ILogger<Resources> Logger { get; set; } = default!;
