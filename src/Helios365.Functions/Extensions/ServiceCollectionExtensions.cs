@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Azure.Communication.Email;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
@@ -101,6 +102,10 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<SecretClient>(_ => new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
 
+        services.AddSingleton(sp => new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(60)
+        });
 
         services.AddSingleton<ISecretRepository>(sp =>
         {
@@ -124,6 +129,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IResourceSyncService, ResourceSyncService>();
+        services.AddScoped<IResourceActionService, ResourceActionService>();
 
         return services;
     }

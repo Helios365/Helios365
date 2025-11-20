@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Helios365.Core.Repositories;
 using Helios365.Core.Services;
 using Microsoft.Azure.Cosmos;
@@ -54,10 +55,15 @@ public static class ServiceCollectionExtensions
         if (!string.IsNullOrEmpty(keyVaultUri))
         {
             services.AddSingleton(new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
+            services.AddSingleton(sp => new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(60)
+            });
             services.AddScoped<ISecretRepository, SecretRepository>();
             services.AddScoped<IResourceGraphService, ResourceGraphService>();
             services.AddScoped<IResourceService, ResourceService>();
             services.AddScoped<IResourceSyncService, ResourceSyncService>();
+            services.AddScoped<IResourceActionService, ResourceActionService>();
         }
         else
         {
