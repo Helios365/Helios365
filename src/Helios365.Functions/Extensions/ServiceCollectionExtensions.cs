@@ -119,6 +119,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAppServiceService, AppServiceService>();
         services.AddSingleton<IVirtualMachineService, VirtualMachineService>();
         services.AddSingleton<IResourceGraphClient, ResourceGraphClient>();
+        services.AddSingleton<IResourceDiscoveryStrategy, AppServiceDiscoveryStrategy>();
+        services.AddSingleton<IResourceDiscoveryStrategy, VirtualMachineDiscoveryStrategy>();
+        services.AddSingleton<IResourceDiscoveryStrategy, MySqlFlexibleServerDiscoveryStrategy>();
+        services.AddSingleton<IResourceDiscoveryStrategy, ServiceBusNamespaceDiscoveryStrategy>();
 
         services.AddSingleton<IResourceGraphService>(sp =>
         {
@@ -134,7 +138,7 @@ public static class ServiceCollectionExtensions
             return new ResourceService(armClientFactory, logger);
         });
 
-        services.AddScoped<IResourceSyncService, ResourceSyncService>();
+        services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
 
         return services;
     }

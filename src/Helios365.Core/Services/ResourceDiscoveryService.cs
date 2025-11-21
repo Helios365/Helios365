@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
 
-public interface IResourceSyncService
+public interface IResourceDiscoveryService
 {
-    Task<ResourceDiscoverySummary> SyncAppServicesAsync(CancellationToken cancellationToken = default);
+    Task<ResourceDiscoverySummary> SyncAsync(IEnumerable<string>? resourceTypes = default, CancellationToken cancellationToken = default);
 }
 
 public sealed class ResourceDiscoverySummary
@@ -20,32 +20,47 @@ public sealed class ResourceDiscoverySummary
     public List<string> Errors { get; } = new();
 }
 
-public class ResourceSyncService : IResourceSyncService
+public class ResourceDiscoveryService : IResourceDiscoveryService
 {
     private readonly IServicePrincipalRepository _servicePrincipalRepository;
     private readonly IResourceRepository _resourceRepository;
-    private readonly IResourceGraphService _resourceGraphService;
     private readonly IResourceService _azureResourceService;
-    private readonly ILogger<ResourceSyncService> _logger;
+    private readonly IEnumerable<IResourceDiscoveryStrategy> _discoveryStrategies;
+    private readonly ILogger<ResourceDiscoveryService> _logger;
 
-    public ResourceSyncService(
+    public ResourceDiscoveryService(
         IServicePrincipalRepository servicePrincipalRepository,
         IResourceRepository resourceRepository,
-        IResourceGraphService resourceGraphService,
         IResourceService azureResourceService,
-        ILogger<ResourceSyncService> logger)
+        IEnumerable<IResourceDiscoveryStrategy> discoveryStrategies,
+        ILogger<ResourceDiscoveryService> logger)
     {
         _servicePrincipalRepository = servicePrincipalRepository;
         _resourceRepository = resourceRepository;
-        _resourceGraphService = resourceGraphService;
         _azureResourceService = azureResourceService;
+        _discoveryStrategies = discoveryStrategies;
         _logger = logger;
     }
 
-    public async Task<ResourceDiscoverySummary> SyncAppServicesAsync(CancellationToken cancellationToken = default)
+    public async Task<ResourceDiscoverySummary> SyncAsync(IEnumerable<string>? resourceTypes = default, CancellationToken cancellationToken = default)
     {
         var summary = new ResourceDiscoverySummary();
         var processedResourceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var strategyFilter = resourceTypes?
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => r.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var strategiesToRun = _discoveryStrategies
+            .Where(s => strategyFilter is null || strategyFilter.Count == 0 || strategyFilter.Contains(s.ResourceType))
+            .ToList();
+
+        if (strategiesToRun.Count == 0)
+        {
+            _logger.LogWarning("No discovery strategies matched the requested resource types.");
+            return summary;
+        }
+
         var servicePrincipals = await _servicePrincipalRepository.ListAsync(limit: 1000, cancellationToken: cancellationToken);
 
         foreach (var servicePrincipal in servicePrincipals)
@@ -76,34 +91,49 @@ public class ResourceSyncService : IResourceSyncService
                 continue;
             }
 
-            try
+            var principalProcessed = false;
+
+            foreach (var strategy in strategiesToRun)
             {
-                var discovered = await _resourceGraphService.GetAppServicesAsync(
-                    servicePrincipal,
-                    subscriptionIds,
-                    cancellationToken).ConfigureAwait(false);
-
-                summary.ProcessedPrincipals++;
-
-                foreach (var resource in discovered)
+                try
                 {
-                    // Ensure normalized IDs are unique per sync run.
-                    var normalizedId = ResourceIdNormalizer.Normalize(resource.ResourceId);
-                    if (!processedResourceIds.Add(normalizedId))
+                    var discovered = await strategy.DiscoverAsync(servicePrincipal, subscriptionIds, cancellationToken).ConfigureAwait(false);
+
+                    if (discovered.Count > 0)
                     {
-                        continue;
+                        principalProcessed = true;
                     }
 
-                    resource.ResourceId = normalizedId;
-                    resource.CustomerId = servicePrincipal.CustomerId;
+                    foreach (var resource in discovered)
+                    {
+                        // Ensure normalized IDs are unique per sync run.
+                        var normalizedId = ResourceIdNormalizer.Normalize(resource.ResourceId);
+                        if (!processedResourceIds.Add(normalizedId))
+                        {
+                            continue;
+                        }
 
-                    await UpsertResourceAsync(resource, summary, cancellationToken).ConfigureAwait(false);
+                        resource.ResourceId = normalizedId;
+                        resource.CustomerId = servicePrincipal.CustomerId;
+
+                        if (string.IsNullOrWhiteSpace(resource.ServicePrincipalId))
+                        {
+                            resource.ServicePrincipalId = servicePrincipal.Id;
+                        }
+
+                        await UpsertResourceAsync(resource, summary, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to sync {ResourceType} for service principal {ServicePrincipalId}", strategy.DisplayName, servicePrincipal.Id);
+                    summary.Errors.Add($"ServicePrincipal {servicePrincipal.Id} ({strategy.DisplayName}): {ex.Message}");
                 }
             }
-            catch (Exception ex)
+
+            if (principalProcessed)
             {
-                _logger.LogError(ex, "Failed to sync resources for service principal {ServicePrincipalId}", servicePrincipal.Id);
-                summary.Errors.Add($"ServicePrincipal {servicePrincipal.Id}: {ex.Message}");
+                summary.ProcessedPrincipals++;
             }
         }
 

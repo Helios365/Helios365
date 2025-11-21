@@ -64,10 +64,14 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IArmClientFactory, ArmClientFactory>();
             services.AddScoped<IAppServiceService, AppServiceService>();
             services.AddScoped<IVirtualMachineService, VirtualMachineService>();
+            services.AddScoped<IResourceDiscoveryStrategy, AppServiceDiscoveryStrategy>();
+            services.AddScoped<IResourceDiscoveryStrategy, VirtualMachineDiscoveryStrategy>();
+            services.AddScoped<IResourceDiscoveryStrategy, MySqlFlexibleServerDiscoveryStrategy>();
+            services.AddScoped<IResourceDiscoveryStrategy, ServiceBusNamespaceDiscoveryStrategy>();
             services.AddScoped<IResourceGraphClient, ResourceGraphClient>();
             services.AddScoped<IResourceGraphService, ResourceGraphService>();
             services.AddScoped<IResourceService, ResourceService>();
-            services.AddScoped<IResourceSyncService, ResourceSyncService>();
+            services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
         }
         else
         {
