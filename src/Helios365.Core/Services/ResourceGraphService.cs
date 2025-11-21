@@ -1,66 +1,108 @@
 using System.Text.Json;
 using Azure;
-using Azure.Core;
-using Azure.Identity;
-using Azure.ResourceManager;
-using Azure.ResourceManager.Resources;
-using Azure.ResourceManager.ResourceGraph;
 using Azure.ResourceManager.ResourceGraph.Models;
-using Helios365.Core.Repositories;
 using Helios365.Core.Models;
 using Helios365.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
 
+public interface IResourceGraphService
+{
+    Task<IReadOnlyList<Resource>> GetAppServicesAsync(
+        ServicePrincipal servicePrincipal,
+        IEnumerable<string> subscriptionIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Resource>> GetVirtualMachinesAsync(
+        ServicePrincipal servicePrincipal,
+        IEnumerable<string> subscriptionIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Resource>> GetMySqlFlexibleServersAsync(
+        ServicePrincipal servicePrincipal,
+        IEnumerable<string> subscriptionIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Resource>> GetServiceBusNamespacesAsync(
+        ServicePrincipal servicePrincipal,
+        IEnumerable<string> subscriptionIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Resource>> GetFunctionAppsAsync(
+        ServicePrincipal servicePrincipal,
+        IEnumerable<string> subscriptionIds,
+        CancellationToken cancellationToken = default);
+}
+
 public class ResourceGraphService : IResourceGraphService
 {
-    private const string AppServiceQuery = """
-        Resources
-        | where type =~ 'microsoft.web/sites'
-        | project id, name, resourceGroup, location, kind, tags
-        """;
+    private static readonly ResourceGraphQuery AppServices = new(
+        Query: """
+            Resources
+            | where type =~ 'microsoft.web/sites'
+            | project id, name, resourceGroup, location, kind, tags
+            """,
+        ResourceType: "Microsoft.Web/sites",
+        Description: "App Services",
+        MetadataEnricher: null);
 
-    private const string FunctionAppQuery = """
-        Resources
-        | where type =~ 'microsoft.web/sites'
-        | where tolower(kind) contains 'functionapp'
-        | project id, name, resourceGroup, location, kind, tags
-        """;
+    private static readonly ResourceGraphQuery FunctionApps = new(
+        Query: """
+            Resources
+            | where type =~ 'microsoft.web/sites'
+            | where tolower(kind) contains 'functionapp'
+            | project id, name, resourceGroup, location, kind, tags
+            """,
+        ResourceType: "Microsoft.Web/sites",
+        Description: "Azure Functions",
+        MetadataEnricher: null);
 
-    private const string VirtualMachineQuery = """
-        Resources
-        | where type =~ 'microsoft.compute/virtualmachines'
-        | project id, name, resourceGroup, location,
-            vmSize = tostring(properties.hardwareProfile.vmSize),
-            osType = tostring(properties.storageProfile.osDisk.osType),
-            tags
-        """;
+    private static readonly ResourceGraphQuery VirtualMachines = new(
+        Query: """
+            Resources
+            | where type =~ 'microsoft.compute/virtualmachines'
+            | project id, name, resourceGroup, location,
+                vmSize = tostring(properties.hardwareProfile.vmSize),
+                osType = tostring(properties.storageProfile.osDisk.osType),
+                tags
+            """,
+        ResourceType: "Microsoft.Compute/virtualMachines",
+        Description: "Virtual Machines",
+        MetadataEnricher: AddVirtualMachineMetadata);
 
-    private const string MySqlFlexibleServerQuery = """
-        Resources
-        | where type =~ 'microsoft.dbformysql/flexibleservers'
-        | project id, name, resourceGroup, location,
-            skuName = tostring(sku.name),
-            engineVersion = tostring(properties.version),
-            tags
-        """;
+    private static readonly ResourceGraphQuery MySqlFlexibleServers = new(
+        Query: """
+            Resources
+            | where type =~ 'microsoft.dbformysql/flexibleservers'
+            | project id, name, resourceGroup, location,
+                skuName = tostring(sku.name),
+                engineVersion = tostring(properties.version),
+                tags
+            """,
+        ResourceType: "Microsoft.DBforMySQL/flexibleServers",
+        Description: "MySQL Flexible Servers",
+        MetadataEnricher: AddMySqlMetadata);
 
-    private const string ServiceBusNamespaceQuery = """
-        Resources
-        | where type =~ 'microsoft.servicebus/namespaces'
-        | project id, name, resourceGroup, location,
-            skuName = tostring(sku.name),
-            capacity = tostring(properties.capacity),
-            tags
-        """;
+    private static readonly ResourceGraphQuery ServiceBusNamespaces = new(
+        Query: """
+            Resources
+            | where type =~ 'microsoft.servicebus/namespaces'
+            | project id, name, resourceGroup, location,
+                skuName = tostring(sku.name),
+                capacity = tostring(properties.capacity),
+                tags
+            """,
+        ResourceType: "Microsoft.ServiceBus/namespaces",
+        Description: "Service Bus namespaces",
+        MetadataEnricher: AddServiceBusMetadata);
 
-    private readonly ISecretRepository _secretRepository;
+    private readonly IResourceGraphClient _resourceGraphClient;
     private readonly ILogger<ResourceGraphService> _logger;
 
-    public ResourceGraphService(ISecretRepository secretRepository, ILogger<ResourceGraphService> logger)
+    public ResourceGraphService(IResourceGraphClient resourceGraphClient, ILogger<ResourceGraphService> logger)
     {
-        _secretRepository = secretRepository;
+        _resourceGraphClient = resourceGraphClient;
         _logger = logger;
     }
 
@@ -68,85 +110,40 @@ public class ResourceGraphService : IResourceGraphService
         ServicePrincipal servicePrincipal,
         IEnumerable<string> subscriptionIds,
         CancellationToken cancellationToken = default) =>
-        QueryResourcesAsync(
-            servicePrincipal,
-            subscriptionIds,
-            AppServiceQuery,
-            "Microsoft.Web/sites",
-            "App Services",
-            null,
-            cancellationToken);
+        QueryResourcesAsync(servicePrincipal, subscriptionIds, AppServices, cancellationToken);
 
     public Task<IReadOnlyList<Resource>> GetFunctionAppsAsync(
         ServicePrincipal servicePrincipal,
         IEnumerable<string> subscriptionIds,
         CancellationToken cancellationToken = default) =>
-        QueryResourcesAsync(
-            servicePrincipal,
-            subscriptionIds,
-            FunctionAppQuery,
-            "Microsoft.Web/sites",
-            "Azure Functions",
-            null,
-            cancellationToken);
+        QueryResourcesAsync(servicePrincipal, subscriptionIds, FunctionApps, cancellationToken);
 
     public Task<IReadOnlyList<Resource>> GetVirtualMachinesAsync(
         ServicePrincipal servicePrincipal,
         IEnumerable<string> subscriptionIds,
         CancellationToken cancellationToken = default) =>
-        QueryResourcesAsync(
-            servicePrincipal,
-            subscriptionIds,
-            VirtualMachineQuery,
-            "Microsoft.Compute/virtualMachines",
-            "Virtual Machines",
-            AddVirtualMachineMetadata,
-            cancellationToken);
+        QueryResourcesAsync(servicePrincipal, subscriptionIds, VirtualMachines, cancellationToken);
 
     public Task<IReadOnlyList<Resource>> GetMySqlFlexibleServersAsync(
         ServicePrincipal servicePrincipal,
         IEnumerable<string> subscriptionIds,
         CancellationToken cancellationToken = default) =>
-        QueryResourcesAsync(
-            servicePrincipal,
-            subscriptionIds,
-            MySqlFlexibleServerQuery,
-            "Microsoft.DBforMySQL/flexibleServers",
-            "MySQL Flexible Servers",
-            AddMySqlMetadata,
-            cancellationToken);
+        QueryResourcesAsync(servicePrincipal, subscriptionIds, MySqlFlexibleServers, cancellationToken);
 
     public Task<IReadOnlyList<Resource>> GetServiceBusNamespacesAsync(
         ServicePrincipal servicePrincipal,
         IEnumerable<string> subscriptionIds,
         CancellationToken cancellationToken = default) =>
-        QueryResourcesAsync(
-            servicePrincipal,
-            subscriptionIds,
-            ServiceBusNamespaceQuery,
-            "Microsoft.ServiceBus/namespaces",
-            "Service Bus namespaces",
-            AddServiceBusMetadata,
-            cancellationToken);
+        QueryResourcesAsync(servicePrincipal, subscriptionIds, ServiceBusNamespaces, cancellationToken);
 
     private async Task<IReadOnlyList<Resource>> QueryResourcesAsync(
         ServicePrincipal servicePrincipal,
         IEnumerable<string> subscriptionIds,
-        string query,
-        string resourceType,
-        string resourceDescription,
-        Action<JsonElement, Dictionary<string, string>>? metadataEnricher,
+        ResourceGraphQuery query,
         CancellationToken cancellationToken)
     {
-        if (servicePrincipal is null)
-        {
-            throw new ArgumentNullException(nameof(servicePrincipal));
-        }
-
-        if (subscriptionIds is null)
-        {
-            throw new ArgumentNullException(nameof(subscriptionIds));
-        }
+        ArgumentNullException.ThrowIfNull(servicePrincipal);
+        ArgumentNullException.ThrowIfNull(subscriptionIds);
 
         var subscriptionList = subscriptionIds
             .Where(s => !string.IsNullOrWhiteSpace(s))
@@ -161,38 +158,17 @@ public class ResourceGraphService : IResourceGraphService
 
         try
         {
-            var clientSecret = await _secretRepository.GetServicePrincipalSecretAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
-
-            var credential = new ClientSecretCredential(
-                servicePrincipal.TenantId,
-                servicePrincipal.ClientId,
-                clientSecret);
-
-            var armClient = CreateArmClient(credential, servicePrincipal.CloudEnvironment);
-            var tenant = await ResolveTenantAsync(armClient, cancellationToken).ConfigureAwait(false);
-
-            var request = new ResourceQueryContent(query)
-            {
-                Options = new ResourceQueryRequestOptions
-                {
-                    ResultFormat = ResultFormat.ObjectArray
-                }
-            };
-
-            foreach (var subscriptionId in subscriptionList)
-            {
-                request.Subscriptions.Add(subscriptionId);
-            }
-
             _logger.LogInformation(
                 "Querying Azure Resource Graph for {ResourceDescription} using ServicePrincipal {ServicePrincipalId} across {SubscriptionCount} subscriptions",
-                resourceDescription,
+                query.Description,
                 servicePrincipal.Id,
                 subscriptionList.Length);
 
-            var response = await tenant.GetResourcesAsync(request, cancellationToken).ConfigureAwait(false);
+            var response = await _resourceGraphClient
+                .QueryAsync(servicePrincipal, subscriptionList, query.Query, cancellationToken)
+                .ConfigureAwait(false);
 
-            return MapToResources(response, servicePrincipal, resourceType, metadataEnricher);
+            return MapToResources(response, servicePrincipal, query.ResourceType, query.MetadataEnricher);
         }
         catch (RequestFailedException ex)
         {
@@ -200,7 +176,7 @@ public class ResourceGraphService : IResourceGraphService
                 ex,
                 "Azure Resource Graph request failed for ServicePrincipal {ServicePrincipalId} when querying {ResourceDescription}",
                 servicePrincipal.Id,
-                resourceDescription);
+                query.Description);
             throw;
         }
         catch (Exception ex)
@@ -209,38 +185,9 @@ public class ResourceGraphService : IResourceGraphService
                 ex,
                 "Unexpected error while querying Azure Resource Graph for ServicePrincipal {ServicePrincipalId} when querying {ResourceDescription}",
                 servicePrincipal.Id,
-                resourceDescription);
+                query.Description);
             throw;
         }
-    }
-
-    private async Task<TenantResource> ResolveTenantAsync(ArmClient armClient, CancellationToken cancellationToken)
-    {
-        await foreach (var tenant in armClient.GetTenants().GetAllAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return tenant;
-        }
-
-        throw new InvalidOperationException("Unable to resolve TenantResource for the current credentials.");
-    }
-
-    private ArmClient CreateArmClient(
-        TokenCredential credential,
-        AzureCloudEnvironment cloudEnvironment)
-    {
-        var options = new ArmClientOptions
-        {
-            Environment = cloudEnvironment switch
-            {
-                AzureCloudEnvironment.AzurePublicCloud => ArmEnvironment.AzurePublicCloud,
-                AzureCloudEnvironment.AzureChinaCloud => ArmEnvironment.AzureChina,
-                AzureCloudEnvironment.AzureUSGovernment => ArmEnvironment.AzureGovernment,
-                AzureCloudEnvironment.AzureGermanyCloud => ArmEnvironment.AzureGermany,
-                _ => ArmEnvironment.AzurePublicCloud
-            }
-        };
-
-        return new ArmClient(credential, defaultSubscriptionId: null, options);
     }
 
     private IReadOnlyList<Resource> MapToResources(
@@ -360,4 +307,10 @@ public class ResourceGraphService : IResourceGraphService
             metadata[metadataKey] = value.GetString() ?? string.Empty;
         }
     }
+
+    private sealed record ResourceGraphQuery(
+        string Query,
+        string ResourceType,
+        string Description,
+        Action<JsonElement, Dictionary<string, string>>? MetadataEnricher);
 }

@@ -114,22 +114,27 @@ public static class ServiceCollectionExtensions
             return new SecretRepository(secretClient, logger);
         });
 
+        services.AddSingleton<IAzureCredentialProvider, AzureCredentialProvider>();
+        services.AddSingleton<IArmClientFactory, ArmClientFactory>();
+        services.AddSingleton<IAppServiceService, AppServiceService>();
+        services.AddSingleton<IVirtualMachineService, VirtualMachineService>();
+        services.AddSingleton<IResourceGraphClient, ResourceGraphClient>();
+
         services.AddSingleton<IResourceGraphService>(sp =>
         {
-            var secretRepository = sp.GetRequiredService<ISecretRepository>();
+            var client = sp.GetRequiredService<IResourceGraphClient>();
             var logger = sp.GetRequiredService<ILogger<ResourceGraphService>>();
-            return new ResourceGraphService(secretRepository, logger);
+            return new ResourceGraphService(client, logger);
         });
 
         services.AddSingleton<IResourceService>(sp =>
         {
-            var secretRepository = sp.GetRequiredService<ISecretRepository>();
+            var armClientFactory = sp.GetRequiredService<IArmClientFactory>();
             var logger = sp.GetRequiredService<ILogger<ResourceService>>();
-            return new ResourceService(secretRepository, logger);
+            return new ResourceService(armClientFactory, logger);
         });
 
         services.AddScoped<IResourceSyncService, ResourceSyncService>();
-        services.AddScoped<IResourceActionService, ResourceActionService>();
 
         return services;
     }

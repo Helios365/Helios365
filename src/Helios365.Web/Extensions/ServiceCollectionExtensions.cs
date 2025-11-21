@@ -60,10 +60,14 @@ public static class ServiceCollectionExtensions
                 Timeout = TimeSpan.FromSeconds(60)
             });
             services.AddScoped<ISecretRepository, SecretRepository>();
+            services.AddScoped<IAzureCredentialProvider, AzureCredentialProvider>();
+            services.AddScoped<IArmClientFactory, ArmClientFactory>();
+            services.AddScoped<IAppServiceService, AppServiceService>();
+            services.AddScoped<IVirtualMachineService, VirtualMachineService>();
+            services.AddScoped<IResourceGraphClient, ResourceGraphClient>();
             services.AddScoped<IResourceGraphService, ResourceGraphService>();
             services.AddScoped<IResourceService, ResourceService>();
             services.AddScoped<IResourceSyncService, ResourceSyncService>();
-            services.AddScoped<IResourceActionService, ResourceActionService>();
         }
         else
         {

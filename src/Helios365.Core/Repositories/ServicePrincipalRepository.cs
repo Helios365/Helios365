@@ -5,6 +5,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Repositories;
 
+public interface IServicePrincipalRepository : IRepository<ServicePrincipal>
+{
+    Task<IEnumerable<ServicePrincipal>> ListByCustomerAsync(string customerId, int limit = 100, CancellationToken cancellationToken = default);
+}
+
 public class ServicePrincipalRepository : IServicePrincipalRepository
 {
     private readonly Container _container;

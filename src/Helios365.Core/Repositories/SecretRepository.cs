@@ -6,6 +6,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Repositories;
 
+public interface ISecretRepository
+{
+    /// <summary>
+    /// Stores the plaintext secret for the given Service Principal in the backing secret store
+    /// and returns a stable reference (e.g., Key Vault secret URL without version).
+    /// </summary>
+    Task<string> SetServicePrincipalSecretAsync(ServicePrincipal sp, string plaintextSecret, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves the plaintext secret for the given Service Principal using the stored reference.
+    /// </summary>
+    Task<string> GetServicePrincipalSecretAsync(ServicePrincipal sp, CancellationToken cancellationToken = default);
+}
+
 public class SecretRepository : ISecretRepository
 {
     private readonly SecretClient _secretClient;
