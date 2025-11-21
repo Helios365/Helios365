@@ -112,6 +112,7 @@ else
                     <MudTh>Resource Group</MudTh>
                     <MudTh>Location</MudTh>
                     <MudTh>Status</MudTh>
+                    <MudTh class="text-end">Details</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Type" Class="text-center">
@@ -129,6 +130,14 @@ else
                         <MudChip Color="@(context.Resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small">
                             @(context.Resource.Active ? "Active" : "Disabled")
                         </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Details" Class="text-end">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => GoToDetails(context.Resource.Id))">
+                            Details
+                        </MudButton>
                     </MudTd>
                 </RowTemplate>
             </MudTable>

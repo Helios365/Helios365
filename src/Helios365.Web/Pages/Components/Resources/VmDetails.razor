@@ -1,0 +1,49 @@
+@using Helios365.Core.Models
+@using MudBlazor
+
+@if (Resource is null)
+{
+    <MudAlert Severity="Severity.Info">No VM data.</MudAlert>
+}
+else
+{
+    <MudPaper Class="pa-4 mb-3">
+        <MudText Typo="Typo.h6" Class="mb-3">Virtual Machine</MudText>
+        <MudText Color="Color.Secondary" Typo="Typo.caption">Size</MudText>
+        <MudText>@GetMetadata("vmSize")</MudText>
+        <MudText Color="Color.Secondary" Typo="Typo.caption" Class="mt-2">OS</MudText>
+        <MudText>@GetMetadata("osType")</MudText>
+        <MudStack Row="true" Spacing="2" Class="mt-2">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="@Disabled"
+                       OnClick="@(() => OnRestart.InvokeAsync(Resource))">
+                Restart
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public Resource? Resource { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<Resource> OnRestart { get; set; }
+
+    private string GetMetadata(string key)
+    {
+        if (Resource?.Metadata is null)
+        {
+            return "-";
+        }
+
+        foreach (var kvp in Resource.Metadata)
+        {
+            if (string.Equals(kvp.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrWhiteSpace(kvp.Value) ? "-" : kvp.Value;
+            }
+        }
+
+        return "-";
+    }
+}

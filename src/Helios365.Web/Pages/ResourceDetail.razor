@@ -1,0 +1,290 @@
+@page "/resources/{Id}"
+@using Helios365.Core.Models
+@using Helios365.Core.Repositories
+@using Helios365.Core.Services
+@using MudBlazor
+@using Helios365.Web.Pages.Components.Resources
+@inject IResourceRepository ResourceRepository
+@inject ICustomerRepository CustomerRepository
+@inject IServicePrincipalRepository ServicePrincipalRepository
+@inject IAppServiceService AppServiceService
+@inject IVirtualMachineService VirtualMachineService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject ILogger<ResourceDetail> Logger
+
+<PageTitle>Resource Details</PageTitle>
+
+<MudPaper Class="pa-4 mb-3 d-flex align-items-center gap-2">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="@GoBack" Color="Color.Primary" />
+    <MudText Typo="Typo.h5" Class="mb-0">Resource details</MudText>
+</MudPaper>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
+        <div class="text-muted">Loading resource...</div>
+    </div>
+}
+else if (resource is null)
+{
+    <MudAlert Severity="Severity.Warning">Resource was not found.</MudAlert>
+}
+else
+{
+    <MudPaper Class="pa-4 mb-3">
+        <div class="d-flex align-items-center gap-3">
+            <MudAvatar Size="Size.Large"
+                       Variant="Variant.Filled"
+                       Class="bg-transparent"
+                       Image="@GetResourceImage(resource.ResourceType)" />
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center gap-2">
+                    <MudText Typo="Typo.h5">@resource.Name</MudText>
+                    <MudChip Color="@(resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small">
+                        @(resource.Active ? "Active" : "Disabled")
+                    </MudChip>
+                </div>
+                <MudText Typo="Typo.body2" Class="text-muted">@resource.ResourceType</MudText>
+                <MudText Typo="Typo.body2" Class="text-muted">Resource ID: @resource.ResourceId</MudText>
+            </div>
+            <MudSwitch Checked="@resource.Active"
+                       Disabled="@saving"
+                       Color="Color.Success"
+                       OnCheckedChanged="ToggleActiveAsync"
+                       ThumbIconChecked="@Icons.Material.Filled.Check"
+                       ThumbIconUnchecked="@Icons.Material.Filled.Close"
+                       Label="Active" />
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-3">
+        <MudText Typo="Typo.h6" Class="mb-3">General information</MudText>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Customer</MudText>
+                <MudText>@customerName</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Service Principal</MudText>
+                <MudText>@(servicePrincipal?.Name ?? resource.ServicePrincipalId ?? "-")</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Resource Group</MudText>
+                <MudText>@GetMetadata(resource, "resourceGroup")</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Location</MudText>
+                <MudText>@GetMetadata(resource, "location")</MudText>
+            </div>
+        </div>
+    </MudPaper>
+
+    @if (IsAppService(resource))
+    {
+        <AppServiceDetails Resource="resource"
+                           Disabled="@DisableActions"
+                           OnRestart="@(res => RestartAsync(AppServiceKind))" />
+    }
+    else if (IsVirtualMachine(resource))
+    {
+        <VmDetails Resource="resource"
+                   Disabled="@DisableActions"
+                   OnRestart="@(res => RestartAsync(VmKind))" />
+    }
+    else if (IsServiceBus(resource))
+    {
+        <ServiceBusDetails Resource="resource" />
+    }
+    else if (IsMySql(resource))
+    {
+        <MySqlDetails Resource="resource" />
+    }
+    else
+    {
+        <MudPaper Class="pa-4 mb-3">
+            <MudText Typo="Typo.h6" Class="mb-3">Resource</MudText>
+            <MudText>No resource-specific details available.</MudText>
+        </MudPaper>
+    }
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    private Resource? resource;
+    private ServicePrincipal? servicePrincipal;
+    private string customerName = "-";
+    private bool loading = true;
+    private bool saving;
+    private bool actionRunning;
+    private const string AppServiceKind = "appservice";
+    private const string VmKind = "vm";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        try
+        {
+            resource = await ResourceRepository.GetAsync(Id);
+            if (resource is null)
+            {
+                return;
+            }
+
+            var customer = await CustomerRepository.GetAsync(resource.CustomerId);
+            customerName = customer?.Name ?? resource.CustomerId;
+
+            if (!string.IsNullOrWhiteSpace(resource.ServicePrincipalId))
+            {
+                servicePrincipal = await ServicePrincipalRepository.GetAsync(resource.ServicePrincipalId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load resource {ResourceId}", Id);
+            Snackbar.Add($"Failed to load resource: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleActiveAsync(bool isActive)
+    {
+        if (resource is null)
+        {
+            return;
+        }
+
+        saving = true;
+        var original = resource.Active;
+        resource.Active = isActive;
+
+        try
+        {
+            await ResourceRepository.UpdateAsync(resource.Id, resource);
+            Snackbar.Add($"Resource {(isActive ? "activated" : "disabled")}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            resource.Active = original;
+            Logger.LogError(ex, "Failed to update active flag for resource {ResourceId}", resource.Id);
+            Snackbar.Add($"Failed to update resource: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private bool IsAppService(Resource res) =>
+        !string.IsNullOrWhiteSpace(res.ResourceType) &&
+        res.ResourceType.Contains("microsoft.web/sites", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsVirtualMachine(Resource res) =>
+        !string.IsNullOrWhiteSpace(res.ResourceType) &&
+        res.ResourceType.Contains("microsoft.compute/virtualmachines", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsServiceBus(Resource res) =>
+        !string.IsNullOrWhiteSpace(res.ResourceType) &&
+        res.ResourceType.Contains("servicebus", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsMySql(Resource res) =>
+        !string.IsNullOrWhiteSpace(res.ResourceType) &&
+        res.ResourceType.Contains("dbformysql", StringComparison.OrdinalIgnoreCase);
+
+    private bool DisableActions => actionRunning || servicePrincipal is null;
+
+    private async Task RestartAsync(string kind)
+    {
+        if (resource is null || servicePrincipal is null)
+        {
+            return;
+        }
+
+        actionRunning = true;
+
+        try
+        {
+            if (kind == "appservice")
+            {
+                await AppServiceService.RestartAsync(servicePrincipal, resource.ResourceId, new RestartAction { WaitAfterSeconds = 10 });
+                Snackbar.Add("App Service restart initiated.", Severity.Success);
+            }
+            else if (kind == "vm")
+            {
+                await VirtualMachineService.RestartAsync(servicePrincipal, resource.ResourceId, new RestartAction { WaitAfterSeconds = 10 });
+                Snackbar.Add("Virtual machine restart initiated.", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to execute action for resource {ResourceId}", resource.Id);
+            Snackbar.Add($"Action failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            actionRunning = false;
+        }
+    }
+
+    private string GetMetadata(Resource res, string key)
+    {
+        if (res.Metadata is null)
+        {
+            return "-";
+        }
+
+        foreach (var kvp in res.Metadata)
+        {
+            if (string.Equals(kvp.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrWhiteSpace(kvp.Value) ? "-" : kvp.Value;
+            }
+        }
+
+        return "-";
+    }
+
+    private string GetResourceImage(string resourceType)
+    {
+        if (string.IsNullOrWhiteSpace(resourceType))
+        {
+            return "images/resources/generic.svg";
+        }
+
+        var type = resourceType.ToLowerInvariant();
+        if (type.Contains("microsoft.web/sites"))
+        {
+            return "images/resources/appservice.svg";
+        }
+
+        if (type.Contains("microsoft.compute/virtualmachines"))
+        {
+            return "images/resources/vm.svg";
+        }
+
+        if (type.Contains("servicebus"))
+        {
+            return "images/resources/servicebus.svg";
+        }
+
+        if (type.Contains("dbformysql"))
+        {
+            return "images/resources/database.svg";
+        }
+
+        return "images/resources/generic.svg";
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/resources");
+}

@@ -52,7 +52,7 @@ public class VirtualMachineService : IVirtualMachineService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to restart virtual machine {ResourceId}", resourceId);
-            return false;
+            throw;
         }
     }
 

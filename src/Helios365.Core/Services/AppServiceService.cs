@@ -110,7 +110,7 @@ public class AppServiceService : IAppServiceService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to restart App Service {ResourceId}", resourceId);
-            return false;
+            throw;
         }
     }
 

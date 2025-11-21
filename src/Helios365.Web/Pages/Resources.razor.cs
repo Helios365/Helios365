@@ -17,6 +17,7 @@ public partial class Resources : ComponentBase
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private ISnackbar Snackbar { get; set; } = default!;
     [Inject] private ILogger<Resources> Logger { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private List<ResourceViewModel> resourceViews = new();
     private bool isLoading = true;
@@ -228,6 +229,16 @@ public partial class Resources : ComponentBase
         }
 
         return "images/resources/generic.svg";
+    }
+
+    private void GoToDetails(string resourceId)
+    {
+        if (string.IsNullOrWhiteSpace(resourceId))
+        {
+            return;
+        }
+
+        NavigationManager.NavigateTo($"/resources/{resourceId}");
     }
 
     private sealed class ResourceViewModel
