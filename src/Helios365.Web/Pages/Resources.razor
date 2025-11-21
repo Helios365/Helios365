@@ -38,14 +38,6 @@ else
         <div class="col-sm-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center">
-                    <div class="display-6 text-info">@resourceViews.Count(r => r.Resource.UseDefaultActions)</div>
-                    <div class="text-muted">Using default actions</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center">
                     <div class="display-6 text-dark">@resourceViews.Select(r => r.Resource.CustomerId).Distinct().Count()</div>
                     <div class="text-muted">Customers covered</div>
                 </div>
@@ -92,11 +84,6 @@ else
                        Label="Active only"
                        DisableRipple="true" />
 
-            <MudSwitch @bind-Value="defaultActionsOnly"
-                       Color="Color.Primary"
-                       Label="Default actions"
-                       DisableRipple="true" />
-
             <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                            Color="Color.Primary"
                            Title="Reload"
@@ -125,12 +112,13 @@ else
                     <MudTh>Resource Group</MudTh>
                     <MudTh>Location</MudTh>
                     <MudTh>Status</MudTh>
-                    <MudTh class="text-end">Details</MudTh>
-                    <MudTh class="text-end">Remove</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Type" Class="text-center">
-                        <MudIcon Icon="@GetResourceIcon(context.Resource.ResourceType)" Color="Color.Primary" />
+                        <MudAvatar Size="Size.Medium"
+                                   Variant="Variant.Filled"
+                                   Class="bg-transparent"
+                                   Image="@GetResourceImage(context.Resource.ResourceType)" />
                     </MudTd>
                     <MudTd DataLabel="Name">
                         <div class="fw-bold">@context.Resource.Name</div>
@@ -141,20 +129,6 @@ else
                         <MudChip Color="@(context.Resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small">
                             @(context.Resource.Active ? "Active" : "Disabled")
                         </MudChip>
-                    </MudTd>
-                    <MudTd DataLabel="Details" Class="text-end">
-                        <MudIconButton Icon="@Icons.Material.Filled.Info"
-                                       Color="Color.Primary"
-                                       Size="Size.Small"
-                                       Title="View details"
-                                       OnClick="@(() => ShowDetails(context))" />
-                    </MudTd>
-                    <MudTd DataLabel="Remove" Class="text-end">
-                        <MudIconButton Icon="@Icons.Material.Filled.Close"
-                                       Color="Color.Error"
-                                       Size="Size.Small"
-                                       Title="Remove resource"
-                                       OnClick="@(() => DeleteResourceAsync(context))" />
                     </MudTd>
                 </RowTemplate>
             </MudTable>

@@ -23,7 +23,6 @@ public partial class Resources : ComponentBase
     private bool syncing;
     private string search = string.Empty;
     private bool activeOnly;
-    private bool defaultActionsOnly;
     private string selectedCustomer = string.Empty;
     private string selectedServicePrincipal = string.Empty;
     private string selectedLocation = string.Empty;
@@ -34,7 +33,6 @@ public partial class Resources : ComponentBase
     private IEnumerable<ResourceViewModel> FilteredResources =>
         resourceViews
             .Where(r => !activeOnly || r.Resource.Active)
-            .Where(r => !defaultActionsOnly || r.Resource.UseDefaultActions)
             .Where(r => string.IsNullOrEmpty(selectedCustomer) || string.Equals(r.Resource.CustomerId, selectedCustomer, StringComparison.OrdinalIgnoreCase))
             .Where(r => string.IsNullOrEmpty(selectedServicePrincipal) || string.Equals(r.Resource.ServicePrincipalId, selectedServicePrincipal, StringComparison.OrdinalIgnoreCase))
             .Where(r => string.IsNullOrEmpty(selectedLocation) || string.Equals(r.Location, selectedLocation, StringComparison.OrdinalIgnoreCase))
@@ -201,35 +199,35 @@ public partial class Resources : ComponentBase
         return "-";
     }
 
-    private string GetResourceIcon(string resourceType)
+    private string GetResourceImage(string resourceType)
     {
         if (string.IsNullOrWhiteSpace(resourceType))
         {
-            return Icons.Material.Filled.Devices;
+            return "images/resources/generic.svg";
         }
 
         var type = resourceType.ToLowerInvariant();
         if (type.Contains("microsoft.web/sites"))
         {
-            return Icons.Material.Filled.Cloud;
+            return "images/resources/appservice.svg";
         }
 
         if (type.Contains("microsoft.compute/virtualmachines"))
         {
-            return Icons.Material.Filled.Memory;
+            return "images/resources/vm.svg";
         }
 
         if (type.Contains("servicebus"))
         {
-            return Icons.Material.Filled.SyncAlt;
+            return "images/resources/servicebus.svg";
         }
 
         if (type.Contains("dbformysql"))
         {
-            return Icons.Material.Filled.Storage;
+            return "images/resources/database.svg";
         }
 
-        return Icons.Material.Filled.Devices;
+        return "images/resources/generic.svg";
     }
 
     private sealed class ResourceViewModel
