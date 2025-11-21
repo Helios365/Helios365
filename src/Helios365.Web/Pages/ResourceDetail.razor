@@ -84,14 +84,14 @@ else
     @if (IsAppService(resource))
     {
         <AppServiceDetails Resource="resource"
-                           Disabled="@DisableActions"
-                           OnRestart="@(res => RestartAsync(AppServiceKind))" />
+                           ServicePrincipal="servicePrincipal"
+                           Disabled="@DisableActions" />
     }
     else if (IsVirtualMachine(resource))
     {
         <VmDetails Resource="resource"
-                   Disabled="@DisableActions"
-                   OnRestart="@(res => RestartAsync(VmKind))" />
+                   ServicePrincipal="servicePrincipal"
+                   Disabled="@DisableActions" />
     }
     else if (IsServiceBus(resource))
     {
@@ -118,9 +118,6 @@ else
     private string customerName = "-";
     private bool loading = true;
     private bool saving;
-    private bool actionRunning;
-    private const string AppServiceKind = "appservice";
-    private const string VmKind = "vm";
 
     protected override async Task OnInitializedAsync()
     {
@@ -186,6 +183,8 @@ else
         }
     }
 
+    private bool DisableActions => saving || servicePrincipal is null;
+
     private bool IsAppService(Resource res) =>
         !string.IsNullOrWhiteSpace(res.ResourceType) &&
         res.ResourceType.Contains("microsoft.web/sites", StringComparison.OrdinalIgnoreCase);
@@ -201,41 +200,6 @@ else
     private bool IsMySql(Resource res) =>
         !string.IsNullOrWhiteSpace(res.ResourceType) &&
         res.ResourceType.Contains("dbformysql", StringComparison.OrdinalIgnoreCase);
-
-    private bool DisableActions => actionRunning || servicePrincipal is null;
-
-    private async Task RestartAsync(string kind)
-    {
-        if (resource is null || servicePrincipal is null)
-        {
-            return;
-        }
-
-        actionRunning = true;
-
-        try
-        {
-            if (kind == "appservice")
-            {
-                await AppServiceService.RestartAsync(servicePrincipal, resource.ResourceId, new RestartAction { WaitAfterSeconds = 10 });
-                Snackbar.Add("App Service restart initiated.", Severity.Success);
-            }
-            else if (kind == "vm")
-            {
-                await VirtualMachineService.RestartAsync(servicePrincipal, resource.ResourceId, new RestartAction { WaitAfterSeconds = 10 });
-                Snackbar.Add("Virtual machine restart initiated.", Severity.Success);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to execute action for resource {ResourceId}", resource.Id);
-            Snackbar.Add($"Action failed: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            actionRunning = false;
-        }
-    }
 
     private string GetMetadata(Resource res, string key)
     {

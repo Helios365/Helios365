@@ -1,5 +1,6 @@
-@using Helios365.Core.Models
-@using MudBlazor
+@inject IAppServiceService AppServiceService
+@inject ISnackbar Snackbar
+@inject ILogger<AppServiceDetails> Logger
 
 @if (Resource is null)
 {
@@ -14,8 +15,8 @@ else
         <MudStack Row="true" Spacing="2" Class="mt-2">
             <MudButton Variant="Variant.Filled"
                        Color="Color.Primary"
-                       Disabled="@Disabled"
-                       OnClick="@(() => OnRestart.InvokeAsync(Resource))">
+                       Disabled="@IsDisabled"
+                       OnClick="RestartAsync">
                 Restart
             </MudButton>
         </MudStack>
@@ -24,8 +25,11 @@ else
 
 @code {
     [Parameter] public Resource? Resource { get; set; }
+    [Parameter] public ServicePrincipal? ServicePrincipal { get; set; }
     [Parameter] public bool Disabled { get; set; }
-    [Parameter] public EventCallback<Resource> OnRestart { get; set; }
+
+    private bool busy;
+    private bool IsDisabled => Disabled || busy || ServicePrincipal is null;
 
     private string GetMetadata(string key)
     {
@@ -43,5 +47,30 @@ else
         }
 
         return "-";
+    }
+
+    private async Task RestartAsync()
+    {
+        if (Resource is null || ServicePrincipal is null)
+        {
+            Snackbar.Add("Missing resource or service principal for restart.", Severity.Error);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            await AppServiceService.RestartAsync(ServicePrincipal, Resource.ResourceId, new RestartAction { WaitAfterSeconds = 10 });
+            Snackbar.Add("App Service restart initiated.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to restart App Service {ResourceId}", Resource.Id);
+            Snackbar.Add($"Restart failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
     }
 }
