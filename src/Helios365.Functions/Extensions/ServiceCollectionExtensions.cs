@@ -2,6 +2,7 @@ using System.Net.Http;
 using Azure.Communication.Email;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
+using Azure.ResourceManager.Resources;
 using Helios365.Core.Repositories;
 using Helios365.Core.Services;
 using Microsoft.Azure.Cosmos;
@@ -119,6 +120,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAppServiceService, AppServiceService>();
         services.AddSingleton<IVirtualMachineService, VirtualMachineService>();
         services.AddSingleton<IResourceGraphClient, ResourceGraphClient>();
+        services.AddSingleton<IResourceMapper<GenericResourceData>, ResourceMapper>();
         services.AddSingleton<IResourceDiscoveryStrategy, AppServiceDiscoveryStrategy>();
         services.AddSingleton<IResourceDiscoveryStrategy, VirtualMachineDiscoveryStrategy>();
         services.AddSingleton<IResourceDiscoveryStrategy, MySqlFlexibleServerDiscoveryStrategy>();
@@ -127,16 +129,21 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IResourceGraphService>(sp =>
         {
             var client = sp.GetRequiredService<IResourceGraphClient>();
+            var mapper = sp.GetRequiredService<IResourceMapper<ResourceGraphItem>>();
             var logger = sp.GetRequiredService<ILogger<ResourceGraphService>>();
-            return new ResourceGraphService(client, logger);
+            return new ResourceGraphService(client, mapper, logger);
         });
 
         services.AddSingleton<IResourceService>(sp =>
         {
             var armClientFactory = sp.GetRequiredService<IArmClientFactory>();
             var logger = sp.GetRequiredService<ILogger<ResourceService>>();
-            return new ResourceService(armClientFactory, logger);
+            var resourceMapper = sp.GetRequiredService<IResourceMapper<GenericResourceData>>();
+            return new ResourceService(armClientFactory, logger, resourceMapper);
         });
+
+        services.AddSingleton<IResourceMapper<GenericResourceData>, ResourceMapper>();
+        services.AddSingleton<IResourceMapper<ResourceGraphItem>, ResourceGraphMapper>();
 
         services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
 

@@ -1,6 +1,8 @@
+using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Resources;
 using Helios365.Core.Models;
+using Helios365.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
@@ -16,13 +18,23 @@ public class ResourceService : IResourceService
 {
     private readonly IArmClientFactory _armClientFactory;
     private readonly ILogger<ResourceService> _logger;
+    private readonly IResourceMapper<GenericResourceData> _resourceMapper;
 
-    public ResourceService(IArmClientFactory armClientFactory, ILogger<ResourceService> logger)
+    public ResourceService(IArmClientFactory armClientFactory, ILogger<ResourceService> logger, IResourceMapper<GenericResourceData> resourceMapper)
     {
         _armClientFactory = armClientFactory;
         _logger = logger;
+        _resourceMapper = resourceMapper;
     }
+    
+    public async Task<Resource> GetResourceAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+        var azureResource = await armClient.GetGenericResource(new ResourceIdentifier(resource.ResourceId)).GetAsync(cancellationToken).ConfigureAwait(false);
 
+        return _resourceMapper.Map(azureResource.Value.Data, servicePrincipal.CustomerId, servicePrincipal.Id); 
+
+    }
     public async Task<TenantResource> GetTenantAsync(ServicePrincipal servicePrincipal, CancellationToken cancellationToken = default)
     {
         var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);

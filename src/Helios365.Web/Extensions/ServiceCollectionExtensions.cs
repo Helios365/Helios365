@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Identity;
+using Azure.ResourceManager.Resources;
 
 namespace Helios365.Web.Extensions;
 
@@ -69,6 +70,8 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IResourceDiscoveryStrategy, MySqlFlexibleServerDiscoveryStrategy>();
             services.AddScoped<IResourceDiscoveryStrategy, ServiceBusNamespaceDiscoveryStrategy>();
             services.AddScoped<IResourceGraphClient, ResourceGraphClient>();
+            services.AddScoped<IResourceMapper<GenericResourceData>, ResourceMapper>();
+            services.AddScoped<IResourceMapper<ResourceGraphItem>, ResourceGraphMapper>();
             services.AddScoped<IResourceGraphService, ResourceGraphService>();
             services.AddScoped<IResourceService, ResourceService>();
             services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();

@@ -2,7 +2,6 @@ using System.Text.Json;
 using Azure;
 using Azure.ResourceManager.ResourceGraph.Models;
 using Helios365.Core.Models;
-using Helios365.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
@@ -98,11 +97,16 @@ public class ResourceGraphService : IResourceGraphService
         MetadataEnricher: AddServiceBusMetadata);
 
     private readonly IResourceGraphClient _resourceGraphClient;
+    private readonly IResourceMapper<ResourceGraphItem> _resourceGraphMapper;
     private readonly ILogger<ResourceGraphService> _logger;
 
-    public ResourceGraphService(IResourceGraphClient resourceGraphClient, ILogger<ResourceGraphService> logger)
+    public ResourceGraphService(
+        IResourceGraphClient resourceGraphClient,
+        IResourceMapper<ResourceGraphItem> resourceGraphMapper,
+        ILogger<ResourceGraphService> logger)
     {
         _resourceGraphClient = resourceGraphClient;
+        _resourceGraphMapper = resourceGraphMapper;
         _logger = logger;
     }
 
@@ -231,39 +235,10 @@ public class ResourceGraphService : IResourceGraphService
         {
             try
             {
-                var id = element.GetProperty("id").GetString() ?? string.Empty;
-                var normalizedId = ResourceIdNormalizer.Normalize(id);
-                var name = element.GetProperty("name").GetString() ?? string.Empty;
-                var resourceGroup = element.TryGetProperty("resourceGroup", out var rgEl) ? rgEl.GetString() ?? string.Empty : string.Empty;
-                var location = element.TryGetProperty("location", out var locEl) ? locEl.GetString() ?? string.Empty : string.Empty;
-                var kind = element.TryGetProperty("kind", out var kindEl) ? kindEl.GetString() ?? string.Empty : string.Empty;
-
-                var metadata = new Dictionary<string, string>
-                {
-                    ["resourceGroup"] = resourceGroup,
-                    ["location"] = location,
-                    ["kind"] = kind
-                };
-
-                if (element.TryGetProperty("tags", out var tagsElement) && tagsElement.ValueKind == JsonValueKind.Object)
-                {
-                    foreach (var tagProperty in tagsElement.EnumerateObject())
-                    {
-                        metadata[$"tag:{tagProperty.Name}"] = tagProperty.Value.GetString() ?? string.Empty;
-                    }
-                }
-
-                metadataEnricher?.Invoke(element, metadata);
-
-                var resource = new Resource
-                {
-                    CustomerId = servicePrincipal.CustomerId,
-                    ServicePrincipalId = servicePrincipal.Id,
-                    Name = name,
-                    ResourceId = normalizedId,
-                    ResourceType = resourceType,
-                    Metadata = metadata
-                };
+                var resource = _resourceGraphMapper.Map(
+                    new ResourceGraphItem(element, resourceType, metadataEnricher),
+                    servicePrincipal.CustomerId,
+                    servicePrincipal.Id);
 
                 results.Add(resource);
             }
