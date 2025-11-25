@@ -7,17 +7,17 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services.Clients;
 
-public interface IAzureCredentialProvider
+public interface ICredentialProvider
 {
     Task<TokenCredential> CreateAsync(ServicePrincipal servicePrincipal, CancellationToken cancellationToken = default);
 }
 
-public class AzureCredentialProvider : IAzureCredentialProvider
+public class CredentialProvider : ICredentialProvider
 {
     private readonly ISecretRepository _secretRepository;
-    private readonly ILogger<AzureCredentialProvider> _logger;
+    private readonly ILogger<CredentialProvider> _logger;
 
-    public AzureCredentialProvider(ISecretRepository secretRepository, ILogger<AzureCredentialProvider> logger)
+    public CredentialProvider(ISecretRepository secretRepository, ILogger<CredentialProvider> logger)
     {
         _secretRepository = secretRepository;
         _logger = logger;
@@ -43,10 +43,10 @@ public interface IArmClientFactory
 
 public class ArmClientFactory : IArmClientFactory
 {
-    private readonly IAzureCredentialProvider _credentialProvider;
+    private readonly ICredentialProvider _credentialProvider;
     private readonly ILogger<ArmClientFactory> _logger;
 
-    public ArmClientFactory(IAzureCredentialProvider credentialProvider, ILogger<ArmClientFactory> logger)
+    public ArmClientFactory(ICredentialProvider credentialProvider, ILogger<ArmClientFactory> logger)
     {
         _credentialProvider = credentialProvider;
         _logger = logger;

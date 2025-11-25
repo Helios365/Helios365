@@ -24,6 +24,10 @@ public interface IResourceService
     Task<PingTest?> SavePingTestAsync(Resource resource, PingTest test, CancellationToken cancellationToken = default);
 
     Task<bool> ClearPingTestAsync(Resource resource, CancellationToken cancellationToken = default);
+
+    Task<DiagnosticsResult?> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+
+    Task<MetricsResult?> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
 }
 
 public class ResourceService : IResourceService
@@ -102,6 +106,30 @@ public class ResourceService : IResourceService
 
     public Task<bool> ClearPingTestAsync(Resource resource, CancellationToken cancellationToken = default) =>
         _pingTestService.ClearPingTestAsync(resource, cancellationToken);
+
+    public async Task<DiagnosticsResult?> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var handler = ResolveHandler<IResourceDiagnostics>(resource.ResourceType);
+        if (handler is null)
+        {
+            _logger.LogWarning("Diagnostics not supported for resource type {ResourceType}", resource.ResourceType);
+            return null;
+        }
+
+        return await handler.GetDiagnosticsAsync(servicePrincipal, resource, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<MetricsResult?> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var handler = ResolveHandler<IResourceDiagnostics>(resource.ResourceType);
+        if (handler is null)
+        {
+            _logger.LogWarning("Metrics not supported for resource type {ResourceType}", resource.ResourceType);
+            return null;
+        }
+
+        return await handler.GetMetricsAsync(servicePrincipal, resource, cancellationToken).ConfigureAwait(false);
+    }
 
     private TCapability? ResolveHandler<TCapability>(string resourceType)
         where TCapability : class, IResourceHandler

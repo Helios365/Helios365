@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services.Handlers;
 
-public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecycle
+public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecycle, IResourceDiagnostics
 {
     private const string ResourceTypeValue = "Microsoft.Compute/virtualMachines";
     private const string Query = """
@@ -25,15 +25,18 @@ public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecy
         """;
 
     private readonly IResourceGraphClient _resourceGraphClient;
+    private readonly IMetricsClient _metricsClient;
     private readonly IArmClientFactory _armClientFactory;
     private readonly ILogger<VirtualMachineResourceHandler> _logger;
 
     public VirtualMachineResourceHandler(
         IResourceGraphClient resourceGraphClient,
+        IMetricsClient metricsClient,
         IArmClientFactory armClientFactory,
         ILogger<VirtualMachineResourceHandler> logger)
     {
         _resourceGraphClient = resourceGraphClient;
+        _metricsClient = metricsClient;
         _armClientFactory = armClientFactory;
         _logger = logger;
     }
@@ -43,6 +46,33 @@ public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecy
 
     public Task<IReadOnlyList<Resource>> DiscoverAsync(ServicePrincipal servicePrincipal, IReadOnlyList<string> subscriptionIds, CancellationToken cancellationToken = default) =>
         QueryAsync(servicePrincipal, subscriptionIds, Query, ResourceTypeValue, "Virtual Machines", AddVirtualMachineMetadata, cancellationToken);
+
+    public Task<DiagnosticsResult> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var data = new Dictionary<string, string>
+        {
+            ["resourceId"] = resource.ResourceId,
+            ["resourceType"] = resource.ResourceType,
+            ["handler"] = DisplayName,
+            ["location"] = resource.Metadata.TryGetValue("location", out var loc) ? loc : string.Empty,
+            ["resourceGroup"] = resource.Metadata.TryGetValue("resourceGroup", out var rg) ? rg : string.Empty,
+            ["vmSize"] = resource.Metadata.TryGetValue("vmSize", out var size) ? size : string.Empty,
+            ["osType"] = resource.Metadata.TryGetValue("osType", out var os) ? os : string.Empty
+        };
+
+        return Task.FromResult(new DiagnosticsResult
+        {
+            ResourceId = resource.ResourceId,
+            ResourceType = resource.ResourceType,
+            Data = data
+        });
+    }
+
+    public Task<MetricsResult> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var metrics = new[] { "Percentage CPU", "Available Memory Bytes" };
+        return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.Compute/virtualMachines", TimeSpan.FromHours(1), cancellationToken);
+    }
 
     public async Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default)
     {

@@ -136,52 +136,6 @@ public partial class Resources : ComponentBase
         }
     }
 
-    private void ShowDetails(ResourceViewModel model)
-    {
-        var parameters = new DialogParameters
-        {
-            [nameof(ResourceDetailsDialog.Resource)] = model.Resource,
-            [nameof(ResourceDetailsDialog.CustomerName)] = model.CustomerName,
-            [nameof(ResourceDetailsDialog.ServicePrincipalName)] = model.ServicePrincipalName,
-            [nameof(ResourceDetailsDialog.ResourceGroup)] = model.ResourceGroup,
-            [nameof(ResourceDetailsDialog.Location)] = model.Location
-        };
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        DialogService.Show<ResourceDetailsDialog>("Resource details", parameters, options);
-    }
-
-    private async Task DeleteResourceAsync(ResourceViewModel model)
-    {
-        var confirmed = await DialogService.ShowMessageBox(
-            title: "Remove resource",
-            markupMessage: (MarkupString)$"Are you sure you want to remove '<strong>{model.Resource.Name}</strong>'?",
-            yesText: "Remove",
-            cancelText: "Cancel",
-            options: new DialogOptions { MaxWidth = MaxWidth.ExtraSmall });
-
-        if (confirmed == true)
-        {
-            try
-            {
-                var deleted = await ResourceRepository.DeleteAsync(model.Resource.Id);
-                if (deleted)
-                {
-                    Snackbar.Add("Resource removed.", Severity.Success);
-                    await LoadResourcesAsync();
-                }
-                else
-                {
-                    Snackbar.Add("Resource not found.", Severity.Warning);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Failed to delete resource {ResourceId}", model.Resource.Id);
-                Snackbar.Add($"Failed to delete resource: {ex.Message}", Severity.Error);
-            }
-        }
-    }
-
     private static string TryGetMetadata(Resource resource, string key)
     {
         if (resource.Metadata is null)

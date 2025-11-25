@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services.Handlers;
 
-public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle
+public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle, IResourceDiagnostics
 {
     private const string ResourceTypeValue = "Microsoft.Web/sites";
     private const string Query = """
@@ -22,15 +22,18 @@ public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle
         """;
 
     private readonly IResourceGraphClient _resourceGraphClient;
+    private readonly IMetricsClient _metricsClient;
     private readonly IArmClientFactory _armClientFactory;
     private readonly ILogger<AppServiceResourceHandler> _logger;
 
     public AppServiceResourceHandler(
         IResourceGraphClient resourceGraphClient,
+        IMetricsClient metricsClient,
         IArmClientFactory armClientFactory,
         ILogger<AppServiceResourceHandler> logger)
     {
         _resourceGraphClient = resourceGraphClient;
+        _metricsClient = metricsClient;
         _armClientFactory = armClientFactory;
         _logger = logger;
     }
@@ -40,6 +43,32 @@ public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle
 
     public Task<IReadOnlyList<Resource>> DiscoverAsync(ServicePrincipal servicePrincipal, IReadOnlyList<string> subscriptionIds, CancellationToken cancellationToken = default) =>
         QueryAsync(servicePrincipal, subscriptionIds, Query, ResourceTypeValue, "App Services", null, cancellationToken);
+
+    public Task<DiagnosticsResult> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var data = new Dictionary<string, string>
+        {
+            ["resourceId"] = resource.ResourceId,
+            ["resourceType"] = resource.ResourceType,
+            ["handler"] = DisplayName,
+            ["location"] = resource.Metadata.TryGetValue("location", out var loc) ? loc : string.Empty,
+            ["resourceGroup"] = resource.Metadata.TryGetValue("resourceGroup", out var rg) ? rg : string.Empty,
+            ["kind"] = resource.Metadata.TryGetValue("kind", out var kind) ? kind : string.Empty
+        };
+
+        return Task.FromResult(new DiagnosticsResult
+        {
+            ResourceId = resource.ResourceId,
+            ResourceType = resource.ResourceType,
+            Data = data
+        });
+    }
+
+    public Task<MetricsResult> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var metrics = new[] { "CpuPercentage", "MemoryWorkingSet" };
+        return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.Web/sites", TimeSpan.FromHours(1), cancellationToken);
+    }
 
     public async Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default)
     {

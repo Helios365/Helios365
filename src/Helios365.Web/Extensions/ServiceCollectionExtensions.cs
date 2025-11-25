@@ -59,6 +59,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IPingTestService, PingTestService>();
+        services.AddScoped<IMetricsClient, MetricsClient>();
 
         // Key Vault Secret repository
         var keyVaultUri = configuration["KeyVault:VaultUri"];
@@ -66,7 +67,7 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
             services.AddScoped<ISecretRepository, SecretRepository>();
-            services.AddScoped<IAzureCredentialProvider, AzureCredentialProvider>();
+            services.AddScoped<ICredentialProvider, CredentialProvider>();
             services.AddScoped<IArmClientFactory, ArmClientFactory>();
             services.AddScoped<IResourceGraphClient, ResourceGraphClient>();
             services.AddScoped<IResourceHandler, AppServiceResourceHandler>();

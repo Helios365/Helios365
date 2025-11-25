@@ -123,6 +123,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<IPingTestService, PingTestService>();
+        services.AddSingleton<IMetricsClient, MetricsClient>();
 
         services.AddSingleton<ISecretRepository>(sp =>
         {
@@ -131,7 +132,7 @@ public static class ServiceCollectionExtensions
             return new SecretRepository(secretClient, logger);
         });
 
-        services.AddSingleton<IAzureCredentialProvider, AzureCredentialProvider>();
+        services.AddSingleton<ICredentialProvider, CredentialProvider>();
         services.AddSingleton<IArmClientFactory, ArmClientFactory>();
         services.AddSingleton<IResourceGraphClient, ResourceGraphClient>();
         services.AddSingleton<IResourceHandler, AppServiceResourceHandler>();

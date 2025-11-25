@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services.Handlers;
 
-public class MySqlResourceHandler : IResourceDiscovery
+public class MySqlResourceHandler : IResourceDiscovery, IResourceDiagnostics
 {
     private const string ResourceTypeValue = "Microsoft.DBforMySQL/flexibleServers";
     private const string Query = """
@@ -21,13 +21,16 @@ public class MySqlResourceHandler : IResourceDiscovery
         """;
 
     private readonly IResourceGraphClient _resourceGraphClient;
+    private readonly IMetricsClient _metricsClient;
     private readonly ILogger<MySqlResourceHandler> _logger;
 
     public MySqlResourceHandler(
         IResourceGraphClient resourceGraphClient,
+        IMetricsClient metricsClient,
         ILogger<MySqlResourceHandler> logger)
     {
         _resourceGraphClient = resourceGraphClient;
+        _metricsClient = metricsClient;
         _logger = logger;
     }
 
@@ -36,6 +39,33 @@ public class MySqlResourceHandler : IResourceDiscovery
 
     public Task<IReadOnlyList<Resource>> DiscoverAsync(ServicePrincipal servicePrincipal, IReadOnlyList<string> subscriptionIds, CancellationToken cancellationToken = default) =>
         QueryAsync(servicePrincipal, subscriptionIds, Query, ResourceTypeValue, "MySQL Flexible Servers", AddMySqlMetadata, cancellationToken);
+
+    public Task<DiagnosticsResult> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var data = new Dictionary<string, string>
+        {
+            ["resourceId"] = resource.ResourceId,
+            ["resourceType"] = resource.ResourceType,
+            ["handler"] = DisplayName,
+            ["location"] = resource.Metadata.TryGetValue("location", out var loc) ? loc : string.Empty,
+            ["resourceGroup"] = resource.Metadata.TryGetValue("resourceGroup", out var rg) ? rg : string.Empty,
+            ["skuName"] = resource.Metadata.TryGetValue("skuName", out var sku) ? sku : string.Empty,
+            ["engineVersion"] = resource.Metadata.TryGetValue("engineVersion", out var ver) ? ver : string.Empty
+        };
+
+        return Task.FromResult(new DiagnosticsResult
+        {
+            ResourceId = resource.ResourceId,
+            ResourceType = resource.ResourceType,
+            Data = data
+        });
+    }
+
+    public Task<MetricsResult> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var metrics = new[] { "cpu_percent", "memory_percent" };
+        return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.DBforMySQL/flexibleServers", TimeSpan.FromHours(1), cancellationToken);
+    }
 
     private async Task<IReadOnlyList<Resource>> QueryAsync(
         ServicePrincipal servicePrincipal,

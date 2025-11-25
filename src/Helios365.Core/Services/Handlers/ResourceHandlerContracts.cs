@@ -17,3 +17,10 @@ public interface IResourceLifecycle : IResourceHandler
 {
     Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default);
 }
+
+public interface IResourceDiagnostics : IResourceHandler
+{
+    Task<DiagnosticsResult> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+
+    Task<MetricsResult> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+}
