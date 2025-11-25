@@ -1,4 +1,4 @@
-@inject IAppServiceService AppServiceService
+@inject IResourceService ResourceService
 @inject ISnackbar Snackbar
 @inject ILogger<AppServiceDetails> Logger
 
@@ -60,7 +60,7 @@ else
         busy = true;
         try
         {
-            await AppServiceService.RestartAsync(ServicePrincipal, Resource.ResourceId, new RestartAction { WaitAfterSeconds = 10 });
+            await ResourceService.RestartAsync(ServicePrincipal, Resource, new RestartAction { WaitAfterSeconds = 10 });
             Snackbar.Add("App Service restart initiated.", Severity.Success);
         }
         catch (Exception ex)

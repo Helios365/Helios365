@@ -13,7 +13,7 @@ public partial class Resources : ComponentBase
     [Inject] private IResourceRepository ResourceRepository { get; set; } = default!;
     [Inject] private ICustomerRepository CustomerRepository { get; set; } = default!;
     [Inject] private IServicePrincipalRepository ServicePrincipalRepository { get; set; } = default!;
-    [Inject] private IResourceDiscoveryService ResourceDiscoveryService { get; set; } = default!;
+    [Inject] private ISyncService ResourceSyncService { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private ISnackbar Snackbar { get; set; } = default!;
     [Inject] private ILogger<Resources> Logger { get; set; } = default!;
@@ -52,7 +52,7 @@ public partial class Resources : ComponentBase
         syncing = true;
         try
         {
-            var summary = await ResourceDiscoveryService.SyncAsync();
+            var summary = await ResourceSyncService.SyncAsync();
             Snackbar.Add($"Synced resources. Created: {summary.CreatedResources}, Updated: {summary.UpdatedResources}", Severity.Success);
             if (summary.Errors.Count > 0)
             {

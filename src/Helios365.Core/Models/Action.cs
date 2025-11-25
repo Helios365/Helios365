@@ -76,6 +76,18 @@ public class HealthCheckAction : ActionBase
     [JsonProperty("headers")]
     public Dictionary<string, string> Headers { get; set; } = new();
 
+    [JsonProperty("lastRunAt")]
+    public DateTime? LastRunAt { get; set; }
+
+    [JsonProperty("lastSucceeded")]
+    public bool? LastSucceeded { get; set; }
+
+    [JsonProperty("lastStatusCode")]
+    public int? LastStatusCode { get; set; }
+
+    [JsonProperty("lastError")]
+    public string? LastError { get; set; }
+
     public HealthCheckAction()
     {
         Type = ActionType.HealthCheck;

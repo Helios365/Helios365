@@ -5,6 +5,8 @@ using Azure.Security.KeyVault.Secrets;
 using Azure.ResourceManager.Resources;
 using Helios365.Core.Repositories;
 using Helios365.Core.Services;
+using Helios365.Core.Services.Clients;
+using Helios365.Core.Services.Handlers;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -89,6 +91,18 @@ public static class ServiceCollectionExtensions
             return new ServicePrincipalRepository(cosmosClient, databaseName, containerName, logger);
         });
 
+        services.AddScoped<IPingTestRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<PingTestRepository>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+
+            var databaseName = configuration["CosmosDbDatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDbPingTestsContainer"] ?? "pingTests";
+
+            return new PingTestRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
         return services;
     }
 
@@ -108,6 +122,8 @@ public static class ServiceCollectionExtensions
             Timeout = TimeSpan.FromSeconds(60)
         });
 
+        services.AddSingleton<IPingTestService, PingTestService>();
+
         services.AddSingleton<ISecretRepository>(sp =>
         {
             var secretClient = sp.GetRequiredService<SecretClient>();
@@ -117,35 +133,14 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IAzureCredentialProvider, AzureCredentialProvider>();
         services.AddSingleton<IArmClientFactory, ArmClientFactory>();
-        services.AddSingleton<IAppServiceService, AppServiceService>();
-        services.AddSingleton<IVirtualMachineService, VirtualMachineService>();
         services.AddSingleton<IResourceGraphClient, ResourceGraphClient>();
-        services.AddSingleton<IResourceMapper<GenericResourceData>, ResourceMapper>();
-        services.AddSingleton<IResourceDiscoveryStrategy, AppServiceDiscoveryStrategy>();
-        services.AddSingleton<IResourceDiscoveryStrategy, VirtualMachineDiscoveryStrategy>();
-        services.AddSingleton<IResourceDiscoveryStrategy, MySqlFlexibleServerDiscoveryStrategy>();
-        services.AddSingleton<IResourceDiscoveryStrategy, ServiceBusNamespaceDiscoveryStrategy>();
+        services.AddSingleton<IResourceHandler, AppServiceResourceHandler>();
+        services.AddSingleton<IResourceHandler, VirtualMachineResourceHandler>();
+        services.AddSingleton<IResourceHandler, MySqlResourceHandler>();
+        services.AddSingleton<IResourceHandler, ServiceBusResourceHandler>();
 
-        services.AddSingleton<IResourceGraphService>(sp =>
-        {
-            var client = sp.GetRequiredService<IResourceGraphClient>();
-            var mapper = sp.GetRequiredService<IResourceMapper<ResourceGraphItem>>();
-            var logger = sp.GetRequiredService<ILogger<ResourceGraphService>>();
-            return new ResourceGraphService(client, mapper, logger);
-        });
-
-        services.AddSingleton<IResourceService>(sp =>
-        {
-            var armClientFactory = sp.GetRequiredService<IArmClientFactory>();
-            var logger = sp.GetRequiredService<ILogger<ResourceService>>();
-            var resourceMapper = sp.GetRequiredService<IResourceMapper<GenericResourceData>>();
-            return new ResourceService(armClientFactory, logger, resourceMapper);
-        });
-
-        services.AddSingleton<IResourceMapper<GenericResourceData>, ResourceMapper>();
-        services.AddSingleton<IResourceMapper<ResourceGraphItem>, ResourceGraphMapper>();
-
-        services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
+        services.AddScoped<IResourceService, ResourceService>();
+        services.AddScoped<ISyncService, SyncService>();
 
         return services;
     }

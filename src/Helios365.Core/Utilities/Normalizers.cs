@@ -2,9 +2,9 @@ using Azure.Core;
 
 namespace Helios365.Core.Utilities;
 
-public static class ResourceIdNormalizer
+public static class Normalizers
 {
-    public static string Normalize(string? resourceId)
+    public static string NormalizeResourceId(string? resourceId)
     {
         if (string.IsNullOrWhiteSpace(resourceId))
         {

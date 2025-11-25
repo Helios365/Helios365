@@ -1,4 +1,4 @@
-@inject IVirtualMachineService VirtualMachineService
+@inject IResourceService ResourceService
 @inject ISnackbar Snackbar
 @inject ILogger<VmDetails> Logger
 
@@ -62,7 +62,7 @@ else
         busy = true;
         try
         {
-            await VirtualMachineService.RestartAsync(ServicePrincipal, Resource.ResourceId, new RestartAction { WaitAfterSeconds = 10 });
+            await ResourceService.RestartAsync(ServicePrincipal, Resource, new RestartAction { WaitAfterSeconds = 10 });
             Snackbar.Add("Virtual machine restart initiated.", Severity.Success);
         }
         catch (Exception ex)

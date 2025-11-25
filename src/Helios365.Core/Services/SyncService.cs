@@ -1,16 +1,17 @@
 using Helios365.Core.Models;
 using Helios365.Core.Repositories;
+using Helios365.Core.Services.Handlers;
 using Helios365.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
 
-public interface IResourceDiscoveryService
+public interface ISyncService
 {
-    Task<ResourceDiscoverySummary> SyncAsync(IEnumerable<string>? resourceTypes = default, CancellationToken cancellationToken = default);
+    Task<SyncSummary> SyncAsync(IEnumerable<string>? resourceTypes = default, CancellationToken cancellationToken = default);
 }
 
-public sealed class ResourceDiscoverySummary
+public sealed class SyncSummary
 {
     public int ProcessedPrincipals { get; set; }
     public int SkippedPrincipals { get; set; }
@@ -20,44 +21,44 @@ public sealed class ResourceDiscoverySummary
     public List<string> Errors { get; } = new();
 }
 
-public class ResourceDiscoveryService : IResourceDiscoveryService
+public class SyncService : ISyncService
 {
     private readonly IServicePrincipalRepository _servicePrincipalRepository;
     private readonly IResourceRepository _resourceRepository;
-    private readonly IResourceService _azureResourceService;
-    private readonly IEnumerable<IResourceDiscoveryStrategy> _discoveryStrategies;
-    private readonly ILogger<ResourceDiscoveryService> _logger;
+    private readonly IResourceService _resourceService;
+    private readonly IReadOnlyList<IResourceDiscovery> _handlers;
+    private readonly ILogger<SyncService> _logger;
 
-    public ResourceDiscoveryService(
+    public SyncService(
         IServicePrincipalRepository servicePrincipalRepository,
         IResourceRepository resourceRepository,
-        IResourceService azureResourceService,
-        IEnumerable<IResourceDiscoveryStrategy> discoveryStrategies,
-        ILogger<ResourceDiscoveryService> logger)
+        IResourceService resourceService,
+        IEnumerable<IResourceHandler> resourceHandlers,
+        ILogger<SyncService> logger)
     {
         _servicePrincipalRepository = servicePrincipalRepository;
         _resourceRepository = resourceRepository;
-        _azureResourceService = azureResourceService;
-        _discoveryStrategies = discoveryStrategies;
+        _resourceService = resourceService;
+        _handlers = resourceHandlers.OfType<IResourceDiscovery>().ToList();
         _logger = logger;
     }
 
-    public async Task<ResourceDiscoverySummary> SyncAsync(IEnumerable<string>? resourceTypes = default, CancellationToken cancellationToken = default)
+    public async Task<SyncSummary> SyncAsync(IEnumerable<string>? resourceTypes = default, CancellationToken cancellationToken = default)
     {
-        var summary = new ResourceDiscoverySummary();
+        var summary = new SyncSummary();
         var processedResourceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var strategyFilter = resourceTypes?
+        var handlerFilter = resourceTypes?
             .Where(r => !string.IsNullOrWhiteSpace(r))
             .Select(r => r.Trim())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var strategiesToRun = _discoveryStrategies
-            .Where(s => strategyFilter is null || strategyFilter.Count == 0 || strategyFilter.Contains(s.ResourceType))
+        var handlersToRun = _handlers
+            .Where(h => handlerFilter is null || handlerFilter.Count == 0 || handlerFilter.Contains(h.ResourceType))
             .ToList();
 
-        if (strategiesToRun.Count == 0)
+        if (handlersToRun.Count == 0)
         {
-            _logger.LogWarning("No discovery strategies matched the requested resource types.");
+            _logger.LogWarning("No discovery handlers matched the requested resource types.");
             return summary;
         }
 
@@ -74,7 +75,7 @@ public class ResourceDiscoveryService : IResourceDiscoveryService
             IReadOnlyList<string> subscriptionIds;
             try
             {
-                subscriptionIds = await _azureResourceService.GetAccessibleSubscriptionsAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+                subscriptionIds = await _resourceService.GetAccessibleSubscriptionsAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -93,11 +94,11 @@ public class ResourceDiscoveryService : IResourceDiscoveryService
 
             var principalProcessed = false;
 
-            foreach (var strategy in strategiesToRun)
+            foreach (var handler in handlersToRun)
             {
                 try
                 {
-                    var discovered = await strategy.DiscoverAsync(servicePrincipal, subscriptionIds, cancellationToken).ConfigureAwait(false);
+                    var discovered = await handler.DiscoverAsync(servicePrincipal, subscriptionIds, cancellationToken).ConfigureAwait(false);
 
                     if (discovered.Count > 0)
                     {
@@ -106,8 +107,7 @@ public class ResourceDiscoveryService : IResourceDiscoveryService
 
                     foreach (var resource in discovered)
                     {
-                        // Ensure normalized IDs are unique per sync run.
-                        var normalizedId = ResourceIdNormalizer.Normalize(resource.ResourceId);
+                        var normalizedId = Normalizers.NormalizeResourceId(resource.ResourceId);
                         if (!processedResourceIds.Add(normalizedId))
                         {
                             continue;
@@ -126,8 +126,8 @@ public class ResourceDiscoveryService : IResourceDiscoveryService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to sync {ResourceType} for service principal {ServicePrincipalId}", strategy.DisplayName, servicePrincipal.Id);
-                    summary.Errors.Add($"ServicePrincipal {servicePrincipal.Id} ({strategy.DisplayName}): {ex.Message}");
+                    _logger.LogError(ex, "Failed to sync {ResourceType} for service principal {ServicePrincipalId}", handler.DisplayName, servicePrincipal.Id);
+                    summary.Errors.Add($"ServicePrincipal {servicePrincipal.Id} ({handler.DisplayName}): {ex.Message}");
                 }
             }
 
@@ -140,7 +140,7 @@ public class ResourceDiscoveryService : IResourceDiscoveryService
         return summary;
     }
 
-    private async Task UpsertResourceAsync(Resource discovered, ResourceDiscoverySummary summary, CancellationToken cancellationToken)
+    private async Task UpsertResourceAsync(Resource discovered, SyncSummary summary, CancellationToken cancellationToken)
     {
         var existing = await _resourceRepository.GetByResourceIdAsync(discovered.CustomerId, discovered.ResourceId, cancellationToken).ConfigureAwait(false);
 

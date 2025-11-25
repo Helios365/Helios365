@@ -5,7 +5,7 @@ using Helios365.Core.Models;
 using Helios365.Core.Repositories;
 using Microsoft.Extensions.Logging;
 
-namespace Helios365.Core.Services;
+namespace Helios365.Core.Services.Clients;
 
 public interface IAzureCredentialProvider
 {

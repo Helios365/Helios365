@@ -1,6 +1,8 @@
 using System.Net.Http;
 using Helios365.Core.Repositories;
 using Helios365.Core.Services;
+using Helios365.Core.Services.Clients;
+using Helios365.Core.Services.Handlers;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,30 +53,28 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddRepositories(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton(new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(60)
+        });
+
+        services.AddScoped<IPingTestService, PingTestService>();
+
         // Key Vault Secret repository
         var keyVaultUri = configuration["KeyVault:VaultUri"];
         if (!string.IsNullOrEmpty(keyVaultUri))
         {
             services.AddSingleton(new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
-            services.AddSingleton(sp => new HttpClient
-            {
-                Timeout = TimeSpan.FromSeconds(60)
-            });
             services.AddScoped<ISecretRepository, SecretRepository>();
             services.AddScoped<IAzureCredentialProvider, AzureCredentialProvider>();
             services.AddScoped<IArmClientFactory, ArmClientFactory>();
-            services.AddScoped<IAppServiceService, AppServiceService>();
-            services.AddScoped<IVirtualMachineService, VirtualMachineService>();
-            services.AddScoped<IResourceDiscoveryStrategy, AppServiceDiscoveryStrategy>();
-            services.AddScoped<IResourceDiscoveryStrategy, VirtualMachineDiscoveryStrategy>();
-            services.AddScoped<IResourceDiscoveryStrategy, MySqlFlexibleServerDiscoveryStrategy>();
-            services.AddScoped<IResourceDiscoveryStrategy, ServiceBusNamespaceDiscoveryStrategy>();
             services.AddScoped<IResourceGraphClient, ResourceGraphClient>();
-            services.AddScoped<IResourceMapper<GenericResourceData>, ResourceMapper>();
-            services.AddScoped<IResourceMapper<ResourceGraphItem>, ResourceGraphMapper>();
-            services.AddScoped<IResourceGraphService, ResourceGraphService>();
+            services.AddScoped<IResourceHandler, AppServiceResourceHandler>();
+            services.AddScoped<IResourceHandler, VirtualMachineResourceHandler>();
+            services.AddScoped<IResourceHandler, MySqlResourceHandler>();
+            services.AddScoped<IResourceHandler, ServiceBusResourceHandler>();
             services.AddScoped<IResourceService, ResourceService>();
-            services.AddScoped<IResourceDiscoveryService, ResourceDiscoveryService>();
+            services.AddScoped<ISyncService, SyncService>();
         }
         else
         {
@@ -115,6 +115,15 @@ public static class ServiceCollectionExtensions
             var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
             var containerName = configuration["CosmosDb:ServicePrincipalsContainer"] ?? "servicePrincipals";
             return new ServicePrincipalRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<IPingTestRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<PingTestRepository>>();
+            var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDb:PingTestsContainer"] ?? "pingTests";
+            return new PingTestRepository(cosmosClient, databaseName, containerName, logger);
         });
 
         return services;

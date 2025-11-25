@@ -2,7 +2,9 @@ using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Resources;
 using Helios365.Core.Models;
-using Helios365.Core.Services;
+using Helios365.Core.Services.Clients;
+using Helios365.Core.Services.Handlers;
+using Helios365.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
@@ -12,27 +14,43 @@ public interface IResourceService
     Task<TenantResource> GetTenantAsync(ServicePrincipal servicePrincipal, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<string>> GetAccessibleSubscriptionsAsync(ServicePrincipal servicePrincipal, CancellationToken cancellationToken = default);
+
+    Task<Resource> GetResourceAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+
+    Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default);
+
+    Task<PingTestResult?> RunHealthCheckAsync(Resource resource, CancellationToken cancellationToken = default);
+
+    Task<PingTest?> SavePingTestAsync(Resource resource, PingTest test, CancellationToken cancellationToken = default);
+
+    Task<bool> ClearPingTestAsync(Resource resource, CancellationToken cancellationToken = default);
 }
 
 public class ResourceService : IResourceService
 {
     private readonly IArmClientFactory _armClientFactory;
     private readonly ILogger<ResourceService> _logger;
-    private readonly IResourceMapper<GenericResourceData> _resourceMapper;
+    private readonly IPingTestService _pingTestService;
+    private readonly IReadOnlyDictionary<string, IResourceHandler> _handlersByType;
 
-    public ResourceService(IArmClientFactory armClientFactory, ILogger<ResourceService> logger, IResourceMapper<GenericResourceData> resourceMapper)
+    public ResourceService(
+        IArmClientFactory armClientFactory,
+        ILogger<ResourceService> logger,
+        IEnumerable<IResourceHandler> handlers,
+        IPingTestService pingTestService)
     {
         _armClientFactory = armClientFactory;
         _logger = logger;
-        _resourceMapper = resourceMapper;
+        _pingTestService = pingTestService;
+        _handlersByType = handlers.ToDictionary(h => h.ResourceType, StringComparer.OrdinalIgnoreCase);
     }
-    
+
     public async Task<Resource> GetResourceAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
     {
         var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
         var azureResource = await armClient.GetGenericResource(new ResourceIdentifier(resource.ResourceId)).GetAsync(cancellationToken).ConfigureAwait(false);
 
-        return _resourceMapper.Map(azureResource.Value.Data, servicePrincipal.CustomerId, servicePrincipal.Id); 
+        return ResourceMappingHelpers.FromArm(azureResource.Value.Data, servicePrincipal.CustomerId, servicePrincipal.Id); 
 
     }
     public async Task<TenantResource> GetTenantAsync(ServicePrincipal servicePrincipal, CancellationToken cancellationToken = default)
@@ -62,5 +80,37 @@ public class ResourceService : IResourceService
 
         _logger.LogInformation("Service principal {ServicePrincipalId} has access to {SubscriptionCount} subscriptions", servicePrincipal.Id, results.Count);
         return results;
+    }
+
+    public async Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default)
+    {
+        var handler = ResolveHandler<IResourceLifecycle>(resource.ResourceType);
+        if (handler is null)
+        {
+            _logger.LogWarning("Restart not supported for resource type {ResourceType}", resource.ResourceType);
+            return false;
+        }
+
+        return await handler.RestartAsync(servicePrincipal, resource, action, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<PingTestResult?> RunHealthCheckAsync(Resource resource, CancellationToken cancellationToken = default) =>
+        _pingTestService.RunPingTestAsync(resource, cancellationToken);
+
+    public Task<PingTest?> SavePingTestAsync(Resource resource, PingTest test, CancellationToken cancellationToken = default) =>
+        _pingTestService.SavePingTestAsync(resource, test, cancellationToken);
+
+    public Task<bool> ClearPingTestAsync(Resource resource, CancellationToken cancellationToken = default) =>
+        _pingTestService.ClearPingTestAsync(resource, cancellationToken);
+
+    private TCapability? ResolveHandler<TCapability>(string resourceType)
+        where TCapability : class, IResourceHandler
+    {
+        if (_handlersByType.TryGetValue(resourceType, out var handler) && handler is TCapability typed)
+        {
+            return typed;
+        }
+
+        return null;
     }
 }

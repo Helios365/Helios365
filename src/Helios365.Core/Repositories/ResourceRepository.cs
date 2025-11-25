@@ -53,7 +53,7 @@ public class ResourceRepository : IResourceRepository
     {
         try
         {
-            var normalizedResourceId = ResourceIdNormalizer.Normalize(resourceId);
+            var normalizedResourceId = Normalizers.NormalizeResourceId(resourceId);
 
             var query = new QueryDefinition("SELECT * FROM c WHERE c.customerId = @customerId AND c.resourceId = @resourceId")
                 .WithParameter("@customerId", customerId)

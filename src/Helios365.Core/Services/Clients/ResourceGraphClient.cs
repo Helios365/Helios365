@@ -5,7 +5,7 @@ using Azure.ResourceManager.ResourceGraph.Models;
 using Helios365.Core.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Helios365.Core.Services;
+namespace Helios365.Core.Services.Clients;
 
 public interface IResourceGraphClient
 {
