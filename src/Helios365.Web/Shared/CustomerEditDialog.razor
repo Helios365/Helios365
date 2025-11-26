@@ -1,11 +1,11 @@
 @using System.Text.Json
 @using Helios365.Core.Models
-@inject IDialogService DialogService
+@using MudBlazor
 @inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
-        <MudForm @ref="form" Model="editModel" Validated="OnValidated">
+        <MudForm @ref="form" Model="editModel">
             <MudTextField @bind-Value="editModel.Id" Label="Customer ID" For="() => editModel.Id" Required="true" Disabled="@IsEdit" HelperText="Unique identifier (GUID recommended)" />
             <MudTextField @bind-Value="editModel.Name" Label="Name" For="() => editModel.Name" Required="true" />
             <MudTextField @bind-Value="editModel.ApiKey" Label="API Key" For="() => editModel.ApiKey" Required="true" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.AutoAwesome" OnAdornmentClick="GenerateApiKey" />
@@ -28,7 +28,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] MudDialogInstance? MudDialog { get; set; }
+    [CascadingParameter] MudBlazor.IMudDialogInstance? MudDialog { get; set; }
 
     [Parameter] public Customer? Model { get; set; }
     [Parameter] public bool IsEdit { get; set; }
@@ -110,5 +110,4 @@
 
     private void Cancel() => MudDialog?.Cancel();
 
-    private void OnValidated() { }
 }

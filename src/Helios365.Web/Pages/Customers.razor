@@ -17,7 +17,7 @@
         <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateCustomer">Add Customer</MudButton>
     </div>
 
-    <MudGrid GutterSize="GutterSize.Small">
+    <MudGrid Spacing="2">
         @foreach (var c in FilteredCustomers)
         {
             <MudItem xs="12" sm="6" md="4" lg="3">
@@ -26,15 +26,15 @@
                         <CardHeaderContent>
                             <div class="d-flex align-items-center">
                                 <MudIcon Icon="@Icons.Material.Filled.Business" Color="Color.Primary" Class="me-2" />
-                                <MudText Typo="Typo.h6">@c.Name</MudText>
+                                <MudText Typo="Typo.h6">@((c.Name ?? "-"))</MudText>
                             </div>
                         </CardHeaderContent>
                     </MudCardHeader>
-                    <MudCardContent>
-                        <MudText Class="mb-1"><strong>Status:</strong> @(c.Active ? "Active" : "Inactive")</MudText>
-                        <MudText Class="mb-1"><strong>Escalation:</strong> @c.EscalationTimeoutMinutes min</MudText>
-                        <MudText Class="mb-1"><strong>Emails:</strong> @c.NotificationEmails.Count</MudText>
-                        <MudText Class="text-muted"><small>Updated @c.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</small></MudText>
+                        <MudCardContent>
+                            <MudText Class="mb-1"><strong>Status:</strong> @(c.Active ? "Active" : "Inactive")</MudText>
+                            <MudText Class="mb-1"><strong>Escalation:</strong> @c.EscalationTimeoutMinutes min</MudText>
+                            <MudText Class="mb-1"><strong>Emails:</strong> @((c.NotificationEmails?.Count) ?? 0)</MudText>
+                            <MudText Class="text-muted"><small>Updated @c.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</small></MudText>
                     </MudCardContent>
                     <MudCardActions Class="d-flex justify-content-between">
                         <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ManageAccounts" OnClick="() => GoToDetails(c)">Manage</MudButton>
@@ -63,7 +63,7 @@
         : customers.Where(c =>
             (c.Name?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
             (c.Id?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
-            c.NotificationEmails.Any(e => e.Contains(search, StringComparison.OrdinalIgnoreCase)));
+            (c.NotificationEmails?.Any(e => e.Contains(search, StringComparison.OrdinalIgnoreCase)) ?? false));
 
     protected override async Task OnInitializedAsync()
     {
@@ -91,7 +91,7 @@
             [nameof(Shared.CustomerEditDialog.IsEdit)] = false
         };
         var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dialog = DialogService.Show<Shared.CustomerEditDialog>("Add Customer", parameters, options);
+        var dialog = await DialogService.ShowAsync<Shared.CustomerEditDialog>("Add Customer", parameters, options);
         var result = await dialog.Result;
         if (!result.Canceled && result.Data is Customer created)
         {
@@ -119,7 +119,7 @@
             [nameof(Shared.CustomerEditDialog.IsEdit)] = true
         };
         var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dialog = DialogService.Show<Shared.CustomerEditDialog>($"Edit {customer.Name}", parameters, options);
+        var dialog = await DialogService.ShowAsync<Shared.CustomerEditDialog>($"Edit {customer.Name}", parameters, options);
         var result = await dialog.Result;
         if (!result.Canceled && result.Data is Customer edited)
         {

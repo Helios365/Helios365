@@ -35,22 +35,26 @@ else
         <div class="d-flex align-items-center gap-3">
             <MudAvatar Size="Size.Large"
                        Variant="Variant.Filled"
-                       Class="bg-transparent"
-                       Image="@GetResourceImage(resource.ResourceType)" />
+                       Class="bg-transparent">
+                <ChildContent>
+                    <MudImage Src="@GetResourceImage(resource.ResourceType)" Alt="Resource icon" />
+                </ChildContent>
+            </MudAvatar>
             <div class="flex-grow-1">
                 <div class="d-flex align-items-center gap-2">
                     <MudText Typo="Typo.h5">@resource.Name</MudText>
-                    <MudChip Color="@(resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small">
+                    <MudChip Color="@(resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small" T="string">
                         @(resource.Active ? "Active" : "Disabled")
                     </MudChip>
                 </div>
                 <MudText Typo="Typo.body2" Class="text-muted">@resource.ResourceType</MudText>
                 <MudText Typo="Typo.body2" Class="text-muted">Resource ID: @resource.ResourceId</MudText>
             </div>
-            <MudSwitch Checked="@resource.Active"
+            <MudSwitch T="bool"
+                       Checked="@resource.Active"
+                       CheckedChanged="ToggleActiveAsync"
                        Disabled="@saving"
                        Color="Color.Success"
-                       OnCheckedChanged="ToggleActiveAsync"
                        ThumbIconChecked="@Icons.Material.Filled.Check"
                        ThumbIconUnchecked="@Icons.Material.Filled.Close"
                        Label="Active" />

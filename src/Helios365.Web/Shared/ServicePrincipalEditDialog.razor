@@ -1,12 +1,12 @@
 @using System.Text.Json
 @using Helios365.Core.Models
 @using Helios365.Web.Models
-@inject IDialogService DialogService
+@using MudBlazor
 @inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
-        <MudForm @ref="form" Model="editModel" Validated="OnValidated">
+        <MudForm @ref="form" Model="editModel">
             <MudTextField @bind-Value="editModel.Name" Label="Name" For="() => editModel.Name" Required="true" />
             @if (!LockCustomerId)
             {
@@ -64,7 +64,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] MudDialogInstance? MudDialog { get; set; }
+    [CascadingParameter] MudBlazor.IMudDialogInstance? MudDialog { get; set; }
 
     [Parameter] public ServicePrincipal? Model { get; set; }
     [Parameter] public bool IsEdit { get; set; }
@@ -164,8 +164,6 @@
     }
 
     private void Cancel() => MudDialog?.Cancel();
-
-    private void OnValidated() { }
 
     
 }

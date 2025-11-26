@@ -4,6 +4,7 @@ using Helios365.Core.Services;
 using Helios365.Web.Shared;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
+using Microsoft.JSInterop;
 using MudBlazor;
 
 namespace Helios365.Web.Pages;
@@ -18,6 +19,7 @@ public partial class Resources : ComponentBase
     [Inject] private ISnackbar Snackbar { get; set; } = default!;
     [Inject] private ILogger<Resources> Logger { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
 
     private List<ResourceViewModel> resourceViews = new();
     private bool isLoading = true;
@@ -185,14 +187,18 @@ public partial class Resources : ComponentBase
         return "images/resources/generic.svg";
     }
 
-    private void GoToDetails(string resourceId)
+    private void HandleRowClick(TableRowClickEventArgs<ResourceViewModel> args)
     {
-        if (string.IsNullOrWhiteSpace(resourceId))
-        {
-            return;
-        }
+        NavigateToDetails(args.Item.Resource.Id);
+    }
 
-        NavigationManager.NavigateTo($"/resources/{resourceId}");
+    private async void NavigateToDetails(string? resourceId)
+    {
+        if (!string.IsNullOrWhiteSpace(resourceId))
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "history.scrollRestoration = 'manual'");
+            NavigationManager.NavigateTo($"/resources/{resourceId}", forceLoad: false);
+        }
     }
 
     private sealed class ResourceViewModel

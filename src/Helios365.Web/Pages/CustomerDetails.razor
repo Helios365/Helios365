@@ -27,7 +27,7 @@
     {
         <MudText Class="mb-1"><strong>Status:</strong> @(customer.Active ? "Active" : "Inactive")</MudText>
         <MudText Class="mb-1"><strong>Escalation:</strong> @customer.EscalationTimeoutMinutes min</MudText>
-        <MudText Class="mb-1"><strong>Emails:</strong> @string.Join(", ", customer.NotificationEmails)</MudText>
+        <MudText Class="mb-1"><strong>Emails:</strong> @string.Join(", ", customer.NotificationEmails ?? Enumerable.Empty<string>())</MudText>
         <MudText Class="text-muted"><small>Updated @customer.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</small></MudText>
     }
     else
@@ -64,9 +64,9 @@
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Id"><MudTooltip Text="@context.Id"><code>@Short(context.Id)</code></MudTooltip></MudTd>
+            <MudTd DataLabel="Id"><MudTooltip Text="@(context.Id ?? "-")"><code>@Short(context.Id)</code></MudTooltip></MudTd>
             <MudTd DataLabel="Tenant">@context.TenantId</MudTd>
-            <MudTd DataLabel="ClientId"><MudTooltip Text="@context.ClientId"><code>@Short(context.ClientId)</code></MudTooltip></MudTd>
+            <MudTd DataLabel="ClientId"><MudTooltip Text="@(context.ClientId ?? "-")"><code>@Short(context.ClientId)</code></MudTooltip></MudTd>
             <MudTd DataLabel="Cloud">@context.CloudEnvironment</MudTd>
             <MudTd DataLabel="Active">@(context.Active ? "Yes" : "No")</MudTd>
             <MudTd DataLabel="Updated">@context.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
@@ -146,7 +146,7 @@
             [nameof(Shared.ServicePrincipalEditDialog.LockCustomerId)] = true
         };
         var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dialog = DialogService.Show<Shared.ServicePrincipalEditDialog>("Add Service Principal", parameters, options);
+        var dialog = await DialogService.ShowAsync<Shared.ServicePrincipalEditDialog>("Add Service Principal", parameters, options);
         var result = await dialog.Result;
         if (!result.Canceled && result.Data is Helios365.Web.Models.ServicePrincipalEditResult createResult)
         {
@@ -188,7 +188,7 @@
             [nameof(Shared.ServicePrincipalEditDialog.LockCustomerId)] = true
         };
         var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dialog = DialogService.Show<Shared.ServicePrincipalEditDialog>($"Edit {sp.Name}", parameters, options);
+        var dialog = await DialogService.ShowAsync<Shared.ServicePrincipalEditDialog>($"Edit {sp.Name}", parameters, options);
         var result = await dialog.Result;
         if (!result.Canceled && result.Data is Helios365.Web.Models.ServicePrincipalEditResult editResult)
         {

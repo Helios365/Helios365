@@ -105,14 +105,20 @@ else
         }
         else
         {
-            <MudTable Items="FilteredResources" Dense="true" Hover="true" Elevation="0">
+            <MudTable Items="FilteredResources"
+                      Dense="true"
+                      Hover="true"
+                      Elevation="0"
+                      Breakpoint="Breakpoint.Md"
+                      OnRowClick="HandleRowClick"
+                      T="ResourceViewModel"
+                      RowStyle="cursor: pointer;">
                 <HeaderContent>
                     <MudTh class="text-center"><span class="visually-hidden">Type</span></MudTh>
                     <MudTh>Name</MudTh>
                     <MudTh>Resource Group</MudTh>
                     <MudTh>Location</MudTh>
                     <MudTh>Status</MudTh>
-                    <MudTh class="text-end">Details</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Type" Class="text-center">
@@ -127,17 +133,9 @@ else
                     <MudTd DataLabel="Resource Group">@context.ResourceGroup</MudTd>
                     <MudTd DataLabel="Location">@context.Location</MudTd>
                     <MudTd DataLabel="Status">
-                        <MudChip Color="@(context.Resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small">
+                        <MudChip Color="@(context.Resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small" T="string">
                             @(context.Resource.Active ? "Active" : "Disabled")
                         </MudChip>
-                    </MudTd>
-                    <MudTd DataLabel="Details" Class="text-end">
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   Size="Size.Small"
-                                   OnClick="@(() => GoToDetails(context.Resource.Id))">
-                            Details
-                        </MudButton>
                     </MudTd>
                 </RowTemplate>
             </MudTable>

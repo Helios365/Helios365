@@ -2,7 +2,6 @@
     <Router AppAssembly="@typeof(App).Assembly">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
         </Found>
         <NotFound>
             <PageTitle>Not found</PageTitle>
@@ -13,5 +12,6 @@
     </Router>
     <MudThemeProvider />
     <MudDialogProvider />
+    <MudPopoverProvider />
     <MudSnackbarProvider />
 </CascadingAuthenticationState>

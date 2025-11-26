@@ -16,11 +16,15 @@
     <PackageReference Include="Microsoft.Identity.Web" Version="4.0.1" />
     <PackageReference Include="Microsoft.Identity.Web.UI" Version="4.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="MudBlazor" Version="6.13.0" />
+    <PackageReference Include="MudBlazor" Version="8.15.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Helios365.Core\Helios365.Core.csproj" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);MUD0002;CS8602</NoWarn>
+  </PropertyGroup>
 
 </Project>

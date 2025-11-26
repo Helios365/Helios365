@@ -66,7 +66,7 @@ public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle,
 
     public Task<MetricsResult> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
     {
-        var metrics = new[] { "CpuPercentage", "MemoryWorkingSet" };
+        var metrics = new[] { "Requests", "MemoryWorkingSet" };
         return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.Web/sites", TimeSpan.FromHours(1), cancellationToken);
     }
 
