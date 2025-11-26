@@ -60,7 +60,7 @@ public class MetricsClient : IMetricsClient
             var client = new MetricsQueryClient(credential);
 
             var options = new MetricsQueryOptions();
-            options.TimeRange = duration ?? TimeSpan.FromHours(1);
+            options.TimeRange = duration ?? TimeSpan.FromHours(3);
             if (!string.IsNullOrWhiteSpace(metricNamespace))
             {
                 options.MetricNamespace = metricNamespace;

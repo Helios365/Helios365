@@ -35,21 +35,27 @@ else
         {
             <MudAlert Severity="Severity.Error">@metricsError</MudAlert>
         }
-        else if (timeSeries.Count == 0)
+        else if (metricCharts.Count == 0)
         {
             <MudText Color="Color.Secondary">No metrics available.</MudText>
         }
         else
         {
-            <MudTimeSeriesChart ChartSeries="@timeSeries"
-                                ChartOptions="@chartOptions"
-                                AxisChartOptions="@axisOptions"
-                                CanHideSeries="true"
-                                TimeLabelSpacing="TimeSpan.FromMinutes(5)"
-                                Width="100%"
-                                Height="100%"
-                                @key="chartKey"
-                                Class="diagnostics-chart" />
+            @foreach (var chart in metricCharts)
+            {
+                <div class="mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="mb-1">@chart.Name</MudText>
+                    <MudTimeSeriesChart ChartSeries="@chart.Series"
+                                        ChartOptions="@chartOptions"
+                                        AxisChartOptions="@axisOptions"
+                                        CanHideSeries="false"
+                                        TimeLabelSpacing="TimeSpan.FromMinutes(5)"
+                                        Width="100%"
+                                        Height="100%"
+                                        @key="chart.ChartKey"
+                                        Class="diagnostics-chart" />
+                </div>
+            }
         }
     </MudPaper>
 }
@@ -62,8 +68,7 @@ else
     private bool busy;
     private bool metricsLoading;
     private string? metricsError;
-    private List<TimeSeriesChartSeries> timeSeries = new();
-    private Guid chartKey = Guid.NewGuid();
+    private List<MetricChart> metricCharts = new();
     private CancellationTokenSource? loadCts;
     private bool disposed;
 
@@ -147,11 +152,11 @@ else
             }
             if (result is null || result.Series.Count == 0)
             {
-                timeSeries = new List<TimeSeriesChartSeries>();
+                metricCharts = new List<MetricChart>();
                 return;
             }
 
-            var seriesList = new List<TimeSeriesChartSeries>();
+            var charts = new List<MetricChart>();
             foreach (var series in result.Series)
             {
                 var data = series.Points
@@ -161,25 +166,31 @@ else
 
                 if (data.Any(v => Math.Abs(v.Value) > double.Epsilon))
                 {
-                    seriesList.Add(new TimeSeriesChartSeries
+                    var chartSeries = new TimeSeriesChartSeries
                     {
-                        Index = seriesList.Count,
+                        Index = charts.Count,
                         Name = series.Name,
                         Data = data,
                         IsVisible = true,
                         LineDisplayType = LineDisplayType.Line
+                    };
+
+                    charts.Add(new MetricChart
+                    {
+                        Name = series.Name,
+                        Series = new List<TimeSeriesChartSeries> { chartSeries },
+                        ChartKey = Guid.NewGuid()
                     });
                 }
             }
 
-            if (seriesList.Count == 0)
+            if (charts.Count == 0)
             {
-                timeSeries = new List<TimeSeriesChartSeries>();
+                metricCharts = new List<MetricChart>();
                 return;
             }
 
-            timeSeries = seriesList;
-            chartKey = Guid.NewGuid();
+            metricCharts = charts;
         }
         catch (Exception ex)
         {
@@ -217,5 +228,12 @@ else
         disposed = true;
         loadCts?.Cancel();
         loadCts?.Dispose();
+    }
+
+    private sealed class MetricChart
+    {
+        public string Name { get; init; } = string.Empty;
+        public List<TimeSeriesChartSeries> Series { get; init; } = new();
+        public Guid ChartKey { get; init; }
     }
 }

@@ -22,12 +22,6 @@ public class Resource
     [JsonProperty("resourceType")]
     public string ResourceType { get; set; } = string.Empty;
 
-    [JsonProperty("useDefaultActions")]
-    public bool UseDefaultActions { get; set; } = true;
-
-    [JsonProperty("active")]
-    public bool Active { get; set; } = true;
-
     [JsonProperty("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

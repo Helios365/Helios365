@@ -30,14 +30,6 @@ else
         <div class="col-sm-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center">
-                    <div class="display-6 text-success">@resourceViews.Count(r => r.Resource.Active)</div>
-                    <div class="text-muted">Active</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center">
                     <div class="display-6 text-dark">@resourceViews.Select(r => r.Resource.CustomerId).Distinct().Count()</div>
                     <div class="text-muted">Customers covered</div>
                 </div>
@@ -48,14 +40,22 @@ else
     <MudPaper Class="pa-4">
         <div class="d-flex flex-wrap gap-3 mb-3 align-items-center">
             <MudTextField T="string"
-                          @bind-Value="search"
+                          Value="@search"
+                          ValueChanged="OnSearchChanged"
+                          ValueExpression="() => search"
                           Placeholder="Search by name or type..."
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Search"
                           Class="flex-grow-1"
                           Immediate="true" />
 
-            <MudSelect T="string" @bind-Value="selectedCustomer" Placeholder="Customer" Dense="true" Class="resource-filter-select">
+            <MudSelect T="string"
+                       Value="@selectedCustomer"
+                       ValueChanged="OnCustomerChanged"
+                       ValueExpression="() => selectedCustomer"
+                       Placeholder="Customer"
+                       Dense="true"
+                       Class="resource-filter-select">
                 <MudSelectItem Value="@string.Empty">All customers</MudSelectItem>
                 @foreach (var option in customerFilterOptions)
                 {
@@ -63,7 +63,13 @@ else
                 }
             </MudSelect>
 
-            <MudSelect T="string" @bind-Value="selectedServicePrincipal" Placeholder="Service principal" Dense="true" Class="resource-filter-select">
+            <MudSelect T="string"
+                       Value="@selectedServicePrincipal"
+                       ValueChanged="OnServicePrincipalChanged"
+                       ValueExpression="() => selectedServicePrincipal"
+                       Placeholder="Service principal"
+                       Dense="true"
+                       Class="resource-filter-select">
                 <MudSelectItem Value="@string.Empty">All service principals</MudSelectItem>
                 @foreach (var option in servicePrincipalFilterOptions)
                 {
@@ -71,7 +77,13 @@ else
                 }
             </MudSelect>
 
-            <MudSelect T="string" @bind-Value="selectedLocation" Placeholder="Location" Dense="true" Class="resource-filter-select">
+            <MudSelect T="string"
+                       Value="@selectedLocation"
+                       ValueChanged="OnLocationChanged"
+                       ValueExpression="() => selectedLocation"
+                       Placeholder="Location"
+                       Dense="true"
+                       Class="resource-filter-select">
                 <MudSelectItem Value="@string.Empty">All locations</MudSelectItem>
                 @foreach (var location in locationFilterOptions)
                 {
@@ -79,10 +91,20 @@ else
                 }
             </MudSelect>
 
-            <MudSwitch @bind-Value="activeOnly"
-                       Color="Color.Success"
-                       Label="Active only"
-                       DisableRipple="true" />
+            <MudSelect T="string"
+                       Value="@selectedResourceType"
+                       ValueChanged="OnResourceTypeChanged"
+                       ValueExpression="() => selectedResourceType"
+                       Placeholder="Resource type"
+                       Dense="true"
+                       Class="resource-filter-select"
+                       Style="min-width: 220px;">
+                <MudSelectItem Value="@string.Empty">All types</MudSelectItem>
+                @foreach (var rt in resourceTypeOptions)
+                {
+                    <MudSelectItem Value="@rt">@rt</MudSelectItem>
+                }
+            </MudSelect>
 
             <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                            Color="Color.Primary"
@@ -112,32 +134,36 @@ else
                       Breakpoint="Breakpoint.Md"
                       OnRowClick="HandleRowClick"
                       T="ResourceViewModel"
-                      RowStyle="cursor: pointer;">
+                      RowStyle="cursor: pointer;"
+                      RowsPerPage="@pageSize"
+                      Bordered="false"
+                      ServerData="LoadPageAsync"
+                      @ref="table">
                 <HeaderContent>
                     <MudTh class="text-center"><span class="visually-hidden">Type</span></MudTh>
                     <MudTh>Name</MudTh>
                     <MudTh>Resource Group</MudTh>
                     <MudTh>Location</MudTh>
-                    <MudTh>Status</MudTh>
+                    <MudTh>Type</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Type" Class="text-center">
-                        <MudAvatar Size="Size.Medium"
-                                   Variant="Variant.Filled"
-                                   Class="bg-transparent"
-                                   Image="@GetResourceImage(context.Resource.ResourceType)" />
+                        <img src="@GetResourceImage(context.Resource.ResourceType)"
+                             alt="Resource icon"
+                             width="36"
+                             height="36"
+                             class="d-inline-block" />
                     </MudTd>
                     <MudTd DataLabel="Name">
                         <div class="fw-bold">@context.Resource.Name</div>
                     </MudTd>
                     <MudTd DataLabel="Resource Group">@context.ResourceGroup</MudTd>
                     <MudTd DataLabel="Location">@context.Location</MudTd>
-                    <MudTd DataLabel="Status">
-                        <MudChip Color="@(context.Resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small" T="string">
-                            @(context.Resource.Active ? "Active" : "Disabled")
-                        </MudChip>
-                    </MudTd>
+                    <MudTd DataLabel="Type">@context.Resource.ResourceType</MudTd>
                 </RowTemplate>
+                <PagerContent>
+                    <MudTablePager PageSizeOptions="new int[] {10, 20, 50}" />
+                </PagerContent>
             </MudTable>
         }
     </MudPaper>

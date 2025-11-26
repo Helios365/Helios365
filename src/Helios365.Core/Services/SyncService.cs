@@ -147,8 +147,6 @@ public class SyncService : ISyncService
         if (existing is null)
         {
             discovered.Id = Guid.NewGuid().ToString("N");
-            discovered.Active = true;
-            discovered.UseDefaultActions = true;
             discovered.CreatedAt = DateTime.UtcNow;
             discovered.UpdatedAt = DateTime.UtcNow;
 

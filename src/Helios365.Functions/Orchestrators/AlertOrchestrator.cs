@@ -68,7 +68,7 @@ public class AlertOrchestrator
             // // Step 5: Load actions
             // var actions = await context.CallActivityAsync<List<ActionBase>>(
             //     "LoadActionsActivity", 
-            //     (alert.CustomerId, resource.UseDefaultActions ? null : resource.Id));
+            //     (alert.CustomerId, resource.Id));
 
             // if (!actions.Any())
             // {

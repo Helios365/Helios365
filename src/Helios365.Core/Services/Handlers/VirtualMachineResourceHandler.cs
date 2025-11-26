@@ -71,7 +71,7 @@ public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecy
     public Task<MetricsResult> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
     {
         var metrics = new[] { "Percentage CPU", "Available Memory Bytes" };
-        return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.Compute/virtualMachines", TimeSpan.FromHours(1), cancellationToken);
+        return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.Compute/virtualMachines", TimeSpan.FromHours(2), cancellationToken);
     }
 
     public async Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default)

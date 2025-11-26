@@ -41,23 +41,10 @@ else
                 </ChildContent>
             </MudAvatar>
             <div class="flex-grow-1">
-                <div class="d-flex align-items-center gap-2">
-                    <MudText Typo="Typo.h5">@resource.Name</MudText>
-                    <MudChip Color="@(resource.Active ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Small" T="string">
-                        @(resource.Active ? "Active" : "Disabled")
-                    </MudChip>
-                </div>
+                <MudText Typo="Typo.h5">@resource.Name</MudText>
                 <MudText Typo="Typo.body2" Class="text-muted">@resource.ResourceType</MudText>
                 <MudText Typo="Typo.body2" Class="text-muted">Resource ID: @resource.ResourceId</MudText>
             </div>
-            <MudSwitch T="bool"
-                       Checked="@resource.Active"
-                       CheckedChanged="ToggleActiveAsync"
-                       Disabled="@saving"
-                       Color="Color.Success"
-                       ThumbIconChecked="@Icons.Material.Filled.Check"
-                       ThumbIconUnchecked="@Icons.Material.Filled.Close"
-                       Label="Active" />
         </div>
     </MudPaper>
 
@@ -119,7 +106,6 @@ else
     private ServicePrincipal? servicePrincipal;
     private string customerName = "-";
     private bool loading = true;
-    private bool saving;
 
     protected override async Task OnInitializedAsync()
     {
@@ -157,35 +143,7 @@ else
         }
     }
 
-    private async Task ToggleActiveAsync(bool isActive)
-    {
-        if (resource is null)
-        {
-            return;
-        }
-
-        saving = true;
-        var original = resource.Active;
-        resource.Active = isActive;
-
-        try
-        {
-            await ResourceRepository.UpdateAsync(resource.Id, resource);
-            Snackbar.Add($"Resource {(isActive ? "activated" : "disabled")}.", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            resource.Active = original;
-            Logger.LogError(ex, "Failed to update active flag for resource {ResourceId}", resource.Id);
-            Snackbar.Add($"Failed to update resource: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            saving = false;
-        }
-    }
-
-    private bool DisableActions => saving || servicePrincipal is null;
+    private bool DisableActions => servicePrincipal is null;
 
     private bool IsAppService(Resource res) =>
         !string.IsNullOrWhiteSpace(res.ResourceType) &&
@@ -225,31 +183,31 @@ else
     {
         if (string.IsNullOrWhiteSpace(resourceType))
         {
-            return "images/resources/generic.svg";
+            return "/images/resources/generic.svg";
         }
 
         var type = resourceType.ToLowerInvariant();
         if (type.Contains("microsoft.web/sites"))
         {
-            return "images/resources/appservice.svg";
+            return "/images/resources/appservice.svg";
         }
 
         if (type.Contains("microsoft.compute/virtualmachines"))
         {
-            return "images/resources/vm.svg";
+            return "/images/resources/vm.svg";
         }
 
         if (type.Contains("servicebus"))
         {
-            return "images/resources/servicebus.svg";
+            return "/images/resources/servicebus.svg";
         }
 
         if (type.Contains("dbformysql"))
         {
-            return "images/resources/database.svg";
+            return "/images/resources/database.svg";
         }
 
-        return "images/resources/generic.svg";
+        return "/images/resources/generic.svg";
     }
 
     private void GoBack() => NavigationManager.NavigateTo("/resources");
