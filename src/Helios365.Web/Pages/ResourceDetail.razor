@@ -7,6 +7,7 @@
 @inject IResourceRepository ResourceRepository
 @inject ICustomerRepository CustomerRepository
 @inject IServicePrincipalRepository ServicePrincipalRepository
+@inject IResourceService ResourceService
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 @inject ILogger<ResourceDetail> Logger
@@ -74,12 +75,14 @@ else
     {
         <AppServiceDetails Resource="resource"
                            ServicePrincipal="servicePrincipal"
+                           Status="@resourceStatus"
                            Disabled="@DisableActions" />
     }
     else if (IsVirtualMachine(resource))
     {
         <VmDetails Resource="resource"
                    ServicePrincipal="servicePrincipal"
+                   Status="@resourceStatus"
                    Disabled="@DisableActions" />
     }
     else if (IsServiceBus(resource))
@@ -105,6 +108,7 @@ else
     private Resource? resource;
     private ServicePrincipal? servicePrincipal;
     private string customerName = "-";
+    private string? resourceStatus;
     private bool loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -129,6 +133,11 @@ else
             if (!string.IsNullOrWhiteSpace(resource.ServicePrincipalId))
             {
                 servicePrincipal = await ServicePrincipalRepository.GetAsync(resource.ServicePrincipalId);
+            }
+
+            if (servicePrincipal is not null)
+            {
+                resourceStatus = await ResourceService.GetStatusAsync(servicePrincipal, resource);
             }
         }
         catch (Exception ex)

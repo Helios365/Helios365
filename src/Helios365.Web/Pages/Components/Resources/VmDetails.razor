@@ -14,7 +14,24 @@ else
         <MudText>@GetMetadata("vmSize")</MudText>
         <MudText Color="Color.Secondary" Typo="Typo.caption" Class="mt-2">OS</MudText>
         <MudText>@GetMetadata("osType")</MudText>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-3">
+        <MudText Typo="Typo.h6" Class="mb-2">Lifecycle</MudText>
+        <MudText Color="Color.Secondary" Typo="Typo.caption">Status: @(GetStatusDisplay() ?? "Unknown")</MudText>
         <MudStack Row="true" Spacing="2" Class="mt-2">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Success"
+                       Disabled="@(IsDisabled || IsRunning)"
+                       OnClick="StartAsync">
+                Start
+            </MudButton>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Error"
+                       Disabled="@(IsDisabled || IsStopped)"
+                       OnClick="StopAsync">
+                Stop
+            </MudButton>
             <MudButton Variant="Variant.Filled"
                        Color="Color.Primary"
                        Disabled="@IsDisabled"
@@ -22,6 +39,12 @@ else
                 Restart
             </MudButton>
         </MudStack>
+        @if (IsDisabled)
+        {
+            <MudText Color="Color.Secondary" Typo="Typo.caption" Class="mt-2">
+                Requires an available service principal to run lifecycle actions.
+            </MudText>
+        }
     </MudPaper>
 
     <MudPaper Class="pa-4 mb-3 diagnostics-paper">
@@ -63,6 +86,7 @@ else
 @code {
     [Parameter] public Resource? Resource { get; set; }
     [Parameter] public ServicePrincipal? ServicePrincipal { get; set; }
+    [Parameter] public string? Status { get; set; }
     [Parameter] public bool Disabled { get; set; }
 
     private bool busy;
@@ -109,6 +133,45 @@ else
         return "-";
     }
 
+    private string GetStatusRaw()
+    {
+        if (!string.IsNullOrWhiteSpace(Status))
+        {
+            return Status;
+        }
+
+        var status = GetMetadata("status");
+        if (string.Equals(status, "-", StringComparison.Ordinal)) status = GetMetadata("state");
+        if (string.Equals(status, "-", StringComparison.Ordinal)) status = GetMetadata("powerState");
+        return status;
+    }
+
+    private string? GetStatusDisplay()
+    {
+        var status = GetStatusRaw();
+        return string.IsNullOrWhiteSpace(status) || status == "-" ? null : status;
+    }
+
+    private bool IsRunning
+    {
+        get
+        {
+            var status = GetStatusRaw();
+            return !string.IsNullOrWhiteSpace(status) && status != "-" &&
+                   (status.Contains("run", StringComparison.OrdinalIgnoreCase) || status.Contains("start", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private bool IsStopped
+    {
+        get
+        {
+            var status = GetStatusRaw();
+            return !string.IsNullOrWhiteSpace(status) && status != "-" &&
+                   (status.Contains("stop", StringComparison.OrdinalIgnoreCase) || status.Contains("dealloc", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
     private async Task RestartAsync()
     {
         if (Resource is null || ServicePrincipal is null)
@@ -127,6 +190,56 @@ else
         {
             Logger.LogError(ex, "Failed to restart virtual machine {ResourceId}", Resource.Id);
             Snackbar.Add($"Restart failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        if (Resource is null || ServicePrincipal is null)
+        {
+            Snackbar.Add("Missing resource or service principal for start.", Severity.Error);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            await ResourceService.StartAsync(ServicePrincipal, Resource);
+            Snackbar.Add("Start request sent.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to start virtual machine {ResourceId}", Resource.Id);
+            Snackbar.Add($"Start failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        if (Resource is null || ServicePrincipal is null)
+        {
+            Snackbar.Add("Missing resource or service principal for stop.", Severity.Error);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            await ResourceService.StopAsync(ServicePrincipal, Resource);
+            Snackbar.Add("Stop request sent.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to stop virtual machine {ResourceId}", Resource.Id);
+            Snackbar.Add($"Stop failed: {ex.Message}", Severity.Error);
         }
         finally
         {

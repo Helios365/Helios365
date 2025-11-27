@@ -3,6 +3,7 @@ using Azure;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Compute;
+using Azure.ResourceManager.Compute.Models;
 using Azure.ResourceManager.ResourceGraph.Models;
 using Azure.ResourceManager.Resources;
 using Helios365.Core.Models;
@@ -21,6 +22,7 @@ public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecy
         | project id, name, resourceGroup, location,
             vmSize = tostring(properties.hardwareProfile.vmSize),
             osType = tostring(properties.storageProfile.osDisk.osType),
+            powerState = tostring(properties.extended.instanceView.powerState.code),
             tags
         """;
 
@@ -72,6 +74,42 @@ public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecy
     {
         var metrics = new[] { "Percentage CPU", "Available Memory Bytes" };
         return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.Compute/virtualMachines", TimeSpan.FromHours(2), cancellationToken);
+    }
+
+    public async Task<string?> GetStatusAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+            var vm = await armClient.GetVirtualMachineResource(new ResourceIdentifier(resource.ResourceId)).GetAsync(InstanceViewType.InstanceView, cancellationToken).ConfigureAwait(false);
+            var powerState = vm.Value.Data.InstanceView?.Statuses?.FirstOrDefault(s => s.Code?.StartsWith("PowerState/", StringComparison.OrdinalIgnoreCase) == true);
+            return powerState?.DisplayStatus ?? powerState?.Code;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch status for Virtual Machine {ResourceId}", resource.ResourceId);
+            return null;
+        }
+    }
+
+    public async Task<bool> StartAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Start requested for Virtual Machine {ResourceId}", resource.ResourceId);
+
+        var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+        var vm = armClient.GetVirtualMachineResource(new ResourceIdentifier(resource.ResourceId));
+        await vm.PowerOnAsync(WaitUntil.Completed, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    public async Task<bool> StopAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Stop requested for Virtual Machine {ResourceId}", resource.ResourceId);
+
+        var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+        var vm = armClient.GetVirtualMachineResource(new ResourceIdentifier(resource.ResourceId));
+        await vm.PowerOffAsync(WaitUntil.Completed, skipShutdown: null, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     public async Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default)
@@ -207,21 +245,8 @@ public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecy
 
     private static void AddVirtualMachineMetadata(JsonElement element, Dictionary<string, string> metadata)
     {
-        AddMetadataIfPresent(element, "vmSize", metadata, "vmSize");
-        AddMetadataIfPresent(element, "osType", metadata, "osType");
-    }
-
-    private static void AddMetadataIfPresent(
-        JsonElement element,
-        string propertyName,
-        Dictionary<string, string> metadata,
-        string metadataKey)
-    {
-        if (element.TryGetProperty(propertyName, out var value) &&
-            value.ValueKind != JsonValueKind.Null &&
-            value.ValueKind != JsonValueKind.Undefined)
-        {
-            metadata[metadataKey] = value.GetString() ?? string.Empty;
-        }
+        ResourceMetadataHelpers.AddMetadataIfPresent(element, "vmSize", metadata, "vmSize");
+        ResourceMetadataHelpers.AddMetadataIfPresent(element, "osType", metadata, "osType");
+        ResourceMetadataHelpers.AddMetadataIfPresent(element, "powerState", metadata, "powerState");
     }
 }

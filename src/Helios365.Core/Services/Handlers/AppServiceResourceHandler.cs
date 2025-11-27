@@ -18,7 +18,7 @@ public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle,
     private const string Query = """
         Resources
         | where type =~ 'microsoft.web/sites'
-        | project id, name, resourceGroup, location, kind, tags
+        | project id, name, resourceGroup, location, kind, tags, status = tostring(properties.state)
         """;
 
     private readonly IResourceGraphClient _resourceGraphClient;
@@ -42,7 +42,7 @@ public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle,
     public string DisplayName => "App Services";
 
     public Task<IReadOnlyList<Resource>> DiscoverAsync(ServicePrincipal servicePrincipal, IReadOnlyList<string> subscriptionIds, CancellationToken cancellationToken = default) =>
-        QueryAsync(servicePrincipal, subscriptionIds, Query, ResourceTypeValue, "App Services", null, cancellationToken);
+        QueryAsync(servicePrincipal, subscriptionIds, Query, ResourceTypeValue, "App Services", AddAppServiceMetadata, cancellationToken);
 
     public Task<DiagnosticsResult> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
     {
@@ -70,6 +70,41 @@ public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle,
         return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.Web/sites", TimeSpan.FromHours(2), cancellationToken);
     }
 
+    public async Task<string?> GetStatusAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+            var site = await armClient.GetWebSiteResource(new ResourceIdentifier(resource.ResourceId)).GetAsync(cancellationToken).ConfigureAwait(false);
+            return site.Value.Data.State ?? site.Value.Data.ExtendedLocation?.Name;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch status for App Service {ResourceId}", resource.ResourceId);
+            return null;
+        }
+    }
+
+    public async Task<bool> StartAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Start requested for App Service {ResourceId}", resource.ResourceId);
+
+        var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+        var site = armClient.GetWebSiteResource(new ResourceIdentifier(resource.ResourceId));
+        await site.StartAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    public async Task<bool> StopAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Stop requested for App Service {ResourceId}", resource.ResourceId);
+
+        var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+        var site = armClient.GetWebSiteResource(new ResourceIdentifier(resource.ResourceId));
+        await site.StopAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     public async Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Restart requested for App Service {ResourceId}", resource.ResourceId);
@@ -90,6 +125,11 @@ public class AppServiceResourceHandler : IResourceDiscovery, IResourceLifecycle,
         }
 
         return true;
+    }
+
+    private static void AddAppServiceMetadata(JsonElement element, Dictionary<string, string> metadata)
+    {
+        ResourceMetadataHelpers.AddMetadataIfPresent(element, "status", metadata, "status");
     }
 
     private async Task<IReadOnlyList<Resource>> QueryAsync(

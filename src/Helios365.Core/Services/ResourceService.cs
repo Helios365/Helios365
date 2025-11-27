@@ -17,6 +17,12 @@ public interface IResourceService
 
     Task<Resource> GetResourceAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
 
+    Task<string?> GetStatusAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+
+    Task<bool> StartAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+
+    Task<bool> StopAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+
     Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default);
 
     Task<PingTestResult?> RunHealthCheckAsync(Resource resource, CancellationToken cancellationToken = default);
@@ -96,6 +102,42 @@ public class ResourceService : IResourceService
         }
 
         return await handler.RestartAsync(servicePrincipal, resource, action, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<string?> GetStatusAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var handler = ResolveHandler<IResourceLifecycle>(resource.ResourceType);
+        if (handler is null)
+        {
+            _logger.LogWarning("Status not supported for resource type {ResourceType}", resource.ResourceType);
+            return null;
+        }
+
+        return await handler.GetStatusAsync(servicePrincipal, resource, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> StartAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var handler = ResolveHandler<IResourceLifecycle>(resource.ResourceType);
+        if (handler is null)
+        {
+            _logger.LogWarning("Start not supported for resource type {ResourceType}", resource.ResourceType);
+            return false;
+        }
+
+        return await handler.StartAsync(servicePrincipal, resource, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> StopAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var handler = ResolveHandler<IResourceLifecycle>(resource.ResourceType);
+        if (handler is null)
+        {
+            _logger.LogWarning("Stop not supported for resource type {ResourceType}", resource.ResourceType);
+            return false;
+        }
+
+        return await handler.StopAsync(servicePrincipal, resource, cancellationToken).ConfigureAwait(false);
     }
 
     public Task<PingTestResult?> RunHealthCheckAsync(Resource resource, CancellationToken cancellationToken = default) =>
