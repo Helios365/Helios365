@@ -1,0 +1,54 @@
+@using Helios365.Core.Models
+
+<MudPaper Class="pa-4 mb-3">
+    <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <MudText Color="Color.Secondary" Typo="Typo.caption">Resource ID</MudText>
+            <MudText Class="text-break text-monospace">@Resource?.ResourceId</MudText>
+        </div>
+        <div class="col-md-6">
+            <MudText Color="Color.Secondary" Typo="Typo.caption">Resource Type</MudText>
+            <MudText>@Resource?.ResourceType</MudText>
+        </div>
+        <div class="col-md-6">
+            <MudText Color="Color.Secondary" Typo="Typo.caption">Resource Group</MudText>
+            <MudText>@GetMetadata("resourceGroup")</MudText>
+        </div>
+        <div class="col-md-6">
+            <MudText Color="Color.Secondary" Typo="Typo.caption">Location</MudText>
+            <MudText>@GetMetadata("location")</MudText>
+        </div>
+    </div>
+
+    @if (Resource?.Metadata is not null && Resource.Metadata.Count > 0)
+    {
+        <div class="mt-3">
+            <MudText Color="Color.Secondary" Typo="Typo.caption">Metadata</MudText>
+            <pre class="bg-light rounded p-2 small mb-0 text-break">
+@System.Text.Json.JsonSerializer.Serialize(Resource.Metadata, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })</pre>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public Resource? Resource { get; set; }
+
+    private string GetMetadata(string key)
+    {
+        if (Resource?.Metadata is null)
+        {
+            return "-";
+        }
+
+        foreach (var kvp in Resource.Metadata)
+        {
+            if (string.Equals(kvp.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrWhiteSpace(kvp.Value) ? "-" : kvp.Value;
+            }
+        }
+
+        return "-";
+    }
+}

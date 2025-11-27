@@ -3,6 +3,7 @@
 @using Helios365.Core.Repositories
 @using Helios365.Core.Services
 @using MudBlazor
+@using Microsoft.AspNetCore.WebUtilities
 @using Helios365.Web.Pages.Components.Resources
 @inject IResourceRepository ResourceRepository
 @inject ICustomerRepository CustomerRepository
@@ -10,14 +11,10 @@
 @inject IResourceService ResourceService
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 @inject ILogger<ResourceDetail> Logger
 
-<PageTitle>Resource Details</PageTitle>
-
-<MudPaper Class="pa-4 mb-3 d-flex align-items-center gap-2">
-    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="@GoBack" Color="Color.Primary" />
-    <MudText Typo="Typo.h5" Class="mb-0">Resource details</MudText>
-</MudPaper>
+<PageTitle>Resource</PageTitle>
 
 @if (loading)
 {
@@ -33,19 +30,20 @@ else if (resource is null)
 else
 {
     <MudPaper Class="pa-4 mb-3">
-        <div class="d-flex align-items-center gap-3">
-            <MudAvatar Size="Size.Large"
-                       Variant="Variant.Filled"
-                       Class="bg-transparent">
-                <ChildContent>
-                    <MudImage Src="@GetResourceImage(resource.ResourceType)" Alt="Resource icon" />
-                </ChildContent>
-            </MudAvatar>
-            <div class="flex-grow-1">
-                <MudText Typo="Typo.h5">@resource.Name</MudText>
-                <MudText Typo="Typo.body2" Class="text-muted">@resource.ResourceType</MudText>
-                <MudText Typo="Typo.body2" Class="text-muted">Resource ID: @resource.ResourceId</MudText>
+        <div class="d-flex align-items-center gap-3 justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+                <MudAvatar Size="Size.Large"
+                           Variant="Variant.Filled"
+                           Class="bg-transparent">
+                    <ChildContent>
+                        <MudImage Src="@GetResourceImage(resource.ResourceType)" Alt="Resource icon" />
+                    </ChildContent>
+                </MudAvatar>
+                <MudText Typo="Typo.h5" Class="mb-0">@resource.Name</MudText>
             </div>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@GoBack">
+                Back to resources
+            </MudButton>
         </div>
     </MudPaper>
 
@@ -71,34 +69,24 @@ else
         </div>
     </MudPaper>
 
-    @if (IsAppService(resource))
+    @if (supportsLifecycle)
     {
-        <AppServiceDetails Resource="resource"
-                           ServicePrincipal="servicePrincipal"
-                           Status="@resourceStatus"
-                           Disabled="@DisableActions" />
+        <LifecyclePanel Resource="resource"
+                        ServicePrincipal="servicePrincipal"
+                        Status="@resourceStatus"
+                        Disabled="@DisableActions" />
     }
-    else if (IsVirtualMachine(resource))
+
+    @if (supportsDiagnostics)
     {
-        <VmDetails Resource="resource"
-                   ServicePrincipal="servicePrincipal"
-                   Status="@resourceStatus"
-                   Disabled="@DisableActions" />
+        <DiagnosticsPanel Resource="resource"
+                          ServicePrincipal="servicePrincipal"
+                          Disabled="@DisableActions" />
     }
-    else if (IsServiceBus(resource))
+
+    @if (!supportsLifecycle && !supportsDiagnostics)
     {
-        <ServiceBusDetails Resource="resource" />
-    }
-    else if (IsMySql(resource))
-    {
-        <MySqlDetails Resource="resource" />
-    }
-    else
-    {
-        <MudPaper Class="pa-4 mb-3">
-            <MudText Typo="Typo.h6" Class="mb-3">Resource</MudText>
-            <MudText>No resource-specific details available.</MudText>
-        </MudPaper>
+        <GeneralDetailsPanel Resource="resource" />
     }
 }
 
@@ -109,6 +97,10 @@ else
     private ServicePrincipal? servicePrincipal;
     private string customerName = "-";
     private string? resourceStatus;
+    private bool supportsLifecycle;
+    private bool supportsDiagnostics;
+    private bool hasLoaded;
+    private string backQuery = string.Empty;
     private bool loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -118,9 +110,18 @@ else
 
     private async Task LoadAsync()
     {
+        if (hasLoaded)
+        {
+            return;
+        }
+
+        hasLoaded = true;
         loading = true;
         try
         {
+            var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+            backQuery = uri.Query;
+
             resource = await ResourceRepository.GetAsync(Id);
             if (resource is null)
             {
@@ -130,12 +131,15 @@ else
             var customer = await CustomerRepository.GetAsync(resource.CustomerId);
             customerName = customer?.Name ?? resource.CustomerId;
 
+            supportsLifecycle = ResourceService.SupportsLifecycle(resource.ResourceType);
+            supportsDiagnostics = ResourceService.SupportsDiagnostics(resource.ResourceType);
+
             if (!string.IsNullOrWhiteSpace(resource.ServicePrincipalId))
             {
                 servicePrincipal = await ServicePrincipalRepository.GetAsync(resource.ServicePrincipalId);
             }
 
-            if (servicePrincipal is not null)
+            if (servicePrincipal is not null && supportsLifecycle)
             {
                 resourceStatus = await ResourceService.GetStatusAsync(servicePrincipal, resource);
             }
@@ -161,14 +165,6 @@ else
     private bool IsVirtualMachine(Resource res) =>
         !string.IsNullOrWhiteSpace(res.ResourceType) &&
         res.ResourceType.Contains("microsoft.compute/virtualmachines", StringComparison.OrdinalIgnoreCase);
-
-    private bool IsServiceBus(Resource res) =>
-        !string.IsNullOrWhiteSpace(res.ResourceType) &&
-        res.ResourceType.Contains("servicebus", StringComparison.OrdinalIgnoreCase);
-
-    private bool IsMySql(Resource res) =>
-        !string.IsNullOrWhiteSpace(res.ResourceType) &&
-        res.ResourceType.Contains("dbformysql", StringComparison.OrdinalIgnoreCase);
 
     private string GetMetadata(Resource res, string key)
     {
@@ -219,5 +215,10 @@ else
         return "/images/resources/generic.svg";
     }
 
-    private void GoBack() => NavigationManager.NavigateTo("/resources");
+    private void GoBack()
+    {
+        var target = string.IsNullOrWhiteSpace(backQuery) ? "/resources" : $"/resources{backQuery}";
+        NavigationManager.NavigateTo(target);
+    }
+
 }

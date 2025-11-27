@@ -34,6 +34,10 @@ public interface IResourceService
     Task<DiagnosticsResult?> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
 
     Task<MetricsResult?> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+
+    bool SupportsLifecycle(string resourceType);
+
+    bool SupportsDiagnostics(string resourceType);
 }
 
 public class ResourceService : IResourceService
@@ -183,4 +187,10 @@ public class ResourceService : IResourceService
 
         return null;
     }
+
+    public bool SupportsLifecycle(string resourceType) =>
+        ResolveHandler<IResourceLifecycle>(resourceType) is not null;
+
+    public bool SupportsDiagnostics(string resourceType) =>
+        ResolveHandler<IResourceDiagnostics>(resourceType) is not null;
 }

@@ -63,8 +63,8 @@ public class ServiceBusResourceHandler : IResourceDiscovery, IResourceDiagnostic
 
     public Task<MetricsResult> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
     {
-        var metrics = new[] { "ActiveConnections", "IncomingRequests", "OutgoingRequests" };
-        return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.ServiceBus/namespaces", TimeSpan.FromHours(1), cancellationToken);
+        var metrics = new[] { "IncomingMessages", "OutgoingMessages", "ActiveConnections" };
+        return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.ServiceBus/namespaces", TimeSpan.FromHours(2), cancellationToken);
     }
 
     private async Task<IReadOnlyList<Resource>> QueryAsync(

@@ -1,0 +1,178 @@
+@using Helios365.Core.Models
+@using Helios365.Core.Services
+@inject IResourceService ResourceService
+@inject ISnackbar Snackbar
+@inject ILogger<DiagnosticsPanel> Logger
+
+<MudPaper Class="pa-4 mb-3 diagnostics-paper">
+    <MudText Typo="Typo.h6" Class="mb-2">Diagnostics</MudText>
+    @if (Disabled || Resource is null || ServicePrincipal is null)
+    {
+        <MudAlert Severity="Severity.Info">Diagnostics not available.</MudAlert>
+    }
+    else if (metricsLoading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" />
+        <MudText Color="Color.Secondary">Loading metrics...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(metricsError))
+    {
+        <MudAlert Severity="Severity.Error">@metricsError</MudAlert>
+    }
+    else if (metricCharts.Count == 0)
+    {
+        <MudText Color="Color.Secondary">No metrics available.</MudText>
+    }
+    else
+    {
+        @foreach (var chart in metricCharts)
+        {
+            <div class="mb-3">
+                <MudText Typo="Typo.subtitle2" Class="mb-1">@chart.Name</MudText>
+                <MudTimeSeriesChart ChartSeries="@chart.Series"
+                                    ChartOptions="@chartOptions"
+                                    AxisChartOptions="@axisOptions"
+                                    CanHideSeries="false"
+                                    TimeLabelSpacing="TimeSpan.FromMinutes(5)"
+                                    Width="100%"
+                                    Height="100%"
+                                    @key="chart.ChartKey"
+                                    Class="diagnostics-chart" />
+            </div>
+        }
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public Resource? Resource { get; set; }
+    [Parameter] public ServicePrincipal? ServicePrincipal { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private bool metricsLoading;
+    private string? metricsError;
+    private List<MetricChart> metricCharts = new();
+    private CancellationTokenSource? loadCts;
+    private bool disposed;
+
+    private readonly ChartOptions chartOptions = new()
+    {
+        YAxisTicks = 5
+    };
+    private readonly AxisChartOptions axisOptions = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loadCts?.Cancel();
+        loadCts = new CancellationTokenSource();
+
+        if (Resource is not null && ServicePrincipal is not null && !Disabled)
+        {
+            await LoadMetricsAsync(loadCts.Token);
+        }
+        else
+        {
+            metricCharts.Clear();
+        }
+    }
+
+    private async Task LoadMetricsAsync(CancellationToken cancellationToken)
+    {
+        if (Resource is null || ServicePrincipal is null)
+        {
+            return;
+        }
+
+        metricsLoading = true;
+        metricsError = null;
+        try
+        {
+            var result = await ResourceService.GetMetricsAsync(ServicePrincipal, Resource, cancellationToken);
+            if (disposed || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            if (result is null || result.Series.Count == 0)
+            {
+                metricCharts = new List<MetricChart>();
+                return;
+            }
+
+            var charts = new List<MetricChart>();
+            foreach (var series in result.Series)
+            {
+                var data = series.Points
+                    .OrderBy(p => p.Timestamp)
+                    .Select(p => new TimeSeriesChartSeries.TimeValue(p.Timestamp, NormalizeValue(series.Name, p.Value)))
+                    .ToList();
+
+                if (data.Any(v => Math.Abs(v.Value) > double.Epsilon))
+                {
+                    var chartSeries = new TimeSeriesChartSeries
+                    {
+                        Index = charts.Count,
+                        Name = series.Name,
+                        Data = data,
+                        IsVisible = true,
+                        LineDisplayType = LineDisplayType.Line
+                    };
+
+                    charts.Add(new MetricChart
+                    {
+                        Name = series.Name,
+                        Series = new List<TimeSeriesChartSeries> { chartSeries },
+                        ChartKey = Guid.NewGuid()
+                    });
+                }
+            }
+
+            metricCharts = charts;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Ignore expected cancellations when parameters change.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load metrics for resource {ResourceId}", Resource.ResourceId);
+            metricsError = $"Failed to load metrics: {ex.Message}";
+        }
+        finally
+        {
+            metricsLoading = false;
+            if (!disposed && !cancellationToken.IsCancellationRequested)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private static double NormalizeValue(string seriesName, double? value)
+    {
+        var val = value ?? 0d;
+        if (double.IsNaN(val) || double.IsInfinity(val))
+        {
+            return 0d;
+        }
+
+        if (seriesName.Contains("Memory", StringComparison.OrdinalIgnoreCase) || seriesName.Contains("Bytes", StringComparison.OrdinalIgnoreCase))
+        {
+            return val / (1024d * 1024d);
+        }
+
+        return val;
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+        loadCts?.Cancel();
+        loadCts?.Dispose();
+    }
+
+    private sealed class MetricChart
+    {
+        public string Name { get; init; } = string.Empty;
+        public List<TimeSeriesChartSeries> Series { get; init; } = new();
+        public Guid ChartKey { get; init; }
+    }
+}

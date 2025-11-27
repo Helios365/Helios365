@@ -1,0 +1,181 @@
+@using Helios365.Core.Models
+@using Helios365.Core.Services
+@inject IResourceService ResourceService
+@inject ISnackbar Snackbar
+@inject ILogger<LifecyclePanel> Logger
+
+<MudPaper Class="pa-4 mb-3">
+    <MudText Typo="Typo.h6" Class="mb-2">Lifecycle</MudText>
+    <MudText Color="Color.Secondary" Typo="Typo.caption">Status: @(GetStatusDisplay() ?? "Unknown")</MudText>
+
+    <MudStack Row="true" Spacing="2" Class="mt-2">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   Disabled="@(Disabled || busy || IsRunning)"
+                   OnClick="StartAsync">
+            Start
+        </MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Error"
+                   Disabled="@(Disabled || busy || IsStopped)"
+                   OnClick="StopAsync">
+            Stop
+        </MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="@(Disabled || busy)"
+                   OnClick="RestartAsync">
+            Restart
+        </MudButton>
+    </MudStack>
+
+    @if (Disabled)
+    {
+        <MudText Color="Color.Secondary" Typo="Typo.caption" Class="mt-2">
+            Requires an available service principal to run lifecycle actions.
+        </MudText>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public Resource? Resource { get; set; }
+    [Parameter] public ServicePrincipal? ServicePrincipal { get; set; }
+    [Parameter] public string? Status { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private string? statusText;
+    private bool busy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        statusText = Status;
+
+        if (statusText is null && !Disabled && Resource is not null && ServicePrincipal is not null)
+        {
+            await RefreshStatusAsync();
+        }
+    }
+
+    private string? GetStatusDisplay() =>
+        string.IsNullOrWhiteSpace(statusText) || statusText == "-" ? null : statusText;
+
+    private bool IsRunning
+    {
+        get
+        {
+            var status = statusText;
+            return !string.IsNullOrWhiteSpace(status) &&
+                   (status.Contains("run", StringComparison.OrdinalIgnoreCase) ||
+                    status.Contains("start", StringComparison.OrdinalIgnoreCase) ||
+                    status.Contains("on", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private bool IsStopped
+    {
+        get
+        {
+            var status = statusText;
+            return !string.IsNullOrWhiteSpace(status) &&
+                   (status.Contains("stop", StringComparison.OrdinalIgnoreCase) ||
+                    status.Contains("dealloc", StringComparison.OrdinalIgnoreCase) ||
+                    status.Contains("off", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private async Task RefreshStatusAsync()
+    {
+        if (Resource is null || ServicePrincipal is null)
+        {
+            return;
+        }
+
+        try
+        {
+            statusText = await ResourceService.GetStatusAsync(ServicePrincipal, Resource);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to refresh status for resource {ResourceId}", Resource.Id);
+        }
+        StateHasChanged();
+    }
+
+    private async Task StartAsync()
+    {
+        if (Disabled || Resource is null || ServicePrincipal is null)
+        {
+            Snackbar.Add("Missing resource or service principal for start.", Severity.Error);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            await ResourceService.StartAsync(ServicePrincipal, Resource);
+            Snackbar.Add("Start request sent.", Severity.Success);
+            await RefreshStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to start resource {ResourceId}", Resource.Id);
+            Snackbar.Add($"Start failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        if (Disabled || Resource is null || ServicePrincipal is null)
+        {
+            Snackbar.Add("Missing resource or service principal for stop.", Severity.Error);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            await ResourceService.StopAsync(ServicePrincipal, Resource);
+            Snackbar.Add("Stop request sent.", Severity.Success);
+            await RefreshStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to stop resource {ResourceId}", Resource.Id);
+            Snackbar.Add($"Stop failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RestartAsync()
+    {
+        if (Disabled || Resource is null || ServicePrincipal is null)
+        {
+            Snackbar.Add("Missing resource or service principal for restart.", Severity.Error);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            await ResourceService.RestartAsync(ServicePrincipal, Resource, new RestartAction { WaitAfterSeconds = 10 });
+            Snackbar.Add("Restart request sent.", Severity.Success);
+            await RefreshStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to restart resource {ResourceId}", Resource.Id);
+            Snackbar.Add($"Restart failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

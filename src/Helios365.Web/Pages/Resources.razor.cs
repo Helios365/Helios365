@@ -356,7 +356,11 @@ public partial class Resources : ComponentBase
         if (!string.IsNullOrWhiteSpace(resourceId))
         {
             await JSRuntime.InvokeVoidAsync("eval", "history.scrollRestoration = 'manual'");
-            NavigationManager.NavigateTo($"/resources/{resourceId}", forceLoad: false);
+            var query = NavigationManager.ToAbsoluteUri(NavigationManager.Uri).Query;
+            var target = string.IsNullOrWhiteSpace(query)
+                ? $"/resources/{resourceId}"
+                : $"/resources/{resourceId}{query}";
+            NavigationManager.NavigateTo(target, forceLoad: false);
         }
     }
 
