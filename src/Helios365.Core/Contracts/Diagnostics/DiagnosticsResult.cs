@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace Helios365.Core.Models;
+namespace Helios365.Core.Contracts.Diagnostics;
 
 public sealed class DiagnosticsResult
 {

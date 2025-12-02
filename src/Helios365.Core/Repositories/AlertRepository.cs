@@ -9,6 +9,7 @@ public interface IAlertRepository : IRepository<Alert>
 {
     Task<IEnumerable<Alert>> ListByStatusAsync(AlertStatus status, int limit = 100, CancellationToken cancellationToken = default);
     Task<IEnumerable<Alert>> ListByCustomerAsync(string customerId, int limit = 100, CancellationToken cancellationToken = default);
+    Task<Alert?> GetBySourceAlertIdAsync(string customerId, string sourceAlertId, CancellationToken cancellationToken = default);
 }
 
 public class AlertRepository : IAlertRepository
@@ -44,6 +45,35 @@ public class AlertRepository : IAlertRepository
         {
             _logger.LogError(ex, "Error retrieving alert {AlertId}", id);
             throw new RepositoryException($"Failed to retrieve alert: {ex.Message}", ex);
+        }
+    }
+
+    public async Task<Alert?> GetBySourceAlertIdAsync(string customerId, string sourceAlertId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var query = new QueryDefinition(
+                    "SELECT * FROM c WHERE c.customerId = @customerId AND c.metadata.sourceAlertId = @sourceAlertId")
+                .WithParameter("@customerId", customerId)
+                .WithParameter("@sourceAlertId", sourceAlertId);
+
+            var iterator = _container.GetItemQueryIterator<Alert>(query, requestOptions: new QueryRequestOptions
+            {
+                PartitionKey = new PartitionKey(customerId)
+            });
+
+            if (iterator.HasMoreResults)
+            {
+                var response = await iterator.ReadNextAsync(cancellationToken);
+                return response.FirstOrDefault();
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving alert with source alert id {SourceAlertId} for customer {CustomerId}", sourceAlertId, customerId);
+            throw new RepositoryException($"Failed to retrieve alert by source id: {ex.Message}", ex);
         }
     }
 

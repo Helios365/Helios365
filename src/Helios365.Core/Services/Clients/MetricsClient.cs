@@ -3,6 +3,7 @@ using Azure.Monitor.Query;
 using Azure.Monitor.Query.Models;
 using Azure.ResourceManager;
 using Helios365.Core.Models;
+using Helios365.Core.Contracts.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services.Clients;

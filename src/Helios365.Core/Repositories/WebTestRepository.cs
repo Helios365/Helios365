@@ -5,26 +5,26 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Repositories;
 
-public interface IPingTestRepository
+public interface IWebTestRepository
 {
-    Task<PingTest?> GetByResourceIdAsync(string customerId, string resourceId, CancellationToken cancellationToken = default);
-    Task<PingTest> CreateAsync(PingTest item, CancellationToken cancellationToken = default);
-    Task<PingTest> UpdateAsync(string id, PingTest item, CancellationToken cancellationToken = default);
+    Task<WebTest?> GetByResourceIdAsync(string customerId, string resourceId, CancellationToken cancellationToken = default);
+    Task<WebTest> CreateAsync(WebTest item, CancellationToken cancellationToken = default);
+    Task<WebTest> UpdateAsync(string id, WebTest item, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(string id, string customerId, CancellationToken cancellationToken = default);
 }
 
-public class PingTestRepository : IPingTestRepository
+public class WebTestRepository : IWebTestRepository
 {
     private readonly Container _container;
-    private readonly ILogger<PingTestRepository> _logger;
+    private readonly ILogger<WebTestRepository> _logger;
 
-    public PingTestRepository(CosmosClient cosmosClient, string databaseName, string containerName, ILogger<PingTestRepository> logger)
+    public WebTestRepository(CosmosClient cosmosClient, string databaseName, string containerName, ILogger<WebTestRepository> logger)
     {
         _container = cosmosClient.GetContainer(databaseName, containerName);
         _logger = logger;
     }
 
-    public async Task<PingTest?> GetByResourceIdAsync(string customerId, string resourceId, CancellationToken cancellationToken = default)
+    public async Task<WebTest?> GetByResourceIdAsync(string customerId, string resourceId, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -32,7 +32,7 @@ public class PingTestRepository : IPingTestRepository
                 .WithParameter("@customerId", customerId)
                 .WithParameter("@resourceId", resourceId);
 
-            var iterator = _container.GetItemQueryIterator<PingTest>(query, requestOptions: new QueryRequestOptions
+            var iterator = _container.GetItemQueryIterator<WebTest>(query, requestOptions: new QueryRequestOptions
             {
                 PartitionKey = new PartitionKey(customerId)
             });
@@ -52,7 +52,7 @@ public class PingTestRepository : IPingTestRepository
         }
     }
 
-    public async Task<PingTest> CreateAsync(PingTest item, CancellationToken cancellationToken = default)
+    public async Task<WebTest> CreateAsync(WebTest item, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -67,7 +67,7 @@ public class PingTestRepository : IPingTestRepository
         }
     }
 
-    public async Task<PingTest> UpdateAsync(string id, PingTest item, CancellationToken cancellationToken = default)
+    public async Task<WebTest> UpdateAsync(string id, WebTest item, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -87,7 +87,7 @@ public class PingTestRepository : IPingTestRepository
     {
         try
         {
-            await _container.DeleteItemAsync<PingTest>(id, new PartitionKey(customerId), cancellationToken: cancellationToken);
+            await _container.DeleteItemAsync<WebTest>(id, new PartitionKey(customerId), cancellationToken: cancellationToken);
             _logger.LogInformation("Deleted ping test {PingTestId}", id);
             return true;
         }

@@ -26,44 +26,44 @@ public class AlertOrchestrator
         {
             // Step 1: Update alert status to Routing
             alert.MarkStatus(AlertStatus.Routing);
-            await context.CallActivityAsync("UpdateAlertActivity", alert);
+            // await context.CallActivityAsync("UpdateAlertActivity", alert);
 
-            // Step 2: Load resource
-            var resource = await context.CallActivityAsync<Resource?>("LoadResourceActivity", 
-                (alert.CustomerId, alert.ResourceId));
+            // // Step 2: Load resource
+            // var resource = await context.CallActivityAsync<Resource?>("LoadResourceActivity", 
+            //     (alert.CustomerId, alert.ResourceId));
 
-            if (resource == null)
-            {
-                logger.LogWarning("Resource not found for alert {AlertId}", alert.Id);
-                alert.MarkStatus(AlertStatus.Escalated);
-                await context.CallActivityAsync("UpdateAlertActivity", alert);
-                await context.CallActivityAsync("SendEscalationEmailActivity", alert.Id);
-                return;
-            }
+            // if (resource == null)
+            // {
+            //     logger.LogWarning("Resource not found for alert {AlertId}", alert.Id);
+            //     alert.MarkStatus(AlertStatus.Escalated);
+            //     await context.CallActivityAsync("UpdateAlertActivity", alert);
+            //     await context.CallActivityAsync("SendEscalationEmailActivity", alert.Id);
+            //     return;
+            // }
 
-            // Step 3: Load customer
-            var customer = await context.CallActivityAsync<Customer?>("LoadCustomerActivity", alert.CustomerId);
-            if (customer == null || !customer.Active)
-            {
-                logger.LogWarning("Customer {CustomerId} not found or inactive", alert.CustomerId);
-                alert.MarkStatus(AlertStatus.Failed);
-                await context.CallActivityAsync("UpdateAlertActivity", alert);
-                return;
-            }
+            // // Step 3: Load customer
+            // var customer = await context.CallActivityAsync<Customer?>("LoadCustomerActivity", alert.CustomerId);
+            // if (customer == null || !customer.Active)
+            // {
+            //     logger.LogWarning("Customer {CustomerId} not found or inactive", alert.CustomerId);
+            //     alert.MarkStatus(AlertStatus.Failed);
+            //     await context.CallActivityAsync("UpdateAlertActivity", alert);
+            //     return;
+            // }
 
-            // Step 4: Load service principal
-            var servicePrincipal = await context.CallActivityAsync<ServicePrincipal?>(
-                "LoadServicePrincipalActivity", resource.ServicePrincipalId);
+            // // Step 4: Load service principal
+            // var servicePrincipal = await context.CallActivityAsync<ServicePrincipal?>(
+            //     "LoadServicePrincipalActivity", resource.ServicePrincipalId);
 
-            if (servicePrincipal == null || !servicePrincipal.Active)
-            {
-                logger.LogWarning("Service principal {ServicePrincipalId} not found or inactive", 
-                    resource.ServicePrincipalId);
-                alert.MarkStatus(AlertStatus.Escalated);
-                await context.CallActivityAsync("UpdateAlertActivity", alert);
-                await context.CallActivityAsync("SendEscalationEmailActivity", alert.Id);
-                return;
-            }
+            // if (servicePrincipal == null || !servicePrincipal.Active)
+            // {
+            //     logger.LogWarning("Service principal {ServicePrincipalId} not found or inactive", 
+            //         resource.ServicePrincipalId);
+            //     alert.MarkStatus(AlertStatus.Escalated);
+            //     await context.CallActivityAsync("UpdateAlertActivity", alert);
+            //     await context.CallActivityAsync("SendEscalationEmailActivity", alert.Id);
+            //     return;
+            // }
 
             // // Step 5: Load actions
             // var actions = await context.CallActivityAsync<List<ActionBase>>(
@@ -156,8 +156,8 @@ public class AlertOrchestrator
             // Step 8: All actions exhausted, escalate
             logger.LogWarning("All actions exhausted for alert {AlertId}. Escalating to on-call.", alert.Id);
             alert.MarkStatus(AlertStatus.Escalated);
-            await context.CallActivityAsync("UpdateAlertActivity", alert);
-            await context.CallActivityAsync("SendEscalationEmailActivity", alert.Id);
+            // await context.CallActivityAsync("UpdateAlertActivity", alert);
+            // await context.CallActivityAsync("SendEscalationEmailActivity", alert.Id);
         }
         catch (Exception ex)
         {

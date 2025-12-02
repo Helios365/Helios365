@@ -6,7 +6,6 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 using System.Net;
-using System.Text.Json;
 using System.Web;
 
 namespace Helios365.Functions.Triggers;
@@ -14,19 +13,16 @@ namespace Helios365.Functions.Triggers;
 public class AlertIngestionTrigger
 {
     private readonly ICustomerRepository _customerRepository;
-    private readonly IResourceRepository _resourceRepository;
-    private readonly IAlertRepository _alertRepository;
+    private readonly IAlertService _alertService;
     private readonly ILogger<AlertIngestionTrigger> _logger;
 
     public AlertIngestionTrigger(
         ICustomerRepository customerRepository,
-        IResourceRepository resourceRepository,
-        IAlertRepository alertRepository,
+        IAlertService alertService,
         ILogger<AlertIngestionTrigger> logger)
     {
         _customerRepository = customerRepository;
-        _resourceRepository = resourceRepository;
-        _alertRepository = alertRepository;
+        _alertService = alertService;
         _logger = logger;
     }
 
@@ -39,11 +35,8 @@ public class AlertIngestionTrigger
 
         try
         {
-            // 1. Extract and validate API key
             var queryParams = HttpUtility.ParseQueryString(req.Url.Query);
             var apiKey = queryParams["apiKey"];
-
-            _logger.LogInformation("Received alert ingestion request with API key: {ApiKey}", apiKey);
 
             if (string.IsNullOrEmpty(apiKey))
             {
@@ -53,11 +46,10 @@ public class AlertIngestionTrigger
                 return badRequest;
             }
 
-            // 2. Validate customer
             var customer = await _customerRepository.GetByApiKeyAsync(apiKey);
             if (customer == null || !customer.Active)
             {
-                _logger.LogWarning("Invalid or inactive API key: {ApiKey}", apiKey);
+                _logger.LogWarning("Invalid or inactive API key provided");
                 var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
                 await unauthorized.WriteAsJsonAsync(new { error = "Invalid API key" });
                 return unauthorized;
@@ -65,86 +57,37 @@ public class AlertIngestionTrigger
 
             _logger.LogInformation("Alert from customer {CustomerId} ({CustomerName})", customer.Id, customer.Name);
 
-            // 3. Parse alert payload
             var body = await req.ReadAsStringAsync();
-            if (string.IsNullOrEmpty(body))
+            if (string.IsNullOrWhiteSpace(body))
             {
                 var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
                 await badRequest.WriteAsJsonAsync(new { error = "Request body is required" });
                 return badRequest;
             }
 
-            var alertPayload = JsonSerializer.Deserialize<AlertPayload>(body);
-            if (alertPayload == null || string.IsNullOrEmpty(alertPayload.ResourceId))
+            var result = await _alertService.IngestAzureMonitorAlertAsync(customer, body);
+
+            return result.Status switch
             {
-                var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badRequest.WriteAsJsonAsync(new { error = "Invalid alert payload. ResourceId is required." });
-                return badRequest;
-            }
-
-            // 4. Look up resource
-            var resource = await _resourceRepository.GetByResourceIdAsync(customer.Id, alertPayload.ResourceId);
-            
-            // 5. Create alert
-            var alert = new Alert
-            {
-                Id = Guid.NewGuid().ToString(),
-                CustomerId = customer.Id,
-                ResourceId = alertPayload.ResourceId,
-                ResourceType = alertPayload.ResourceType ?? "Unknown",
-                AlertType = alertPayload.AlertType ?? "Unknown",
-                Title = alertPayload.Title,
-                Description = alertPayload.Description,
-                Severity = alertPayload.Severity,
-                Status = AlertStatus.Received,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            await _alertRepository.CreateAsync(alert);
-            _logger.LogInformation("Created alert {AlertId}", alert.Id);
-
-            // 6. If resource not found → Escalate immediately
-            if (resource == null)
-            {
-                _logger.LogWarning("Resource {ResourceId} not found for customer {CustomerId}. Escalating immediately.", 
-                    alertPayload.ResourceId, customer.Id);
-
-                alert.MarkStatus(AlertStatus.Escalated);
-                await _alertRepository.UpdateAsync(alert.Id, alert);
-
-                // Send escalation email
-                //await _emailService.SendEscalationEmailAsync(alert, null, customer, new List<ActionBase>());
-
-                var response = req.CreateResponse(HttpStatusCode.Accepted);
-                await response.WriteAsJsonAsync(new
+                AlertProcessingStatus.ValidationFailed => await WriteResponse(req, HttpStatusCode.BadRequest, new
                 {
-                    alertId = alert.Id,
+                    error = result.Message
+                }),
+                AlertProcessingStatus.Resolved => await WriteResponse(req, HttpStatusCode.Accepted, new
+                {
+                    alertId = result.Alert?.Id,
+                    status = "resolved",
+                    message = result.Message
+                }),
+                AlertProcessingStatus.EscalatedUnknownResource => await WriteResponse(req, HttpStatusCode.Accepted, new
+                {
+                    alertId = result.Alert?.Id,
                     status = "escalated",
-                    message = "Resource not found in Helios365. Alert escalated to on-call."
-                });
-
-                return response;
-            }
-
-            // 7. Start durable orchestration
-            var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
-                "AlertOrchestrator",
-                alert);
-
-            _logger.LogInformation("Started orchestration {InstanceId} for alert {AlertId}", instanceId, alert.Id);
-
-            // 8. Return response
-            var acceptedResponse = req.CreateResponse(HttpStatusCode.Accepted);
-            await acceptedResponse.WriteAsJsonAsync(new
-            {
-                alertId = alert.Id,
-                instanceId = instanceId,
-                status = "processing",
-                message = "Alert received and processing started"
-            });
-
-            return acceptedResponse;
+                    message = result.Message
+                }),
+                AlertProcessingStatus.Created => await HandleCreatedAsync(req, client, result.Alert!, result.Message),
+                _ => await WriteResponse(req, HttpStatusCode.InternalServerError, new { error = "Unhandled alert status" })
+            };
         }
         catch (Exception ex)
         {
@@ -155,14 +98,24 @@ public class AlertIngestionTrigger
         }
     }
 
-    // DTO for incoming alert payload
-    public class AlertPayload
+    private async Task<HttpResponseData> HandleCreatedAsync(HttpRequestData req, DurableTaskClient client, Alert alert, string message)
     {
-        public string ResourceId { get; set; } = string.Empty;
-        public string? ResourceType { get; set; }
-        public string? AlertType { get; set; }
-        public string? Title { get; set; }
-        public string? Description { get; set; }
-        public AlertSeverity Severity { get; set; } = AlertSeverity.Medium;
+        var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("AlertOrchestrator", alert);
+        _logger.LogInformation("Started orchestration {InstanceId} for alert {AlertId}", instanceId, alert.Id);
+
+        return await WriteResponse(req, HttpStatusCode.Accepted, new
+        {
+            alertId = alert.Id,
+            instanceId = instanceId,
+            status = "processing",
+            message
+        });
+    }
+
+    private static async Task<HttpResponseData> WriteResponse(HttpRequestData req, HttpStatusCode statusCode, object body)
+    {
+        var response = req.CreateResponse(statusCode);
+        await response.WriteAsJsonAsync(body);
+        return response;
     }
 }

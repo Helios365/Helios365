@@ -58,7 +58,7 @@ public static class ServiceCollectionExtensions
             Timeout = TimeSpan.FromSeconds(60)
         });
 
-        services.AddScoped<IPingTestService, PingTestService>();
+        services.AddScoped<IWebTestService, WebTestService>();
         services.AddScoped<IMetricsClient, MetricsClient>();
 
         // Key Vault Secret repository
@@ -118,13 +118,13 @@ public static class ServiceCollectionExtensions
             return new ServicePrincipalRepository(cosmosClient, databaseName, containerName, logger);
         });
 
-        services.AddScoped<IPingTestRepository>(sp =>
+        services.AddScoped<IWebTestRepository>(sp =>
         {
             var cosmosClient = sp.GetRequiredService<CosmosClient>();
-            var logger = sp.GetRequiredService<ILogger<PingTestRepository>>();
+            var logger = sp.GetRequiredService<ILogger<WebTestRepository>>();
             var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
             var containerName = configuration["CosmosDb:PingTestsContainer"] ?? "pingTests";
-            return new PingTestRepository(cosmosClient, databaseName, containerName, logger);
+            return new WebTestRepository(cosmosClient, databaseName, containerName, logger);
         });
 
         return services;

@@ -2,7 +2,7 @@ using Newtonsoft.Json;
 
 namespace Helios365.Core.Models;
 
-public class PingTest
+public class WebTest
 {
     [JsonProperty("id")]
     public string Id { get; set; } = string.Empty;
@@ -41,7 +41,7 @@ public class PingTest
     public string? LastError { get; set; }
 }
 
-public sealed class PingTestResult
+public sealed class WebTestResult
 {
     [JsonProperty("succeeded")]
     public bool Succeeded { get; init; }

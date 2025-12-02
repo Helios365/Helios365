@@ -9,38 +9,38 @@ using ResourceActionHttpMethod = Helios365.Core.Models.HttpMethod;
 
 namespace Helios365.Core.Services;
 
-public interface IPingTestService
+public interface IWebTestService
 {
-    Task<PingTest?> SavePingTestAsync(Resource resource, PingTest test, CancellationToken cancellationToken = default);
-    Task<bool> ClearPingTestAsync(Resource resource, CancellationToken cancellationToken = default);
-    Task<PingTestResult?> RunPingTestAsync(Resource resource, CancellationToken cancellationToken = default);
-    Task<PingTestResult> ExecuteAsync(PingTest test, CancellationToken cancellationToken = default);
+    Task<WebTest?> SaveWebTestAsync(Resource resource, WebTest test, CancellationToken cancellationToken = default);
+    Task<bool> ClearWebTestAsync(Resource resource, CancellationToken cancellationToken = default);
+    Task<WebTestResult?> RunWebTestAsync(Resource resource, CancellationToken cancellationToken = default);
+    Task<WebTestResult> ExecuteAsync(WebTest test, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// Executes and persists HTTP-based ping tests.
+/// Executes and persists HTTP-based web tests.
 /// </summary>
-public class PingTestService : IPingTestService
+public class WebTestService : IWebTestService
 {
-    private readonly IPingTestRepository _pingTestRepository;
+    private readonly IWebTestRepository _webTestRepository;
     private readonly HttpClient _httpClient;
-    private readonly ILogger<PingTestService> _logger;
+    private readonly ILogger<WebTestService> _logger;
 
-    public PingTestService(
-        IPingTestRepository pingTestRepository,
+    public WebTestService(
+        IWebTestRepository webTestRepository,
         HttpClient httpClient,
-        ILogger<PingTestService> logger)
+        ILogger<WebTestService> logger)
     {
-        _pingTestRepository = pingTestRepository;
+        _webTestRepository = webTestRepository;
         _httpClient = httpClient;
         _logger = logger;
     }
 
-    public async Task<PingTest?> SavePingTestAsync(Resource resource, PingTest test, CancellationToken cancellationToken = default)
+    public async Task<WebTest?> SaveWebTestAsync(Resource resource, WebTest test, CancellationToken cancellationToken = default)
     {
         Normalize(resource, test);
 
-        var existing = await _pingTestRepository.GetByResourceIdAsync(resource.CustomerId, test.ResourceId ?? string.Empty, cancellationToken).ConfigureAwait(false);
+        var existing = await _webTestRepository.GetByResourceIdAsync(resource.CustomerId, test.ResourceId ?? string.Empty, cancellationToken).ConfigureAwait(false);
         if (existing is null)
         {
             test.Id = Guid.NewGuid().ToString("N");
@@ -48,30 +48,30 @@ public class PingTestService : IPingTestService
             test.LastSucceeded = null;
             test.LastStatusCode = null;
             test.LastError = null;
-            return await _pingTestRepository.CreateAsync(test, cancellationToken).ConfigureAwait(false);
+            return await _webTestRepository.CreateAsync(test, cancellationToken).ConfigureAwait(false);
         }
 
         test.Id = existing.Id;
-        return await _pingTestRepository.UpdateAsync(existing.Id, test, cancellationToken).ConfigureAwait(false);
+        return await _webTestRepository.UpdateAsync(existing.Id, test, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<bool> ClearPingTestAsync(Resource resource, CancellationToken cancellationToken = default)
+    public async Task<bool> ClearWebTestAsync(Resource resource, CancellationToken cancellationToken = default)
     {
-        var existing = await _pingTestRepository.GetByResourceIdAsync(resource.CustomerId, resource.ResourceId, cancellationToken).ConfigureAwait(false);
+        var existing = await _webTestRepository.GetByResourceIdAsync(resource.CustomerId, resource.ResourceId, cancellationToken).ConfigureAwait(false);
         if (existing is null)
         {
             return false;
         }
 
-        return await _pingTestRepository.DeleteAsync(existing.Id, resource.CustomerId, cancellationToken).ConfigureAwait(false);
+        return await _webTestRepository.DeleteAsync(existing.Id, resource.CustomerId, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<PingTestResult?> RunPingTestAsync(Resource resource, CancellationToken cancellationToken = default)
+    public async Task<WebTestResult?> RunWebTestAsync(Resource resource, CancellationToken cancellationToken = default)
     {
-        var test = await _pingTestRepository.GetByResourceIdAsync(resource.CustomerId, resource.ResourceId, cancellationToken).ConfigureAwait(false);
+        var test = await _webTestRepository.GetByResourceIdAsync(resource.CustomerId, resource.ResourceId, cancellationToken).ConfigureAwait(false);
         if (test is null)
         {
-            _logger.LogInformation("No ping test configured for resource {ResourceId}", resource.ResourceId);
+            _logger.LogInformation("No web test configured for resource {ResourceId}", resource.ResourceId);
             return null;
         }
 
@@ -82,21 +82,21 @@ public class PingTestService : IPingTestService
         test.LastStatusCode = result.StatusCode;
         test.LastError = result.Error;
 
-        await _pingTestRepository.UpdateAsync(test.Id, test, cancellationToken).ConfigureAwait(false);
+        await _webTestRepository.UpdateAsync(test.Id, test, cancellationToken).ConfigureAwait(false);
 
         return result;
     }
 
-    public async Task<PingTestResult> ExecuteAsync(PingTest test, CancellationToken cancellationToken = default)
+    public async Task<WebTestResult> ExecuteAsync(WebTest test, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(test);
 
         if (string.IsNullOrWhiteSpace(test.Url) || !Uri.TryCreate(test.Url, UriKind.Absolute, out var uri))
         {
-            return new PingTestResult
+            return new WebTestResult
             {
                 Succeeded = false,
-                Error = "Ping test URL is missing or invalid."
+                Error = "Web test URL is missing or invalid."
             };
         }
 
@@ -133,13 +133,13 @@ public class PingTestService : IPingTestService
             if (!succeeded)
             {
                 _logger.LogWarning(
-                    "Ping test returned {StatusCode} but expected {ExpectedStatusCode} for URL {Url}",
+                    "Web test returned {StatusCode} but expected {ExpectedStatusCode} for URL {Url}",
                     (int)response.StatusCode,
                     test.ExpectedStatusCode,
                     test.Url);
             }
 
-            return new PingTestResult
+            return new WebTestResult
             {
                 Succeeded = succeeded,
                 StatusCode = (int)response.StatusCode,
@@ -150,8 +150,8 @@ public class PingTestService : IPingTestService
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             stopwatch.Stop();
-            _logger.LogWarning(ex, "Ping test timed out after {TimeoutSeconds}s for URL {Url}", timeoutSeconds, test.Url);
-            return new PingTestResult
+            _logger.LogWarning(ex, "Web test timed out after {TimeoutSeconds}s for URL {Url}", timeoutSeconds, test.Url);
+            return new WebTestResult
             {
                 Succeeded = false,
                 Error = $"Timed out after {timeoutSeconds}s",
@@ -162,8 +162,8 @@ public class PingTestService : IPingTestService
         catch (Exception ex)
         {
             stopwatch.Stop();
-            _logger.LogError(ex, "Ping test failed for URL {Url}", test.Url);
-            return new PingTestResult
+            _logger.LogError(ex, "Web test failed for URL {Url}", test.Url);
+            return new WebTestResult
             {
                 Succeeded = false,
                 Error = ex.Message,
@@ -173,7 +173,7 @@ public class PingTestService : IPingTestService
         }
     }
 
-    private static void Normalize(Resource resource, PingTest test)
+    private static void Normalize(Resource resource, WebTest test)
     {
         test.CustomerId = resource.CustomerId;
         test.ResourceId = Normalizers.NormalizeResourceId(resource.ResourceId);

@@ -1,6 +1,7 @@
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Resources;
+using Helios365.Core.Contracts.Diagnostics;
 using Helios365.Core.Models;
 using Helios365.Core.Services.Clients;
 using Helios365.Core.Services.Handlers;
@@ -25,9 +26,9 @@ public interface IResourceService
 
     Task<bool> RestartAsync(ServicePrincipal servicePrincipal, Resource resource, RestartAction action, CancellationToken cancellationToken = default);
 
-    Task<PingTestResult?> RunHealthCheckAsync(Resource resource, CancellationToken cancellationToken = default);
+    Task<WebTestResult?> RunHealthCheckAsync(Resource resource, CancellationToken cancellationToken = default);
 
-    Task<PingTest?> SavePingTestAsync(Resource resource, PingTest test, CancellationToken cancellationToken = default);
+    Task<WebTest?> SavePingTestAsync(Resource resource, WebTest test, CancellationToken cancellationToken = default);
 
     Task<bool> ClearPingTestAsync(Resource resource, CancellationToken cancellationToken = default);
 
@@ -44,14 +45,14 @@ public class ResourceService : IResourceService
 {
     private readonly IArmClientFactory _armClientFactory;
     private readonly ILogger<ResourceService> _logger;
-    private readonly IPingTestService _pingTestService;
+    private readonly IWebTestService _pingTestService;
     private readonly IReadOnlyDictionary<string, IResourceHandler> _handlersByType;
 
     public ResourceService(
         IArmClientFactory armClientFactory,
         ILogger<ResourceService> logger,
         IEnumerable<IResourceHandler> handlers,
-        IPingTestService pingTestService)
+        IWebTestService pingTestService)
     {
         _armClientFactory = armClientFactory;
         _logger = logger;
@@ -144,14 +145,14 @@ public class ResourceService : IResourceService
         return await handler.StopAsync(servicePrincipal, resource, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<PingTestResult?> RunHealthCheckAsync(Resource resource, CancellationToken cancellationToken = default) =>
-        _pingTestService.RunPingTestAsync(resource, cancellationToken);
+    public Task<WebTestResult?> RunHealthCheckAsync(Resource resource, CancellationToken cancellationToken = default) =>
+        _pingTestService.RunWebTestAsync(resource, cancellationToken);
 
-    public Task<PingTest?> SavePingTestAsync(Resource resource, PingTest test, CancellationToken cancellationToken = default) =>
-        _pingTestService.SavePingTestAsync(resource, test, cancellationToken);
+    public Task<WebTest?> SavePingTestAsync(Resource resource, WebTest test, CancellationToken cancellationToken = default) =>
+        _pingTestService.SaveWebTestAsync(resource, test, cancellationToken);
 
     public Task<bool> ClearPingTestAsync(Resource resource, CancellationToken cancellationToken = default) =>
-        _pingTestService.ClearPingTestAsync(resource, cancellationToken);
+        _pingTestService.ClearWebTestAsync(resource, cancellationToken);
 
     public async Task<DiagnosticsResult?> GetDiagnosticsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
     {

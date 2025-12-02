@@ -5,6 +5,7 @@ using Azure.ResourceManager;
 using Azure.ResourceManager.AppService;
 using Azure.ResourceManager.ResourceGraph.Models;
 using Azure.ResourceManager.Resources;
+using Helios365.Core.Contracts.Diagnostics;
 using Helios365.Core.Models;
 using Helios365.Core.Services.Clients;
 using Helios365.Core.Utilities;

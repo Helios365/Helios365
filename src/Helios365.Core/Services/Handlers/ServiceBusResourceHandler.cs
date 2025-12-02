@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Azure;
 using Azure.ResourceManager.ResourceGraph.Models;
+using Helios365.Core.Contracts.Diagnostics;
 using Helios365.Core.Models;
 using Helios365.Core.Services.Clients;
 using Helios365.Core.Utilities;
