@@ -1,0 +1,468 @@
+@page "/alerts"
+@using Microsoft.AspNetCore.WebUtilities
+@inject IAlertRepository AlertRepository
+@inject ICustomerRepository CustomerRepository
+@inject IResourceRepository ResourceRepository
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject ILogger<Alerts> Logger
+
+<PageTitle>Alerts</PageTitle>
+
+<h1 class="mb-1">Alerts</h1>
+<p class="text-muted mb-4">Track incoming alerts and drill into the ones that need attention.</p>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
+        <div class="text-muted">Loading alerts...</div>
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-6 text-primary">@alertViews.Count</div>
+                    <div class="text-muted">Total alerts</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-6 text-dark">@openCount</div>
+                    <div class="text-muted">Open</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-6 text-warning">@escalatedCount</div>
+                    <div class="text-muted">Escalated</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-6 text-danger">@criticalCount</div>
+                    <div class="text-muted">Critical</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <MudPaper Class="pa-4">
+        <div class="d-flex flex-wrap gap-3 mb-3 align-items-center">
+            <MudTextField T="string"
+                          Value="@search"
+                          ValueChanged="OnSearchChanged"
+                          ValueExpression="() => search"
+                          Placeholder="Search title, description, resource..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Class="flex-grow-1"
+                          Immediate="true" />
+
+            <MudSelect T="string"
+                       Value="@selectedStatus"
+                       ValueChanged="OnStatusChanged"
+                       ValueExpression="() => selectedStatus"
+                       Placeholder="Status"
+                       Dense="true"
+                       Class="filter-select">
+                <MudSelectItem Value="@("unsolved")">All active</MudSelectItem>
+                <MudSelectItem Value="@string.Empty">All statuses</MudSelectItem>
+                @foreach (var status in statusOptions)
+                {
+                    <MudSelectItem Value="@status">@status</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="string"
+                       Value="@selectedSeverity"
+                       ValueChanged="OnSeverityChanged"
+                       ValueExpression="() => selectedSeverity"
+                       Placeholder="Severity"
+                       Dense="true"
+                       Class="filter-select">
+                <MudSelectItem Value="@string.Empty">All severities</MudSelectItem>
+                @foreach (var severity in severityOptions)
+                {
+                    <MudSelectItem Value="@severity">@severity</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="string"
+                       Value="@selectedCustomer"
+                       ValueChanged="OnCustomerChanged"
+                       ValueExpression="() => selectedCustomer"
+                       Placeholder="Customer"
+                       Dense="true"
+                       Class="filter-select">
+                <MudSelectItem Value="@string.Empty">All customers</MudSelectItem>
+                @foreach (var option in customerOptions)
+                {
+                    <MudSelectItem Value="@option.Key">@option.Value</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Color="Color.Primary"
+                           Title="Reload"
+                           Disabled="@isRefreshing"
+                           OnClick="Reload" />
+        </div>
+
+        <MudTable Items="FilteredAlerts"
+                  Hover="true"
+                  Dense="true"
+                  Breakpoint="Breakpoint.Sm"
+                  Elevation="0"
+                  OnRowClick="HandleRowClick"
+                  RowStyle="cursor: pointer;"
+                  T="AlertViewModel"
+                  RowsPerPage="@pageSize"
+                  ServerData="LoadPageAsync"
+                  @ref="table">
+            <HeaderContent>
+                <MudTh>Severity</MudTh>
+                <MudTh>Title</MudTh>
+                <MudTh>Customer</MudTh>
+                <MudTh>Resource</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh align="right">Updated</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <MudChip T="string"
+                             Color="@SeverityColor(context.Alert.Severity)"
+                             Variant="Variant.Filled"
+                             Size="Size.Small">
+                        @context.Alert.Severity
+                    </MudChip>
+                </MudTd>
+                <MudTd>
+                    <div class="fw-semibold">@(!string.IsNullOrWhiteSpace(context.Alert.Title) ? context.Alert.Title : "(no title)")</div>
+                    <div class="text-muted small">@context.Alert.Description</div>
+                </MudTd>
+                <MudTd>@context.CustomerName</MudTd>
+                <MudTd>
+                    <div>@context.ResourceName</div>
+                    <div class="text-muted small">@context.Alert.ResourceType</div>
+                </MudTd>
+                <MudTd>
+                    <MudChip T="string"
+                             Color="@StatusColor(context.Alert.Status)"
+                             Variant="Variant.Outlined"
+                             Size="Size.Small">
+                        @context.Alert.Status
+                    </MudChip>
+                </MudTd>
+                <MudTd align="right">
+                    <div>@context.Alert.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                    <div class="text-muted small">Created @context.Alert.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <div class="text-center text-muted py-4">No alerts match the current filters.</div>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] {10, 20, 50}" />
+            </PagerContent>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private readonly List<string> statusOptions = Enum.GetNames<AlertStatus>().ToList();
+    private readonly List<string> severityOptions = Enum.GetNames<AlertSeverity>().ToList();
+
+    private List<AlertViewModel> alertViews = new();
+    private List<KeyValuePair<string, string>> customerOptions = new();
+    private bool isLoading = true;
+    private bool isRefreshing;
+    private MudTable<AlertViewModel>? table;
+    private int currentPage;
+    private int pageSize = 20;
+    private bool pageInitialized;
+
+    private string search = string.Empty;
+    private string selectedStatus = "unsolved";
+    private string selectedSeverity = string.Empty;
+    private string selectedCustomer = string.Empty;
+
+    private int openCount;
+    private int escalatedCount;
+    private int criticalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadStateFromQuery();
+        await LoadDataAsync();
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && table is not null && currentPage > 0)
+        {
+            var tableType = table.GetType();
+            var goToPage = tableType.GetMethod("GoToPage") ?? tableType.GetMethod("NavigateToPage");
+            goToPage?.Invoke(table, new object[] { currentPage });
+        }
+
+        return base.OnAfterRenderAsync(firstRender);
+    }
+
+    private IEnumerable<AlertViewModel> FilteredAlerts => alertViews
+        .Where(a => selectedStatus == "unsolved"
+            ? a.Alert.IsActive()
+            : string.IsNullOrWhiteSpace(selectedStatus) || a.Alert.Status.ToString() == selectedStatus)
+        .Where(a => string.IsNullOrWhiteSpace(selectedSeverity) || a.Alert.Severity.ToString() == selectedSeverity)
+        .Where(a => string.IsNullOrWhiteSpace(selectedCustomer) || a.Alert.CustomerId == selectedCustomer)
+        .Where(a =>
+        {
+            if (string.IsNullOrWhiteSpace(search))
+            {
+                return true;
+            }
+
+            var term = search.Trim().ToLowerInvariant();
+            return (a.Alert.Title?.ToLowerInvariant().Contains(term) ?? false)
+                || (a.Alert.Description?.ToLowerInvariant().Contains(term) ?? false)
+                || a.ResourceName.ToLowerInvariant().Contains(term)
+                || a.Alert.ResourceType.ToLowerInvariant().Contains(term)
+                || a.Alert.ResourceId.ToLowerInvariant().Contains(term)
+                || a.CustomerName.ToLowerInvariant().Contains(term);
+        })
+        .OrderByDescending(a => a.Alert.UpdatedAt);
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var alerts = (await AlertRepository.ListAsync(limit: 200)).ToList();
+            var customers = (await CustomerRepository.ListAsync(limit: 200)).ToList();
+            var customerLookup = customers.ToDictionary(c => c.Id, c => c.Name);
+            customerOptions = customers
+                .OrderBy(c => c.Name)
+                .Select(c => new KeyValuePair<string, string>(c.Id, string.IsNullOrWhiteSpace(c.Name) ? "(unnamed)" : c.Name))
+                .ToList();
+
+            var resourceLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var customerIds = alerts.Select(a => a.CustomerId).Distinct().ToList();
+            foreach (var customerId in customerIds)
+            {
+                var resources = await ResourceRepository.ListByCustomerAsync(customerId, limit: 200);
+                foreach (var resource in resources)
+                {
+                    var key = $"{customerId}|{Normalizers.NormalizeResourceId(resource.ResourceId)}";
+                    resourceLookup[key] = resource.Name;
+                }
+            }
+
+            alertViews = alerts
+                .Select(alert =>
+                {
+                    var customerName = customerLookup.TryGetValue(alert.CustomerId, out var name) ? name : "(unknown customer)";
+                    var resourceKey = $"{alert.CustomerId}|{Normalizers.NormalizeResourceId(alert.ResourceId)}";
+                    var resourceName = resourceLookup.TryGetValue(resourceKey, out var rName)
+                        ? rName
+                        : (!string.IsNullOrWhiteSpace(alert.ResourceId) ? alert.ResourceId : "(resource unknown)");
+
+                    return new AlertViewModel(alert, customerName, resourceName);
+                })
+                .OrderByDescending(a => a.Alert.CreatedAt)
+                .ToList();
+
+            RecalculateCounters();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load alerts");
+            Snackbar.Add("Failed to load alerts.", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            if (table is not null)
+            {
+                await ReloadTableAsync();
+            }
+            StateHasChanged();
+        }
+    }
+
+    private void RecalculateCounters()
+    {
+        openCount = alertViews.Count(a => a.Alert.IsActive());
+        escalatedCount = alertViews.Count(a => a.Alert.Status == AlertStatus.Escalated);
+        criticalCount = alertViews.Count(a => a.Alert.Severity == AlertSeverity.Critical);
+    }
+
+    private Task<TableData<AlertViewModel>> LoadPageAsync(TableState state, CancellationToken _ = default)
+    {
+        var page = pageInitialized ? state.Page : currentPage;
+        var size = pageInitialized ? state.PageSize : pageSize;
+
+        currentPage = page;
+        pageSize = size;
+        UpdateQueryUrl();
+
+        var data = FilteredAlerts.Skip(page * size).Take(size).ToList();
+        var total = FilteredAlerts.Count();
+        pageInitialized = true;
+
+        return Task.FromResult(new TableData<AlertViewModel>
+        {
+            Items = data,
+            TotalItems = total
+        });
+    }
+
+    private Task ReloadTableAsync() => table?.ReloadServerData() ?? Task.CompletedTask;
+
+    private Color SeverityColor(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Critical => Color.Error,
+        AlertSeverity.High => Color.Error,
+        AlertSeverity.Medium => Color.Warning,
+        AlertSeverity.Low => Color.Info,
+        AlertSeverity.Info => Color.Default,
+        _ => Color.Default
+    };
+
+    private Color StatusColor(AlertStatus status) => status switch
+    {
+        AlertStatus.Escalated => Color.Error,
+        AlertStatus.Remediating or AlertStatus.Routing or AlertStatus.Rechecking => Color.Warning,
+        AlertStatus.Resolved or AlertStatus.Healthy => Color.Success,
+        AlertStatus.Failed => Color.Error,
+        _ => Color.Primary
+    };
+
+    private Task OnSearchChanged(string value)
+    {
+        search = value ?? string.Empty;
+        currentPage = 0;
+        UpdateQueryUrl();
+        return ReloadTableAsync();
+    }
+
+    private Task OnStatusChanged(string value)
+    {
+        selectedStatus = value;
+        currentPage = 0;
+        UpdateQueryUrl();
+        return ReloadTableAsync();
+    }
+
+    private Task OnSeverityChanged(string value)
+    {
+        selectedSeverity = value ?? string.Empty;
+        currentPage = 0;
+        UpdateQueryUrl();
+        return ReloadTableAsync();
+    }
+
+    private Task OnCustomerChanged(string value)
+    {
+        selectedCustomer = value ?? string.Empty;
+        currentPage = 0;
+        UpdateQueryUrl();
+        return ReloadTableAsync();
+    }
+
+    private async Task Reload()
+    {
+        if (isRefreshing)
+        {
+            return;
+        }
+
+        isRefreshing = true;
+        await LoadDataAsync();
+        isRefreshing = false;
+    }
+
+    private void HandleRowClick(TableRowClickEventArgs<AlertViewModel> args)
+    {
+        if (string.IsNullOrWhiteSpace(args.Item.Alert.Id))
+        {
+            return;
+        }
+
+        NavigationManager.NavigateTo($"/alerts/{args.Item.Alert.Id}", forceLoad: false);
+    }
+
+    private void LoadStateFromQuery()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("search", out var searchParam))
+        {
+            search = searchParam.ToString();
+        }
+        if (query.TryGetValue("status", out var statusParam))
+        {
+            selectedStatus = statusParam.ToString();
+        }
+        else
+        {
+            selectedStatus = "unsolved";
+        }
+        if (query.TryGetValue("severity", out var severityParam))
+        {
+            selectedSeverity = severityParam.ToString();
+        }
+        if (query.TryGetValue("customer", out var customerParam))
+        {
+            selectedCustomer = customerParam.ToString();
+        }
+        if (query.TryGetValue("page", out var pageParam) && int.TryParse(pageParam, out var parsedPage) && parsedPage >= 0)
+        {
+            currentPage = parsedPage;
+        }
+        if (query.TryGetValue("pageSize", out var sizeParam) && int.TryParse(sizeParam, out var parsedSize) && parsedSize > 0)
+        {
+            pageSize = parsedSize;
+        }
+    }
+
+    private void UpdateQueryUrl()
+    {
+        var baseUri = $"{NavigationManager.BaseUri.TrimEnd('/')}/alerts";
+        var parameters = new Dictionary<string, string?>();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            parameters["search"] = search;
+        }
+        if (!string.IsNullOrWhiteSpace(selectedSeverity))
+        {
+            parameters["severity"] = selectedSeverity;
+        }
+        if (!string.IsNullOrWhiteSpace(selectedCustomer))
+        {
+            parameters["customer"] = selectedCustomer;
+        }
+
+        parameters["page"] = currentPage.ToString();
+        parameters["pageSize"] = pageSize.ToString();
+
+        var newUri = QueryHelpers.AddQueryString(baseUri, parameters);
+        if (!string.Equals(newUri, NavigationManager.Uri, StringComparison.OrdinalIgnoreCase))
+        {
+            NavigationManager.NavigateTo(newUri, replace: true);
+        }
+    }
+
+    private sealed record AlertViewModel(Alert Alert, string CustomerName, string ResourceName);
+}

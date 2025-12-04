@@ -68,6 +68,9 @@ public class Alert
     [JsonProperty("metadata")]
     public Dictionary<string, string> Metadata { get; set; } = new();
 
+    [JsonProperty("changes")]
+    public List<AlertChange> Changes { get; set; } = new();
+
     public void MarkStatus(AlertStatus status)
     {
         Status = status;
@@ -88,4 +91,31 @@ public class Alert
     {
         return Status is not (AlertStatus.Resolved or AlertStatus.Healthy or AlertStatus.Failed);
     }
+}
+
+public class AlertChange
+{
+    [JsonProperty("id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    [JsonProperty("user")]
+    public string User { get; set; } = "unknown";
+
+    [JsonProperty("comment")]
+    public string Comment { get; set; } = string.Empty;
+
+    [JsonProperty("newStatus")]
+    public AlertStatus? NewStatus { get; set; }
+
+    [JsonProperty("newSeverity")]
+    public AlertSeverity? NewSeverity { get; set; }
+
+    [JsonProperty("previousStatus")]
+    public AlertStatus? PreviousStatus { get; set; }
+
+    [JsonProperty("previousSeverity")]
+    public AlertSeverity? PreviousSeverity { get; set; }
+
+    [JsonProperty("createdAt")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

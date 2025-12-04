@@ -1,0 +1,372 @@
+@page "/alerts/{Id}"
+@inject IAlertRepository AlertRepository
+@inject ICustomerRepository CustomerRepository
+@inject IResourceRepository ResourceRepository
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ILogger<AlertDetail> Logger
+
+<PageTitle>Alert</PageTitle>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
+        <div class="text-muted">Loading alert...</div>
+    </div>
+}
+else if (alert is null)
+{
+    <MudAlert Severity="Severity.Warning">Alert was not found.</MudAlert>
+}
+else
+{
+    <MudPaper Class="pa-4 mb-3">
+        <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+            <div class="d-flex flex-column gap-2">
+                <MudText Typo="Typo.h5" Class="mb-0">@(!string.IsNullOrWhiteSpace(alert.Title) ? alert.Title : "Alert")</MudText>
+            </div>
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-3">
+        <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">ID</MudText>
+                <MudText>@alert.Id</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Type</MudText>
+                <MudText>@alert.AlertType</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Customer</MudText>
+                <MudText>@customerName</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Resource</MudText>
+                <MudText>@resourceName</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Severity</MudText>
+                <MudText>@alert.Severity</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Status</MudText>
+                <MudText>@alert.Status</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Created</MudText>
+                <MudText>@alert.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Updated</MudText>
+                <MudText>@alert.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Escalated</MudText>
+                <MudText>@(alert.EscalatedAt.HasValue ? alert.EscalatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</MudText>
+            </div>
+            <div class="col-md-6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Resolved</MudText>
+                <MudText>@(alert.ResolvedAt.HasValue ? alert.ResolvedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</MudText>
+            </div>
+        </div>
+        <MudDivider Class="my-3" />
+
+        <MudText Color="Color.Secondary" Typo="Typo.caption">Description</MudText>
+        <MudText>@(string.IsNullOrWhiteSpace(alert.Description) ? "No description provided." : alert.Description)</MudText>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-3">
+        <MudText Typo="Typo.h6" Class="mb-3">Update alert</MudText>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Severity</MudText>
+                <MudSelect T="AlertSeverity"
+                           Value="@selectedSeverity"
+                           ValueChanged="OnSeveritySelected"
+                           Dense="true"
+                           FullWidth="false"
+                           Class="d-inline-block w-auto">
+                    @foreach (var severity in severityOptions)
+                    {
+                        <MudSelectItem Value="@severity">@severity</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+            <div class="col-md-3">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Status</MudText>
+                <MudSelect T="AlertStatus"
+                           Value="@selectedStatus"
+                           ValueChanged="OnStatusSelected"
+                           Dense="true"
+                           FullWidth="false"
+                           Class="d-inline-block w-auto">
+                    @foreach (var status in statusOptions)
+                    {
+                        <MudSelectItem Value="@status">@status</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        </div>
+        <div class="mt-3">
+            <MudTextField T="string"
+                          Label="Comment (required)"
+                          Value="@changeComment"
+                          ValueChanged="OnChangeCommentChanged"
+                          Lines="3"
+                          FullWidth="true"
+                          Required="true"
+                          Placeholder="Describe the change and reason" />
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="@(isUpdatingAlert || alert is null || string.IsNullOrWhiteSpace(changeComment))"
+                       OnClick="UpdateAlertAsync"
+                       StartIcon="@Icons.Material.Filled.Save">
+                @if (isUpdatingAlert)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                }
+                Save update
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @if (ChangeHistory.Any())
+    {
+        <MudPaper Class="pa-4 mb-3">
+            <MudText Typo="Typo.h6" Class="mb-3">Change history</MudText>
+            <MudTable Items="ChangeHistory" Dense="true" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>When</MudTh>
+                    <MudTh>User</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Severity</MudTh>
+                    <MudTh>Comment</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                    <MudTd>@context.User</MudTd>
+                    <MudTd>
+                        @if (context.PreviousStatus is not null)
+                        {
+                            <span class="text-muted text-decoration-line-through me-1">@context.PreviousStatus</span>
+                        }
+                        @(context.NewStatus?.ToString() ?? "-")
+                    </MudTd>
+                    <MudTd>
+                        @if (context.PreviousSeverity is not null)
+                        {
+                            <span class="text-muted text-decoration-line-through me-1">@context.PreviousSeverity</span>
+                        }
+                        @(context.NewSeverity?.ToString() ?? "-")
+                    </MudTd>
+                    <MudTd>@context.Comment</MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <div class="text-muted">No changes yet.</div>
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    }
+
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    private Alert? alert;
+    private string customerName = "-";
+    private string resourceName = "-";
+    private string resourceType = "-";
+    private bool loading = true;
+    private bool hasLoaded;
+    private bool isUpdatingAlert;
+    private AlertStatus selectedStatus;
+    private AlertSeverity selectedSeverity;
+    private string changeComment = string.Empty;
+    private string currentUser = "unknown";
+    private readonly AlertStatus[] statusOptions = Enum.GetValues<AlertStatus>();
+    private readonly AlertSeverity[] severityOptions = Enum.GetValues<AlertSeverity>();
+
+    private IEnumerable<KeyValuePair<string, string>> MetadataEntries =>
+        alert?.Metadata?.OrderBy(kvp => kvp.Key) ?? Enumerable.Empty<KeyValuePair<string, string>>();
+
+    private IEnumerable<AlertChange> ChangeHistory =>
+        (alert?.Changes ?? Enumerable.Empty<AlertChange>()).OrderByDescending(c => c.CreatedAt);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SetCurrentUserAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (hasLoaded)
+        {
+            return;
+        }
+
+        hasLoaded = true;
+        loading = true;
+
+        try
+        {
+            alert = await AlertRepository.GetAsync(Id);
+            if (alert is null)
+            {
+                return;
+            }
+            selectedStatus = alert.Status;
+            selectedSeverity = alert.Severity;
+
+            var customer = await CustomerRepository.GetAsync(alert.CustomerId);
+            customerName = customer?.Name ?? alert.CustomerId;
+
+            if (!string.IsNullOrWhiteSpace(alert.ResourceId))
+            {
+                var resource = await ResourceRepository.GetByResourceIdAsync(alert.CustomerId, alert.ResourceId);
+                if (resource is not null)
+                {
+                    resourceName = resource.Name;
+                    resourceType = string.IsNullOrWhiteSpace(resource.ResourceType) ? alert.ResourceType : resource.ResourceType;
+                }
+                else
+                {
+                    resourceName = alert.ResourceId;
+                    resourceType = alert.ResourceType;
+                }
+            }
+            else
+            {
+                resourceName = "(resource unknown)";
+                resourceType = alert.ResourceType;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load alert {AlertId}", Id);
+            Snackbar.Add($"Failed to load alert: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private Task OnStatusSelected(AlertStatus status)
+    {
+        selectedStatus = status;
+        return Task.CompletedTask;
+    }
+
+    private Task OnSeveritySelected(AlertSeverity severity)
+    {
+        selectedSeverity = severity;
+        return Task.CompletedTask;
+    }
+
+    private Task OnChangeCommentChanged(string value)
+    {
+        changeComment = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private async Task UpdateAlertAsync()
+    {
+        if (alert is null || isUpdatingAlert || string.IsNullOrWhiteSpace(changeComment))
+        {
+            return;
+        }
+
+        isUpdatingAlert = true;
+        try
+        {
+            var statusChanged = selectedStatus != alert.Status;
+            var severityChanged = selectedSeverity != alert.Severity;
+            var previousStatus = alert.Status;
+            var previousSeverity = alert.Severity;
+
+            if (statusChanged)
+            {
+                alert.MarkStatus(selectedStatus);
+            }
+
+            if (severityChanged)
+            {
+                alert.Severity = selectedSeverity;
+            }
+
+            alert.UpdatedAt = DateTime.UtcNow;
+            alert.Changes ??= new();
+            alert.Changes.Add(new AlertChange
+            {
+                Id = Guid.NewGuid().ToString(),
+                User = currentUser,
+                Comment = changeComment.Trim(),
+                NewStatus = statusChanged ? selectedStatus : null,
+                NewSeverity = severityChanged ? selectedSeverity : null,
+                PreviousStatus = statusChanged ? previousStatus : null,
+                PreviousSeverity = severityChanged ? previousSeverity : null,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            alert = await AlertRepository.UpdateAsync(alert.Id, alert);
+            Snackbar.Add("Alert updated", Severity.Success);
+            changeComment = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to update status for alert {AlertId}", alert?.Id ?? Id);
+            Snackbar.Add($"Failed to update alert: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isUpdatingAlert = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetCurrentUserAsync()
+    {
+        try
+        {
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            var name = state.User?.Identity?.Name;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                currentUser = name!;
+            }
+        }
+        catch
+        {
+            currentUser = "unknown";
+        }
+    }
+
+    private Color SeverityColor(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Critical => Color.Error,
+        AlertSeverity.High => Color.Error,
+        AlertSeverity.Medium => Color.Warning,
+        AlertSeverity.Low => Color.Info,
+        AlertSeverity.Info => Color.Default,
+        _ => Color.Default
+    };
+
+    private Color StatusColor(AlertStatus status) => status switch
+    {
+        AlertStatus.Escalated => Color.Error,
+        AlertStatus.Remediating or AlertStatus.Routing or AlertStatus.Rechecking => Color.Warning,
+        AlertStatus.Resolved or AlertStatus.Healthy => Color.Success,
+        AlertStatus.Failed => Color.Error,
+        _ => Color.Primary
+    };
+}

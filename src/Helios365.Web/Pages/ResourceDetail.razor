@@ -41,9 +41,6 @@ else
                 </MudAvatar>
                 <MudText Typo="Typo.h5" Class="mb-0">@resource.Name</MudText>
             </div>
-            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@GoBack">
-                Back to resources
-            </MudButton>
         </div>
     </MudPaper>
 
@@ -100,7 +97,6 @@ else
     private bool supportsLifecycle;
     private bool supportsDiagnostics;
     private bool hasLoaded;
-    private string backQuery = string.Empty;
     private bool loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -119,9 +115,6 @@ else
         loading = true;
         try
         {
-            var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
-            backQuery = uri.Query;
-
             resource = await ResourceRepository.GetAsync(Id);
             if (resource is null)
             {
@@ -213,12 +206,6 @@ else
         }
 
         return "/images/resources/generic.svg";
-    }
-
-    private void GoBack()
-    {
-        var target = string.IsNullOrWhiteSpace(backQuery) ? "/resources" : $"/resources{backQuery}";
-        NavigationManager.NavigateTo(target);
     }
 
 }
