@@ -43,11 +43,25 @@ else
             </div>
             <div class="col-md-6">
                 <MudText Color="Color.Secondary" Typo="Typo.caption">Customer</MudText>
-                <MudText>@customerName</MudText>
+                @if (!string.IsNullOrWhiteSpace(alert.CustomerId))
+                {
+                    <MudText><MudLink Href="@($"/customers/{alert.CustomerId}")">@customerName</MudLink></MudText>
+                }
+                else
+                {
+                    <MudText>@customerName</MudText>
+                }
             </div>
             <div class="col-md-6">
                 <MudText Color="Color.Secondary" Typo="Typo.caption">Resource</MudText>
-                <MudText>@resourceName</MudText>
+                @if (!string.IsNullOrWhiteSpace(resourceDocumentId))
+                {
+                    <MudText><MudLink Href="@($"/resources/{resourceDocumentId}")">@resourceName</MudLink></MudText>
+                }
+                else
+                {
+                    <MudText>@resourceName</MudText>
+                }
             </div>
             <div class="col-md-6">
                 <MudText Color="Color.Secondary" Typo="Typo.caption">Severity</MudText>
@@ -184,6 +198,7 @@ else
     private string customerName = "-";
     private string resourceName = "-";
     private string resourceType = "-";
+    private string resourceDocumentId = string.Empty;
     private bool loading = true;
     private bool hasLoaded;
     private bool isUpdatingAlert;
@@ -235,6 +250,7 @@ else
                 if (resource is not null)
                 {
                     resourceName = resource.Name;
+                    resourceDocumentId = resource.Id;
                     resourceType = string.IsNullOrWhiteSpace(resource.ResourceType) ? alert.ResourceType : resource.ResourceType;
                 }
                 else
