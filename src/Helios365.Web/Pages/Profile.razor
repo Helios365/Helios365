@@ -1,0 +1,80 @@
+@page "/profile"
+@attribute [Authorize(Policy = "ReaderOrAbove")]
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Profile</PageTitle>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0">Profile</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4 text-muted">Name</dt>
+                    <dd class="col-sm-8">@UserName</dd>
+                    <dt class="col-sm-4 text-muted">User principal</dt>
+                    <dd class="col-sm-8">@PreferredUsername</dd>
+                    <dt class="col-sm-4 text-muted">Tenant</dt>
+                    <dd class="col-sm-8"><code>@TenantId</code></dd>
+                    <dt class="col-sm-4 text-muted">Object ID</dt>
+                    <dd class="col-sm-8"><code>@ObjectId</code></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Roles</h5>
+                <span class="badge bg-primary">@Roles.Count</span>
+            </div>
+            <div class="card-body">
+                @if (Roles.Count == 0)
+                {
+                    <p class="text-muted mb-0">No roles in the current token.</p>
+                }
+                else
+                {
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var role in Roles)
+                        {
+                            <li class="d-flex align-items-center mb-1">
+                                <i class="bi bi-shield-check text-success me-2"></i>
+                                <strong>@role</strong>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string UserName { get; set; } = string.Empty;
+    private string PreferredUsername { get; set; } = string.Empty;
+    private string TenantId { get; set; } = string.Empty;
+    private string ObjectId { get; set; } = string.Empty;
+    private List<string> Roles { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        UserName = user.Identity?.Name ?? string.Empty;
+        PreferredUsername = user.FindFirstValue("preferred_username") ?? string.Empty;
+        TenantId = user.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid") ?? string.Empty;
+        ObjectId = user.FindFirstValue("http://schemas.microsoft.com/identity/claims/objectidentifier") ?? string.Empty;
+
+        Roles = user.Claims
+            .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles")
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(r => r)
+            .ToList();
+    }
+}

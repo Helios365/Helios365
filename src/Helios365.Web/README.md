@@ -71,6 +71,13 @@ Update `appsettings.json` with your Azure AD configuration:
 }
 ```
 
+#### App roles
+- Add these entries to the app registration `appRoles` (new GUID per `id`):  
+  - `Helios.Admin` (full control)  
+  - `Helios.Operator` (operate/update)  
+  - `Helios.Reader` (view-only)
+- On the Enterprise App, assign security groups to the matching app roles. Tokens will include `roles` with the assigned values; the app expects one of these roles on every request. Policies available in code: `AdminOnly`, `OperatorOrAbove`, `ReaderOrAbove`.
+
 ### Local Development
 
 For local development, use user secrets:

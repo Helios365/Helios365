@@ -4,6 +4,9 @@ using Microsoft.Identity.Web.UI;
 using Helios365.Web.Extensions;
 using Azure.Identity;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication;
+using System.Security.Claims;
  
 using MudBlazor.Services;
 
@@ -23,14 +26,21 @@ builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
     {
         builder.Configuration.Bind("AzureAd", options);
         options.ResponseType = "code"; // Use authorization code flow instead of implicit
+        options.TokenValidationParameters.RoleClaimType = ClaimTypes.Role;
     });
 builder.Services.AddControllersWithViews()
     .AddMicrosoftIdentityUI();
 
 builder.Services.AddAuthorization(options =>
 {
-    // By default, all incoming requests will be authorized according to the default policy
-    options.FallbackPolicy = options.DefaultPolicy;
+    // Require an app role for all requests and expose specific policies
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .RequireRole("Helios.Admin", "Helios.Operator", "Helios.Reader")
+        .Build();
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Helios.Admin"));
+    options.AddPolicy("OperatorOrAbove", policy => policy.RequireRole("Helios.Admin", "Helios.Operator"));
+    options.AddPolicy("ReaderOrAbove", policy => policy.RequireRole("Helios.Admin", "Helios.Operator", "Helios.Reader"));
 });
 
 builder.Services.AddRazorPages();

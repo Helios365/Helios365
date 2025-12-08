@@ -1,4 +1,5 @@
 ﻿@page "/"
+@attribute [Authorize(Policy = "ReaderOrAbove")]
 @using Helios365.Core.Models
 @using Helios365.Core.Repositories
 @inject IAlertRepository AlertRepository
