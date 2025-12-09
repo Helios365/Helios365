@@ -28,6 +28,13 @@ param azureAdTenantId string = ''
 @description('Azure AD Client ID for authentication')
 param azureAdClientId string = ''
 
+@description('Entra security group object IDs for directory-driven features')
+param directoryServiceGroups object = {
+  admin: ''
+  operator: ''
+  reader: ''
+}
+
 @description('Allowed IP addresses for Cosmos DB access')
 param allowedIpAddresses array = []
 
@@ -423,9 +430,15 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'CosmosDb__AlertsContainer', value: 'alerts' }
         { name: 'CosmosDb__ServicePrincipalsContainer', value: 'servicePrincipals' }
         { name: 'CosmosDb__ActionsContainer', value: 'actions' }
+        { name: 'CosmosDb__UsersContainer', value: 'users' }
+        { name: 'CosmosDb__WebTestsContainer', value: 'webTests' }
         // Logging Configuration
         { name: 'Logging__LogLevel__Default', value: environment == 'dev' ? 'Debug' : 'Information' }
         { name: 'Logging__LogLevel__Microsoft.AspNetCore', value: environment == 'dev' ? 'Warning' : 'Warning' }
+        // Directory Service Groups (for Graph lookups)
+        { name: 'DirectoryService__Groups__Admin', value: directoryServiceGroups.admin }
+        { name: 'DirectoryService__Groups__Operator', value: directoryServiceGroups.operator }
+        { name: 'DirectoryService__Groups__Reader', value: directoryServiceGroups.reader }
       ]
     }
   }

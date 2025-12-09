@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Helios365.Core.Contracts.Alerts;
+namespace Helios365.Core.Contracts;
 
 public class AzureCommonAlert
 {

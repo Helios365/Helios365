@@ -12,6 +12,13 @@
     "ClientId": "<client id>",
     "ClientSecret": "<client secret>"
   },
+  "DirectoryService": {
+    "Groups": {
+      "Admin": "<entra-group-id-for-admin>",
+      "Operator": "<entra-group-id-for-operator>",
+      "Reader": "<entra-group-id-for-reader>"
+    }
+  },
   "KeyVault": {
     "VaultUri": "<key vault uri>"
   },

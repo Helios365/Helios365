@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services;
 
-public interface ISyncService
+public interface IResourceSyncService
 {
     Task<SyncSummary> SyncAsync(IEnumerable<string>? resourceTypes = default, CancellationToken cancellationToken = default);
 }
@@ -21,20 +21,20 @@ public sealed class SyncSummary
     public List<string> Errors { get; } = new();
 }
 
-public class SyncService : ISyncService
+public class ResourceSyncService : IResourceSyncService
 {
     private readonly IServicePrincipalRepository _servicePrincipalRepository;
     private readonly IResourceRepository _resourceRepository;
     private readonly IResourceService _resourceService;
     private readonly IReadOnlyList<IResourceDiscovery> _handlers;
-    private readonly ILogger<SyncService> _logger;
+    private readonly ILogger<ResourceSyncService> _logger;
 
-    public SyncService(
+    public ResourceSyncService(
         IServicePrincipalRepository servicePrincipalRepository,
         IResourceRepository resourceRepository,
         IResourceService resourceService,
         IEnumerable<IResourceHandler> resourceHandlers,
-        ILogger<SyncService> logger)
+        ILogger<ResourceSyncService> logger)
     {
         _servicePrincipalRepository = servicePrincipalRepository;
         _resourceRepository = resourceRepository;

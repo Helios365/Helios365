@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Helios365.Core.Contracts.Alerts;
+using Helios365.Core.Contracts;
 using Helios365.Core.Models;
 using Helios365.Core.Repositories;
 using Helios365.Core.Utilities;

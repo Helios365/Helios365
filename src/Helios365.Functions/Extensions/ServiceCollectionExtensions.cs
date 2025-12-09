@@ -141,7 +141,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IResourceHandler, ServiceBusResourceHandler>();
 
         services.AddScoped<IResourceService, ResourceService>();
-        services.AddScoped<ISyncService, SyncService>();
+        services.AddScoped<IResourceSyncService, ResourceSyncService>();
         services.AddScoped<IAlertService, AlertService>();
 
         return services;

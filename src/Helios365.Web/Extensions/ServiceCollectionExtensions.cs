@@ -10,6 +10,10 @@ using Microsoft.Extensions.Logging;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Identity;
 using Azure.ResourceManager.Resources;
+using Azure.Core;
+using Microsoft.Graph;
+using Helios365.Core.Models;
+using Helios365.Core.Contracts;
 
 namespace Helios365.Web.Extensions;
 
@@ -60,6 +64,16 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IWebTestService, WebTestService>();
         services.AddScoped<IMetricsClient, MetricsClient>();
+        services.AddSingleton<TokenCredential>(_ => new DefaultAzureCredential());
+        services.AddSingleton(sp =>
+        {
+            var credential = sp.GetRequiredService<TokenCredential>();
+            var scopes = new[] { "https://graph.microsoft.com/.default" };
+            return new GraphServiceClient(credential, scopes);
+        });
+        services.AddScoped<IDirectoryService, DirectoryService>();
+        services.AddScoped<IDirectorySyncService, DirectorySyncService>();
+        services.Configure<DirectoryServiceOptions>(configuration.GetSection("DirectoryService"));
 
         // Key Vault Secret repository
         var keyVaultUri = configuration["KeyVault:VaultUri"];
@@ -75,7 +89,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IResourceHandler, MySqlResourceHandler>();
             services.AddScoped<IResourceHandler, ServiceBusResourceHandler>();
             services.AddScoped<IResourceService, ResourceService>();
-            services.AddScoped<ISyncService, SyncService>();
+            services.AddScoped<IResourceSyncService, ResourceSyncService>();
         }
         else
         {
@@ -123,8 +137,17 @@ public static class ServiceCollectionExtensions
             var cosmosClient = sp.GetRequiredService<CosmosClient>();
             var logger = sp.GetRequiredService<ILogger<WebTestRepository>>();
             var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
-            var containerName = configuration["CosmosDb:PingTestsContainer"] ?? "pingTests";
+            var containerName = configuration["CosmosDb:WebTestsContainer"] ?? "webTests";
             return new WebTestRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<IUserRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<UserRepository>>();
+            var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDb:UsersContainer"] ?? "users";
+            return new UserRepository(cosmosClient, databaseName, containerName, logger);
         });
 
         return services;
