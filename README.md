@@ -87,9 +87,7 @@ cp src/Helios365.Functions/local.settings.json.example src/Helios365.Functions/l
 ```
 
 ## Deploy Bicep
-az deployment group create --resource-group `name of RG` --template-file ./infrastructure/deploy.bicep \
-  --parameters @./infrastructure/deploy.parameters.dev.json \
-  adminEmail="`admin email`"
+New-AzResourceGroupDeployment -ResourceGroupName <RG> -TemplateFile .\infrastructure\deploy.bicep -TemplateParameterFile .\infrastructure\deploy.parameters.dev.json
 
 ## Login locally
 To run application locally, you would need to do following, in order to make local web app pick upp the permissions needed.

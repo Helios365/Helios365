@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 using Helios365.Web.Extensions;
+using Helios365.Core.Services;
 using Azure.Identity;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
  
 using MudBlazor.Services;
 
@@ -27,6 +29,41 @@ builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
         builder.Configuration.Bind("AzureAd", options);
         options.ResponseType = "code"; // Use authorization code flow instead of implicit
         options.TokenValidationParameters.RoleClaimType = ClaimTypes.Role;
+        options.Events.OnTokenValidated = async context =>
+        {
+            var oid = context.Principal?.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+            if (string.IsNullOrWhiteSpace(oid))
+            {
+                return;
+            }
+
+            var directoryService = context.HttpContext.RequestServices.GetService<IDirectoryService>();
+            var syncService = context.HttpContext.RequestServices.GetService<IDirectorySyncService>();
+            var logger = context.HttpContext.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("AuthSync");
+
+            if (directoryService == null || syncService == null)
+            {
+                logger?.LogWarning("Directory services not available during token validation for user {UserId}", oid);
+                return;
+            }
+
+            try
+            {
+                var directoryUser = await directoryService.GetUserAsync(oid, context.HttpContext.RequestAborted).ConfigureAwait(false);
+                if (directoryUser != null)
+                {
+                    await syncService.EnsureProfileAsync(directoryUser, context.HttpContext.RequestAborted).ConfigureAwait(false);
+                }
+                else
+                {
+                    logger?.LogWarning("Directory user {UserId} not found during sign-in", oid);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Failed to sync directory profile for user {UserId}", oid);
+            }
+        };
     });
 builder.Services.AddControllersWithViews()
     .AddMicrosoftIdentityUI();

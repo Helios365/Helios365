@@ -277,6 +277,25 @@ resource servicePrincipalsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDa
   }
 }
 
+resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
+  parent: cosmosDatabase
+  name: 'users'
+  properties: {
+    resource: {
+      id: 'users'
+      partitionKey: { paths: ['/id'], kind: 'Hash' }
+      indexingPolicy: {
+        indexingMode: 'consistent'
+        automatic: true
+        includedPaths: [{ path: '/*' }]
+        excludedPaths: [{ path: '/"_etag"/?' }]
+      }
+      defaultTtl: -1
+    }
+    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+  }
+}
+
 resource actionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
   parent: cosmosDatabase
   name: 'actions'
