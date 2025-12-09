@@ -25,7 +25,11 @@ Deploy the complete Helios365 infrastructure to Azure in minutes:
 ./scripts/New-AppRegistration.ps1
 
 # Create App Registration Client Secret
-Set-AzKeyVaultSecret -VaultName dev-helios-xxxx-kv -Name "AzureAd--ClientSecret" -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
+Set-AzKeyVaultSecret -VaultName <environment>-helios-xxxx-kv -Name "AzureAd--ClientSecret" -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
+
+# Grant Web App Microsoft Graph permissions needed for reading Entra groups and users
+./scripts/Grant-AppServiceGraphPermissions.ps1 -ResourceGroupName <rg> -AppServiceName <environment>-helios-xxxx-web
+
 ```
 
 ## Workflow
@@ -87,8 +91,16 @@ az deployment group create --resource-group `name of RG` --template-file ./infra
   --parameters @./infrastructure/deploy.parameters.dev.json \
   adminEmail="`admin email`"
 
+## Login locally
+To run application locally, you would need to do following, in order to make local web app pick upp the permissions needed.
+``` powershell
+Connect-AzAccount
 
-## Generate ARM template
+Connect-MgGraph -Scopes "User.Read.All", "GroupMember.Read.All"
+
+```
+
+# Generate ARM template
 
 ``` bash
 bicep build .\deploy.bicep --outfile .\azuredeploy.json
