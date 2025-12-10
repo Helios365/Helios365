@@ -1,0 +1,485 @@
+@page "/oncall"
+@attribute [Authorize(Policy = "ReaderOrAbove")]
+@using Helios365.Core.Models
+@using Helios365.Core.Repositories
+@using Helios365.Core.Services
+@inject IOnCallPlanRepository PlanRepository
+@inject IOnCallTeamRepository TeamRepository
+@inject ICustomerPlanBindingRepository BindingRepository
+@inject ICustomerRepository CustomerRepository
+@inject IOnCallScheduleService ScheduleService
+@inject ILogger<OnCall> Logger
+
+<PageTitle>On-Call Administration</PageTitle>
+
+<h1 class="display-5 mb-2">On-Call</h1>
+<p class="text-muted mb-4">Manage reusable plans, teams, and customer bindings. Bindings trigger schedule generation.</p>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">Plans</h5>
+                        <span class="badge bg-light text-dark border">@plans.Count</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="newPlan.Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Time zone</label>
+                        <input class="form-control" @bind="newPlan.TimeZone" placeholder="e.g., Europe/Stockholm" />
+                    </div>
+                    <div class="mb-3 row g-2">
+                        <div class="col-6">
+                            <label class="form-label">On-hours start</label>
+                            <InputText class="form-control" type="time" @bind-Value="newPlan.Start" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">On-hours end</label>
+                            <InputText class="form-control" type="time" @bind-Value="newPlan.End" />
+                        </div>
+                    </div>
+                    <div class="form-check mb-2">
+                        <InputCheckbox class="form-check-input" @bind-Value="newPlan.IncludeWeekends" />
+                        <label class="form-check-label">Include weekends</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <InputCheckbox class="form-check-input" @bind-Value="newPlan.IncludeHolidays" />
+                        <label class="form-check-label">Include holidays</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Holidays (YYYY-MM-DD, comma-separated)</label>
+                        <InputText class="form-control" @bind-Value="newPlan.Holidays" placeholder="2025-12-25,2025-12-26" />
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button class="btn btn-primary" @onclick="CreatePlanAsync" disabled="@isSaving">Add plan</button>
+                    </div>
+                    <hr />
+                    <ul class="list-group list-group-flush">
+                        @if (plans.Any())
+                        {
+                            @foreach (var plan in plans)
+                            {
+                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-semibold">@plan.Name</div>
+                                        <div class="text-muted small">@plan.TimeZone - On-hours @FormatOnHours(plan)</div>
+                                    </div>
+                                    <span class="badge bg-light text-dark border">v @plan.Version</span>
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="list-group-item px-0 text-muted small">No plans yet.</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">Teams</h5>
+                        <span class="badge bg-light text-dark border">@teams.Count</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="newTeam.Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Members (user ids, comma-separated)</label>
+                        <input class="form-control" @bind="newTeam.Members" placeholder="user1,user2" />
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="whole-team" @bind="newTeam.WholeTeam" />
+                        <label class="form-check-label" for="whole-team">Whole team on-call (no rotation)</label>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button class="btn btn-primary" @onclick="CreateTeamAsync" disabled="@isSaving">Add team</button>
+                    </div>
+                    <hr />
+                    <ul class="list-group list-group-flush">
+                        @if (teams.Any())
+                        {
+                            @foreach (var team in teams)
+                            {
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <div class="fw-semibold">@team.Name</div>
+                                            <div class="text-muted small">@team.Members.Count(m => m.Enabled) enabled members</div>
+                                        </div>
+                                        <span class="badge bg-light text-dark border">@((team.ModeOverride ?? RotationMode.RollingIndividual).ToString())</span>
+                                    </div>
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="list-group-item px-0 text-muted small">No teams yet.</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">Customer binding</h5>
+                        <span class="badge bg-light text-dark border">@bindings.Count</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Customer</label>
+                        <select class="form-select" @bind="newBinding.CustomerId">
+                            <option value="">Select customer</option>
+                            @foreach (var c in customers)
+                            {
+                                <option value="@c.Id">@(!string.IsNullOrWhiteSpace(c.Name) ? c.Name : c.Id)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Plan</label>
+                        <select class="form-select" @bind="newBinding.PlanId">
+                            <option value="">Select plan</option>
+                            @foreach (var p in plans)
+                            {
+                                <option value="@p.Id">@p.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">On-hours team</label>
+                        <select class="form-select" @bind="newBinding.OnTeamId">
+                            <option value="">Select team</option>
+                            @foreach (var t in teams)
+                            {
+                                <option value="@t.Id">@t.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Off-hours team</label>
+                        <select class="form-select" @bind="newBinding.OffTeamId">
+                            <option value="">Select team</option>
+                            @foreach (var t in teams)
+                            {
+                                <option value="@t.Id">@t.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Backup team</label>
+                        <select class="form-select" @bind="newBinding.BackupTeamId">
+                            <option value="">Select team</option>
+                            @foreach (var t in teams)
+                            {
+                                <option value="@t.Id">@t.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Effective from</label>
+                        <input class="form-control" type="date" @bind="newBinding.EffectiveFrom" />
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button class="btn btn-primary" @onclick="CreateBindingAsync" disabled="@isSaving">Bind &amp; regenerate</button>
+                    </div>
+                    <hr />
+                    <ul class="list-group list-group-flush">
+                        @if (bindings.Any())
+                        {
+                            @foreach (var b in bindings)
+                            {
+                                var customerName = customers.FirstOrDefault(c => c.Id == b.CustomerId)?.Name ?? b.CustomerId;
+                                var planName = plans.FirstOrDefault(p => p.Id == b.PlanDefinitionId)?.Name ?? b.PlanDefinitionId;
+                                var onTeam = teams.FirstOrDefault(t => t.Id == b.OnHoursTeamId)?.Name ?? b.OnHoursTeamId;
+                                var offTeam = teams.FirstOrDefault(t => t.Id == b.OffHoursTeamId)?.Name ?? b.OffHoursTeamId;
+                                var backupTeam = teams.FirstOrDefault(t => t.Id == b.BackupTeamId)?.Name ?? b.BackupTeamId;
+                                <li class="list-group-item px-0">
+                                    <div class="fw-semibold">@customerName</div>
+                                    <div class="text-muted small">@planName</div>
+                                    <div class="text-muted small">On: @onTeam · Off: @offTeam · Backup: @backupTeam</div>
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="list-group-item px-0 text-muted small">No bindings yet.</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly int regenerationHorizonDays = 60;
+
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private List<OnCallPlan> plans = new();
+    private List<OnCallTeam> teams = new();
+    private List<CustomerPlanBinding> bindings = new();
+    private List<Customer> customers = new();
+
+    private PlanInput newPlan = new();
+    private TeamInput newTeam = new();
+    private BindingInput newBinding = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        successMessage = null;
+        try
+        {
+            var planTask = PlanRepository.ListAsync(limit: 200);
+            var teamTask = TeamRepository.ListAsync(limit: 200);
+            var bindingTask = BindingRepository.ListAsync(limit: 200);
+            var customerTask = CustomerRepository.ListActiveAsync(limit: 200);
+
+            await Task.WhenAll(planTask, teamTask, bindingTask, customerTask);
+
+            plans = planTask.Result.OrderBy(p => p.Name).ToList();
+            teams = teamTask.Result.OrderBy(t => t.Name).ToList();
+            bindings = bindingTask.Result.OrderBy(b => b.CustomerId).ToList();
+            customers = customerTask.Result.OrderBy(c => c.Name).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load on-call data");
+            errorMessage = "Failed to load on-call data.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CreatePlanAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isSaving = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newPlan.Name))
+            {
+                errorMessage = "Plan name is required.";
+                return;
+            }
+
+            if (!TimeSpan.TryParse(newPlan.Start, out var start) || !TimeSpan.TryParse(newPlan.End, out var end))
+            {
+                errorMessage = "Invalid time range.";
+                return;
+            }
+
+            var days = newPlan.IncludeWeekends
+                ? new[] { DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday }
+                : new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
+
+            var onHours = days
+                .Select(d => new DailyWindow(d, start, end))
+                .ToList();
+
+            var holidays = (newPlan.Holidays ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(h => DateOnly.TryParse(h, out var date) ? (DateOnly?)date : null)
+                .Where(d => d.HasValue)
+                .Select(d => d!.Value)
+                .ToList();
+
+            var plan = new OnCallPlan
+            {
+                Name = newPlan.Name,
+                TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone,
+                OnHours = onHours,
+                IncludeWeekends = newPlan.IncludeWeekends,
+                IncludeHolidays = newPlan.IncludeHolidays,
+                Holidays = holidays,
+                Escalation = new EscalationPolicy(TimeSpan.FromMinutes(5), 3, TimeSpan.FromMinutes(5)),
+                Rotation = new RotationDefaults(RotationMode.RollingIndividual, RotationCadence.Daily, DateOnly.FromDateTime(DateTime.UtcNow.Date), 0),
+                Version = "v1"
+            };
+
+            await PlanRepository.UpsertAsync(plan);
+            successMessage = "Plan created.";
+            newPlan = new PlanInput();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create plan");
+            errorMessage = "Failed to create plan.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task CreateTeamAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isSaving = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newTeam.Name))
+            {
+                errorMessage = "Team name is required.";
+                return;
+            }
+
+            var members = (newTeam.Members ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select((id, idx) => new TeamMember(id, Enabled: true, Order: idx))
+                .ToList();
+
+            var modeOverride = newTeam.WholeTeam ? RotationMode.WholeTeam : RotationMode.RollingIndividual;
+
+            var team = new OnCallTeam
+            {
+                Name = newTeam.Name,
+                ModeOverride = modeOverride,
+                Members = members
+            };
+
+            await TeamRepository.UpsertAsync(team);
+            successMessage = "Team created.";
+            newTeam = new TeamInput();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create team");
+            errorMessage = "Failed to create team.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task CreateBindingAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isSaving = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newBinding.CustomerId) ||
+                string.IsNullOrWhiteSpace(newBinding.PlanId) ||
+                string.IsNullOrWhiteSpace(newBinding.OnTeamId) ||
+                string.IsNullOrWhiteSpace(newBinding.OffTeamId) ||
+                string.IsNullOrWhiteSpace(newBinding.BackupTeamId))
+            {
+                errorMessage = "Customer, plan, on/off/backup teams are required.";
+                return;
+            }
+
+            var binding = new CustomerPlanBinding
+            {
+                Id = newBinding.CustomerId,
+                CustomerId = newBinding.CustomerId,
+                PlanDefinitionId = newBinding.PlanId,
+                OnHoursTeamId = newBinding.OnTeamId,
+                OffHoursTeamId = newBinding.OffTeamId,
+                BackupTeamId = newBinding.BackupTeamId,
+                EffectiveFrom = DateOnly.FromDateTime(newBinding.EffectiveFrom.Date)
+            };
+
+            await BindingRepository.UpsertAsync(binding);
+
+            var now = DateTime.UtcNow;
+            await ScheduleService.RegenerateAsync(binding.CustomerId, now, now.AddDays(regenerationHorizonDays));
+
+            successMessage = "Binding saved and schedule regenerated.";
+            newBinding = new BindingInput { EffectiveFrom = DateTime.UtcNow.Date };
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create binding");
+            errorMessage = "Failed to create binding.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string FormatOnHours(OnCallPlan plan)
+    {
+        if (plan.OnHours.Count == 0) return "none";
+        var first = plan.OnHours.First();
+        var last = plan.OnHours.Last();
+        return $"{first.Start:hh\\:mm}-{first.End:hh\\:mm} ({plan.OnHours.Count} windows)";
+    }
+
+    private sealed record PlanInput
+    {
+        public string Name { get; set; } = string.Empty;
+        public string TimeZone { get; set; } = "UTC";
+        public string Start { get; set; } = "09:00";
+        public string End { get; set; } = "17:00";
+        public bool IncludeWeekends { get; set; } = false;
+        public bool IncludeHolidays { get; set; } = false;
+        public string Holidays { get; set; } = string.Empty;
+    }
+
+    private sealed record TeamInput
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Members { get; set; } = string.Empty;
+        public bool WholeTeam { get; set; }
+    }
+
+    private sealed record BindingInput
+    {
+        public string CustomerId { get; set; } = string.Empty;
+        public string PlanId { get; set; } = string.Empty;
+        public string OnTeamId { get; set; } = string.Empty;
+        public string OffTeamId { get; set; } = string.Empty;
+        public string BackupTeamId { get; set; } = string.Empty;
+        public DateTime EffectiveFrom { get; set; } = DateTime.UtcNow.Date;
+    }
+}

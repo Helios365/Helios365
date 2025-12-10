@@ -1,6 +1,5 @@
 using System.Net.Http;
 using Helios365.Core.Repositories;
-using Helios365.Core.Services;
 using Helios365.Core.Services.Clients;
 using Helios365.Core.Services.Handlers;
 using Microsoft.Azure.Cosmos;
@@ -14,6 +13,7 @@ using Azure.Core;
 using Microsoft.Graph;
 using Helios365.Core.Models;
 using Helios365.Core.Contracts;
+using Helios365.Core.Services;
 
 namespace Helios365.Web.Extensions;
 
@@ -149,6 +149,45 @@ public static class ServiceCollectionExtensions
             var containerName = configuration["CosmosDb:UsersContainer"] ?? "users";
             return new UserRepository(cosmosClient, databaseName, containerName, logger);
         });
+
+        services.AddScoped<IOnCallPlanRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<OnCallPlanRepository>>();
+            var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDb:OnCallPlansContainer"] ?? "onCallPlans";
+            return new OnCallPlanRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<IOnCallTeamRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<OnCallTeamRepository>>();
+            var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDb:OnCallTeamsContainer"] ?? "onCallTeams";
+            return new OnCallTeamRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<ICustomerPlanBindingRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<CustomerPlanBindingRepository>>();
+            var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDb:PlanBindingsContainer"] ?? "planBindings";
+            return new CustomerPlanBindingRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<IScheduleSliceRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<ScheduleSliceRepository>>();
+            var databaseName = configuration["CosmosDb:DatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDb:ScheduleSlicesContainer"] ?? "scheduleSlices";
+            return new ScheduleSliceRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<IOnCallScheduleGenerator, OnCallScheduleGenerator>();
+        services.AddScoped<IOnCallScheduleService, OnCallScheduleService>();
 
         return services;
     }

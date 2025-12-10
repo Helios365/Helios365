@@ -296,11 +296,11 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
   }
 }
 
-resource actionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
-  parent: cosmosDatabase
-  name: 'actions'
-  properties: {
-    resource: {
+  resource actionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
+    parent: cosmosDatabase
+    name: 'actions'
+    properties: {
+      resource: {
       id: 'actions'
       partitionKey: { paths: ['/customerId'], kind: 'Hash' }
       indexingPolicy: {
@@ -310,10 +310,98 @@ resource actionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
         excludedPaths: [{ path: '/"_etag"/?' }]
       }
       defaultTtl: -1
+      }
+      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
     }
-    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
   }
-}
+
+  resource onCallPlansContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
+    parent: cosmosDatabase
+    name: 'onCallPlans'
+    properties: {
+      resource: {
+        id: 'onCallPlans'
+        partitionKey: {
+          paths: [
+            '/id'
+          ]
+          kind: 'Hash'
+        }
+        indexingPolicy: {
+          indexingMode: 'consistent'
+          automatic: true
+        }
+        defaultTtl: -1
+      }
+      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    }
+  }
+
+  resource onCallTeamsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
+    parent: cosmosDatabase
+    name: 'onCallTeams'
+    properties: {
+      resource: {
+        id: 'onCallTeams'
+        partitionKey: {
+          paths: [
+            '/id'
+          ]
+          kind: 'Hash'
+        }
+        indexingPolicy: {
+          indexingMode: 'consistent'
+          automatic: true
+        }
+        defaultTtl: -1
+      }
+      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    }
+  }
+
+  resource planBindingsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
+    parent: cosmosDatabase
+    name: 'planBindings'
+    properties: {
+      resource: {
+        id: 'planBindings'
+        partitionKey: {
+          paths: [
+            '/customerId'
+          ]
+          kind: 'Hash'
+        }
+        indexingPolicy: {
+          indexingMode: 'consistent'
+          automatic: true
+        }
+        defaultTtl: -1
+      }
+      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    }
+  }
+
+  resource scheduleSlicesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
+    parent: cosmosDatabase
+    name: 'scheduleSlices'
+    properties: {
+      resource: {
+        id: 'scheduleSlices'
+        partitionKey: {
+          paths: [
+            '/customerId'
+          ]
+          kind: 'Hash'
+        }
+        indexingPolicy: {
+          indexingMode: 'consistent'
+          automatic: true
+        }
+        defaultTtl: -1
+      }
+      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    }
+  }
 
 // Key Vault
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -451,6 +539,10 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'CosmosDb__ActionsContainer', value: 'actions' }
         { name: 'CosmosDb__UsersContainer', value: 'users' }
         { name: 'CosmosDb__WebTestsContainer', value: 'webTests' }
+        { name: 'CosmosDb__OnCallPlansContainer', value: 'onCallPlans' }
+        { name: 'CosmosDb__OnCallTeamsContainer', value: 'onCallTeams' }
+        { name: 'CosmosDb__PlanBindingsContainer', value: 'planBindings' }
+        { name: 'CosmosDb__ScheduleSlicesContainer', value: 'scheduleSlices' }
         // Logging Configuration
         { name: 'Logging__LogLevel__Default', value: environment == 'dev' ? 'Debug' : 'Information' }
         { name: 'Logging__LogLevel__Microsoft.AspNetCore', value: environment == 'dev' ? 'Warning' : 'Warning' }
