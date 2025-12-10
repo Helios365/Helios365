@@ -1,5 +1,4 @@
 using Azure.Core;
-using Azure.ResourceManager;
 using Azure.ResourceManager.Resources;
 using Helios365.Core.Contracts.Diagnostics;
 using Helios365.Core.Models;

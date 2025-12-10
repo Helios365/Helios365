@@ -1,4 +1,3 @@
-using Helios365.Core.Models;
 using Helios365.Core.Contracts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

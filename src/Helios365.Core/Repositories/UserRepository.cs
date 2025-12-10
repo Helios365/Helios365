@@ -1,4 +1,3 @@
-using Helios365.Core.Models;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 

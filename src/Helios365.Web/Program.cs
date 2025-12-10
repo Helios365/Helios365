@@ -3,13 +3,10 @@ using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 using Helios365.Web.Extensions;
 using Helios365.Core.Services;
-using Azure.Identity;
-using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
-using Microsoft.Extensions.Logging;
- 
+
+
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);

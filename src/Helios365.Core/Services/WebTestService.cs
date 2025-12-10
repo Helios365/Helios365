@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net.Http;
 using Helios365.Core.Models;
 using Helios365.Core.Repositories;
 using Helios365.Core.Utilities;
