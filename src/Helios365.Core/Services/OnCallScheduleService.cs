@@ -190,7 +190,7 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
             return true;
         }
 
-        if (!plan.IncludeHolidays && plan.Holidays.Any(h => h == DateOnly.FromDateTime(date)))
+        if (plan.Holidays.Any(h => h == DateOnly.FromDateTime(date)))
         {
             return true;
         }

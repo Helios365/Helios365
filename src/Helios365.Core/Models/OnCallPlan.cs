@@ -20,8 +20,6 @@ public record OnCallPlan
     public IReadOnlyList<DailyWindow> OnHours { get; init; } = Array.Empty<DailyWindow>();
     [JsonProperty("includeWeekends")]
     public bool IncludeWeekends { get; init; }
-    [JsonProperty("includeHolidays")]
-    public bool IncludeHolidays { get; init; } = false;
     [JsonProperty("holidays")]
     public IReadOnlyList<DateOnly> Holidays { get; init; } = Array.Empty<DateOnly>();
     [JsonProperty("escalation")]

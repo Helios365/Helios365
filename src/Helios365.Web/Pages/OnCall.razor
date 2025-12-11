@@ -1,5 +1,6 @@
 @page "/oncall"
 @attribute [Authorize(Policy = "ReaderOrAbove")]
+@using System.Linq
 @using Helios365.Core.Models
 @using Helios365.Core.Repositories
 @using Helios365.Core.Services
@@ -8,6 +9,8 @@
 @inject ICustomerPlanBindingRepository BindingRepository
 @inject ICustomerRepository CustomerRepository
 @inject IOnCallScheduleService ScheduleService
+@inject IUserRepository UserRepository
+@inject ISnackbar Snackbar
 @inject ILogger<OnCall> Logger
 
 <PageTitle>On-Call Administration</PageTitle>
@@ -25,15 +28,6 @@
 }
 else
 {
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
-    {
-        <div class="alert alert-danger">@errorMessage</div>
-    }
-    @if (!string.IsNullOrWhiteSpace(successMessage))
-    {
-        <div class="alert alert-success">@successMessage</div>
-    }
-
     <div class="row g-3">
         <div class="col-12 col-xl-4">
             <div class="card border-0 shadow-sm h-100">
@@ -64,16 +58,16 @@ else
                         <InputCheckbox class="form-check-input" @bind-Value="newPlan.IncludeWeekends" />
                         <label class="form-check-label">Include weekends</label>
                     </div>
-                    <div class="form-check mb-2">
-                        <InputCheckbox class="form-check-input" @bind-Value="newPlan.IncludeHolidays" />
-                        <label class="form-check-label">Include holidays</label>
-                    </div>
                     <div class="mb-3">
                         <label class="form-label">Holidays (YYYY-MM-DD, comma-separated)</label>
                         <InputText class="form-control" @bind-Value="newPlan.Holidays" placeholder="2025-12-25,2025-12-26" />
                     </div>
-                    <div class="d-flex justify-content-end">
-                        <button class="btn btn-primary" @onclick="CreatePlanAsync" disabled="@isSaving">Add plan</button>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button class="btn btn-primary" @onclick="SavePlanAsync" disabled="@isSaving">@((editingPlan != null) ? "Save plan" : "Add plan")</button>
+                        @if (editingPlan != null)
+                        {
+                            <button class="btn btn-outline-secondary" @onclick="CancelPlanEdit">Cancel</button>
+                        }
                     </div>
                     <hr />
                     <ul class="list-group list-group-flush">
@@ -86,7 +80,10 @@ else
                                         <div class="fw-semibold">@plan.Name</div>
                                         <div class="text-muted small">@plan.TimeZone - On-hours @FormatOnHours(plan)</div>
                                     </div>
-                                    <span class="badge bg-light text-dark border">v @plan.Version</span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEditPlan(plan)">Edit</button>
+                                        <span class="badge bg-light text-dark border">v @plan.Version</span>
+                                    </div>
                                 </li>
                             }
                         }
@@ -111,15 +108,36 @@ else
                         <input class="form-control" @bind="newTeam.Name" />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Members (user ids, comma-separated)</label>
-                        <input class="form-control" @bind="newTeam.Members" placeholder="user1,user2" />
+                        <label class="form-label">Members</label>
+                        <select class="form-select" multiple size="6" @onchange="OnUserSelectionChanged">
+                            @if (availableUsers.Any())
+                            {
+                                @foreach (var user in availableUsers)
+                                {
+                                    <option value="@user.Id" selected="@newTeam.SelectedUserIds.Contains(user.Id)">@user.DisplayName (@user.UserPrincipalName)</option>
+                                }
+                            }
+                            else
+                            {
+                                <option disabled>No users found</option>
+                            }
+                        </select>
+                        <div class="form-text">Use Ctrl/Cmd + click to select multiple. Optional: add extra user ids below.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Extra members (user ids, comma-separated)</label>
+                        <input class="form-control" @bind="newTeam.ManualMembers" placeholder="user1,user2" />
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="whole-team" @bind="newTeam.WholeTeam" />
                         <label class="form-check-label" for="whole-team">Whole team on-call (no rotation)</label>
                     </div>
-                    <div class="d-flex justify-content-end">
-                        <button class="btn btn-primary" @onclick="CreateTeamAsync" disabled="@isSaving">Add team</button>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button class="btn btn-primary" @onclick="SaveTeamAsync" disabled="@isSaving">@((editingTeam != null) ? "Save team" : "Add team")</button>
+                        @if (editingTeam != null)
+                        {
+                            <button class="btn btn-outline-secondary" @onclick="CancelTeamEdit">Cancel</button>
+                        }
                     </div>
                     <hr />
                     <ul class="list-group list-group-flush">
@@ -133,7 +151,10 @@ else
                                             <div class="fw-semibold">@team.Name</div>
                                             <div class="text-muted small">@team.Members.Count(m => m.Enabled) enabled members</div>
                                         </div>
-                                        <span class="badge bg-light text-dark border">@((team.ModeOverride ?? RotationMode.RollingIndividual).ToString())</span>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge bg-light text-dark border">@((team.ModeOverride ?? RotationMode.RollingIndividual).ToString())</span>
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEditTeam(team)">Edit</button>
+                                        </div>
                                     </div>
                                 </li>
                             }
@@ -209,7 +230,11 @@ else
                         <input class="form-control" type="date" @bind="newBinding.EffectiveFrom" />
                     </div>
                     <div class="d-flex justify-content-end">
-                        <button class="btn btn-primary" @onclick="CreateBindingAsync" disabled="@isSaving">Bind &amp; regenerate</button>
+                        <button class="btn btn-primary" @onclick="SaveBindingAsync" disabled="@isSaving">@((editingBinding != null) ? "Save binding" : "Bind & regenerate")</button>
+                        @if (editingBinding != null)
+                        {
+                            <button class="btn btn-outline-secondary ms-2" @onclick="CancelBindingEdit">Cancel</button>
+                        }
                     </div>
                     <hr />
                     <ul class="list-group list-group-flush">
@@ -226,6 +251,9 @@ else
                                     <div class="fw-semibold">@customerName</div>
                                     <div class="text-muted small">@planName</div>
                                     <div class="text-muted small">On: @onTeam · Off: @offTeam · Backup: @backupTeam</div>
+                                    <div class="mt-1">
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEditBinding(b)">Edit</button>
+                                    </div>
                                 </li>
                             }
                         }
@@ -245,17 +273,19 @@ else
 
     private bool isLoading = true;
     private bool isSaving;
-    private string? errorMessage;
-    private string? successMessage;
 
     private List<OnCallPlan> plans = new();
     private List<OnCallTeam> teams = new();
     private List<CustomerPlanBinding> bindings = new();
     private List<Customer> customers = new();
+    private List<User> availableUsers = new();
 
     private PlanInput newPlan = new();
+    private OnCallPlan? editingPlan;
     private TeamInput newTeam = new();
+    private OnCallTeam? editingTeam;
     private BindingInput newBinding = new();
+    private CustomerPlanBinding? editingBinding;
 
     protected override async Task OnInitializedAsync()
     {
@@ -265,26 +295,26 @@ else
     private async Task LoadAsync()
     {
         isLoading = true;
-        errorMessage = null;
-        successMessage = null;
         try
         {
             var planTask = PlanRepository.ListAsync(limit: 200);
             var teamTask = TeamRepository.ListAsync(limit: 200);
             var bindingTask = BindingRepository.ListAsync(limit: 200);
             var customerTask = CustomerRepository.ListActiveAsync(limit: 200);
+            var usersTask = UserRepository.ListAsync(limit: 500);
 
-            await Task.WhenAll(planTask, teamTask, bindingTask, customerTask);
+            await Task.WhenAll(planTask, teamTask, bindingTask, customerTask, usersTask);
 
             plans = planTask.Result.OrderBy(p => p.Name).ToList();
             teams = teamTask.Result.OrderBy(t => t.Name).ToList();
             bindings = bindingTask.Result.OrderBy(b => b.CustomerId).ToList();
             customers = customerTask.Result.OrderBy(c => c.Name).ToList();
+            availableUsers = usersTask.Result.OrderBy(u => u.DisplayName).ToList();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load on-call data");
-            errorMessage = "Failed to load on-call data.";
+            Snackbar.Add("Failed to load on-call data.", Severity.Error);
         }
         finally
         {
@@ -293,22 +323,20 @@ else
         }
     }
 
-    private async Task CreatePlanAsync()
+    private async Task SavePlanAsync()
     {
-        errorMessage = null;
-        successMessage = null;
         isSaving = true;
         try
         {
             if (string.IsNullOrWhiteSpace(newPlan.Name))
             {
-                errorMessage = "Plan name is required.";
+                Snackbar.Add("Plan name is required.", Severity.Warning);
                 return;
             }
 
             if (!TimeSpan.TryParse(newPlan.Start, out var start) || !TimeSpan.TryParse(newPlan.End, out var end))
             {
-                errorMessage = "Invalid time range.";
+                Snackbar.Add("Invalid time range.", Severity.Warning);
                 return;
             }
 
@@ -327,28 +355,45 @@ else
                 .Select(d => d!.Value)
                 .ToList();
 
-            var plan = new OnCallPlan
+            if (editingPlan == null)
             {
-                Name = newPlan.Name,
-                TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone,
-                OnHours = onHours,
-                IncludeWeekends = newPlan.IncludeWeekends,
-                IncludeHolidays = newPlan.IncludeHolidays,
-                Holidays = holidays,
-                Escalation = new EscalationPolicy(TimeSpan.FromMinutes(5), 3, TimeSpan.FromMinutes(5)),
-                Rotation = new RotationDefaults(RotationMode.RollingIndividual, RotationCadence.Daily, DateOnly.FromDateTime(DateTime.UtcNow.Date), 0),
-                Version = "v1"
-            };
+                var plan = new OnCallPlan
+                {
+                    Name = newPlan.Name,
+                    TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone,
+                    OnHours = onHours,
+                    IncludeWeekends = newPlan.IncludeWeekends,
+                    Holidays = holidays,
+                    Escalation = new EscalationPolicy(TimeSpan.FromMinutes(5), 3, TimeSpan.FromMinutes(5)),
+                    Rotation = new RotationDefaults(RotationMode.RollingIndividual, RotationCadence.Daily, DateOnly.FromDateTime(DateTime.UtcNow.Date), 0),
+                    Version = "v1"
+                };
 
-            await PlanRepository.UpsertAsync(plan);
-            successMessage = "Plan created.";
+                await PlanRepository.UpsertAsync(plan);
+                Snackbar.Add("Plan created.", Severity.Success);
+            }
+            else
+            {
+                var updated = editingPlan with
+                {
+                    Name = newPlan.Name,
+                    TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone,
+                    OnHours = onHours,
+                    IncludeWeekends = newPlan.IncludeWeekends,
+                    Holidays = holidays
+                };
+                await PlanRepository.UpsertAsync(updated);
+                Snackbar.Add("Plan updated.", Severity.Success);
+            }
+
             newPlan = new PlanInput();
+            editingPlan = null;
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to create plan");
-            errorMessage = "Failed to create plan.";
+            Logger.LogError(ex, "Failed to save plan");
+            Snackbar.Add("Failed to save plan.", Severity.Error);
         }
         finally
         {
@@ -356,42 +401,85 @@ else
         }
     }
 
-    private async Task CreateTeamAsync()
+    private void StartEditPlan(OnCallPlan plan)
     {
-        errorMessage = null;
-        successMessage = null;
+        editingPlan = plan;
+        newPlan = new PlanInput
+        {
+            Name = plan.Name,
+            TimeZone = plan.TimeZone,
+            Start = plan.OnHours.FirstOrDefault()?.Start.ToString(@"hh\:mm") ?? "09:00",
+            End = plan.OnHours.FirstOrDefault()?.End.ToString(@"hh\:mm") ?? "17:00",
+            IncludeWeekends = plan.IncludeWeekends,
+            Holidays = string.Join(",", plan.Holidays.Select(h => h.ToString("yyyy-MM-dd")))
+        };
+    }
+
+    private void CancelPlanEdit()
+    {
+        editingPlan = null;
+        newPlan = new PlanInput();
+    }
+
+    private async Task SaveTeamAsync()
+    {
         isSaving = true;
         try
         {
             if (string.IsNullOrWhiteSpace(newTeam.Name))
             {
-                errorMessage = "Team name is required.";
+                Snackbar.Add("Team name is required.", Severity.Warning);
                 return;
             }
 
-            var members = (newTeam.Members ?? string.Empty)
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            var members = newTeam.SelectedUserIds
+                .Concat((newTeam.ManualMembers ?? string.Empty)
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select((id, idx) => new TeamMember(id, Enabled: true, Order: idx))
                 .ToList();
 
+            if (!members.Any())
+            {
+                Snackbar.Add("Select at least one member.", Severity.Warning);
+                return;
+            }
+
             var modeOverride = newTeam.WholeTeam ? RotationMode.WholeTeam : RotationMode.RollingIndividual;
 
-            var team = new OnCallTeam
+            if (editingTeam == null)
             {
-                Name = newTeam.Name,
-                ModeOverride = modeOverride,
-                Members = members
-            };
+                var team = new OnCallTeam
+                {
+                    Name = newTeam.Name,
+                    ModeOverride = modeOverride,
+                    Members = members
+                };
 
-            await TeamRepository.UpsertAsync(team);
-            successMessage = "Team created.";
+                await TeamRepository.UpsertAsync(team);
+                Snackbar.Add("Team created.", Severity.Success);
+            }
+            else
+            {
+                var updated = editingTeam with
+                {
+                    Name = newTeam.Name,
+                    ModeOverride = modeOverride,
+                    Members = members
+                };
+
+                await TeamRepository.UpsertAsync(updated);
+                Snackbar.Add("Team updated.", Severity.Success);
+            }
+
             newTeam = new TeamInput();
+            editingTeam = null;
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to create team");
-            errorMessage = "Failed to create team.";
+            Logger.LogError(ex, "Failed to save team");
+            Snackbar.Add("Failed to save team.", Severity.Error);
         }
         finally
         {
@@ -399,10 +487,46 @@ else
         }
     }
 
-    private async Task CreateBindingAsync()
+    private void StartEditTeam(OnCallTeam team)
     {
-        errorMessage = null;
-        successMessage = null;
+        editingTeam = team;
+        newTeam = new TeamInput
+        {
+            Name = team.Name,
+            WholeTeam = (team.ModeOverride ?? RotationMode.RollingIndividual) == RotationMode.WholeTeam,
+            SelectedUserIds = team.Members.Where(m => m.Enabled).Select(m => m.UserId).ToList(),
+            ManualMembers = string.Empty
+        };
+    }
+
+    private void CancelTeamEdit()
+    {
+        editingTeam = null;
+        newTeam = new TeamInput();
+    }
+
+    private void StartEditBinding(CustomerPlanBinding binding)
+    {
+        editingBinding = binding;
+        newBinding = new BindingInput
+        {
+            CustomerId = binding.CustomerId,
+            PlanId = binding.PlanDefinitionId,
+            OnTeamId = binding.OnHoursTeamId,
+            OffTeamId = binding.OffHoursTeamId,
+            BackupTeamId = binding.BackupTeamId,
+            EffectiveFrom = binding.EffectiveFrom.ToDateTime(TimeOnly.MinValue)
+        };
+    }
+
+    private void CancelBindingEdit()
+    {
+        editingBinding = null;
+        newBinding = new BindingInput { EffectiveFrom = DateTime.UtcNow.Date };
+    }
+
+    private async Task SaveBindingAsync()
+    {
         isSaving = true;
         try
         {
@@ -412,13 +536,13 @@ else
                 string.IsNullOrWhiteSpace(newBinding.OffTeamId) ||
                 string.IsNullOrWhiteSpace(newBinding.BackupTeamId))
             {
-                errorMessage = "Customer, plan, on/off/backup teams are required.";
+                Snackbar.Add("Customer, plan, on/off/backup teams are required.", Severity.Warning);
                 return;
             }
 
             var binding = new CustomerPlanBinding
             {
-                Id = newBinding.CustomerId,
+                Id = string.IsNullOrWhiteSpace(newBinding.CustomerId) ? newBinding.CustomerId : newBinding.CustomerId,
                 CustomerId = newBinding.CustomerId,
                 PlanDefinitionId = newBinding.PlanId,
                 OnHoursTeamId = newBinding.OnTeamId,
@@ -432,14 +556,15 @@ else
             var now = DateTime.UtcNow;
             await ScheduleService.RegenerateAsync(binding.CustomerId, now, now.AddDays(regenerationHorizonDays));
 
-            successMessage = "Binding saved and schedule regenerated.";
+            Snackbar.Add(editingBinding == null ? "Binding created and schedule regenerated." : "Binding updated and schedule regenerated.", Severity.Success);
             newBinding = new BindingInput { EffectiveFrom = DateTime.UtcNow.Date };
+            editingBinding = null;
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to create binding");
-            errorMessage = "Failed to create binding.";
+            Logger.LogError(ex, "Failed to save binding");
+            Snackbar.Add("Failed to save binding.", Severity.Error);
         }
         finally
         {
@@ -462,15 +587,33 @@ else
         public string Start { get; set; } = "09:00";
         public string End { get; set; } = "17:00";
         public bool IncludeWeekends { get; set; } = false;
-        public bool IncludeHolidays { get; set; } = false;
         public string Holidays { get; set; } = string.Empty;
     }
 
     private sealed record TeamInput
     {
         public string Name { get; set; } = string.Empty;
-        public string Members { get; set; } = string.Empty;
+        public List<string> SelectedUserIds { get; set; } = new();
+        public string ManualMembers { get; set; } = string.Empty;
         public bool WholeTeam { get; set; }
+    }
+
+    private Task OnUserSelectionChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string[] values)
+        {
+            newTeam.SelectedUserIds = values.ToList();
+        }
+        else if (e.Value is string single)
+        {
+            newTeam.SelectedUserIds = new List<string> { single };
+        }
+        else
+        {
+            newTeam.SelectedUserIds = new List<string>();
+        }
+
+        return Task.CompletedTask;
     }
 
     private sealed record BindingInput
@@ -483,3 +626,4 @@ else
         public DateTime EffectiveFrom { get; set; } = DateTime.UtcNow.Date;
     }
 }
+

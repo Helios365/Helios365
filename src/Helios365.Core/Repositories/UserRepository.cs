@@ -7,6 +7,7 @@ public interface IUserRepository
 {
     Task<Models.User?> GetAsync(string id, CancellationToken cancellationToken = default);
     Task UpsertAsync(Models.User profile, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Models.User>> ListAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default);
 }
 
 public class UserRepository : IUserRepository
@@ -51,5 +52,23 @@ public class UserRepository : IUserRepository
         profile.LastSyncedUtc = DateTimeOffset.UtcNow;
 
         await container.UpsertItemAsync(profile, new PartitionKey(profile.Id), cancellationToken: cancellationToken);
+    }
+
+    public async Task<IEnumerable<Models.User>> ListAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
+    {
+        var query = new QueryDefinition("SELECT * FROM c ORDER BY c.displayName OFFSET @offset LIMIT @limit")
+            .WithParameter("@offset", offset)
+            .WithParameter("@limit", limit);
+
+        var results = new List<Models.User>();
+        var iterator = container.GetItemQueryIterator<Models.User>(query);
+
+        while (iterator.HasMoreResults)
+        {
+            var response = await iterator.ReadNextAsync(cancellationToken);
+            results.AddRange(response);
+        }
+
+        return results;
     }
 }
