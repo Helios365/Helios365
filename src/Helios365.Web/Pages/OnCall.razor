@@ -1,13 +1,15 @@
 @page "/oncall"
 @attribute [Authorize(Policy = "ReaderOrAbove")]
-@using System.Linq
+@using System.Globalization
 @using Helios365.Core.Models
 @using Helios365.Core.Repositories
 @using Helios365.Core.Services
+@using MudBlazor
 @inject IOnCallPlanRepository PlanRepository
 @inject IOnCallTeamRepository TeamRepository
 @inject ICustomerPlanBindingRepository BindingRepository
 @inject ICustomerRepository CustomerRepository
+@inject IScheduleSliceRepository ScheduleSliceRepository
 @inject IOnCallScheduleService ScheduleService
 @inject IUserRepository UserRepository
 @inject ISnackbar Snackbar
@@ -15,265 +17,332 @@
 
 <PageTitle>On-Call Administration</PageTitle>
 
-<h1 class="display-5 mb-2">On-Call</h1>
-<p class="text-muted mb-4">Manage reusable plans, teams, and customer bindings. Bindings trigger schedule generation.</p>
+<MudText Typo="Typo.h4" Class="mb-1">On-Call</MudText>
+<MudText Typo="Typo.subtitle2" Class="mb-4">Manage reusable plans, teams, bindings, and view the generated schedule.</MudText>
 
 @if (isLoading)
 {
     <div class="text-center py-5">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
+        <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
     </div>
 }
 else
 {
-    <div class="row g-3">
-        <div class="col-12 col-xl-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
+    <MudGrid GutterSize="3">
+        <MudItem xs="12" lg="4">
+            <MudCard Class="h-100">
+                <MudCardContent>
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 class="mb-0">Plans</h5>
-                        <span class="badge bg-light text-dark border">@plans.Count</span>
+                        <MudText Typo="Typo.h6">Plans</MudText>
+                        <MudChip T="string" Variant="Variant.Outlined">@plans.Count</MudChip>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Name</label>
-                        <input class="form-control" @bind="newPlan.Name" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Time zone</label>
-                        <input class="form-control" @bind="newPlan.TimeZone" placeholder="e.g., Europe/Stockholm" />
-                    </div>
-                    <div class="mb-3 row g-2">
-                        <div class="col-6">
-                            <label class="form-label">On-hours start</label>
-                            <InputText class="form-control" type="time" @bind-Value="newPlan.Start" />
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label">On-hours end</label>
-                            <InputText class="form-control" type="time" @bind-Value="newPlan.End" />
-                        </div>
-                    </div>
-                    <div class="form-check mb-2">
-                        <InputCheckbox class="form-check-input" @bind-Value="newPlan.IncludeWeekends" />
-                        <label class="form-check-label">Include weekends</label>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Holidays (YYYY-MM-DD, comma-separated)</label>
-                        <InputText class="form-control" @bind-Value="newPlan.Holidays" placeholder="2025-12-25,2025-12-26" />
-                    </div>
-                    <div class="d-flex justify-content-end gap-2">
-                        <button class="btn btn-primary" @onclick="SavePlanAsync" disabled="@isSaving">@((editingPlan != null) ? "Save plan" : "Add plan")</button>
+                    <MudTextField @bind-Value="newPlan.Name" Label="Name" Required="true" Class="mb-3" />
+                    <MudTextField @bind-Value="newPlan.TimeZone" Label="Time zone" Placeholder="e.g., Europe/Stockholm" Class="mb-3" />
+                    <MudGrid GutterSize="2" Class="mb-2">
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="newPlan.Start" Label="On-hours start" InputType="InputType.Time" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="newPlan.End" Label="On-hours end" InputType="InputType.Time" />
+                        </MudItem>
+                    </MudGrid>
+                    <MudCheckBox T="bool" @bind-Checked="newPlan.IncludeWeekends" Label="Include weekends" Class="mb-2" />
+                    <MudTextField @bind-Value="newPlan.Holidays" Label="Holidays (YYYY-MM-DD, comma-separated)" Placeholder="2025-12-25,2025-12-26" Class="mb-3" />
+                    <div class="d-flex justify-content-end gap-2 mb-3">
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="isSaving" OnClick="SavePlanAsync">@((editingPlan != null) ? "Save plan" : "Add plan")</MudButton>
                         @if (editingPlan != null)
                         {
-                            <button class="btn btn-outline-secondary" @onclick="CancelPlanEdit">Cancel</button>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="CancelPlanEdit">Cancel</MudButton>
                         }
                     </div>
-                    <hr />
-                    <ul class="list-group list-group-flush">
+                    <MudDivider />
+                    <MudList T="object" Dense="true">
                         @if (plans.Any())
                         {
                             @foreach (var plan in plans)
                             {
-                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <div class="fw-semibold">@plan.Name</div>
-                                        <div class="text-muted small">@plan.TimeZone - On-hours @FormatOnHours(plan)</div>
+                                <MudListItem>
+                                    <div class="d-flex justify-content-between w-100 align-items-center">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle2">@plan.Name</MudText>
+                                            <MudText Typo="Typo.caption">@plan.TimeZone - On-hours @FormatOnHours(plan)</MudText>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => StartEditPlan(plan))">Edit</MudButton>
+                                            <MudChip T="string" Variant="Variant.Outlined">v @plan.Version</MudChip>
+                                        </div>
                                     </div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEditPlan(plan)">Edit</button>
-                                        <span class="badge bg-light text-dark border">v @plan.Version</span>
-                                    </div>
-                                </li>
+                                </MudListItem>
                             }
                         }
                         else
                         {
-                            <li class="list-group-item px-0 text-muted small">No plans yet.</li>
+                            <MudText Typo="Typo.caption" Class="mt-2 text-muted">No plans yet.</MudText>
                         }
-                    </ul>
-                </div>
-            </div>
-        </div>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
 
-        <div class="col-12 col-xl-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
+        <MudItem xs="12" lg="4">
+            <MudCard Class="h-100">
+                <MudCardContent>
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 class="mb-0">Teams</h5>
-                        <span class="badge bg-light text-dark border">@teams.Count</span>
+                        <MudText Typo="Typo.h6">Teams</MudText>
+                        <MudChip T="string" Variant="Variant.Outlined">@teams.Count</MudChip>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Name</label>
-                        <input class="form-control" @bind="newTeam.Name" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Members</label>
-                        <select class="form-select" multiple size="6" @onchange="OnUserSelectionChanged">
-                            @if (availableUsers.Any())
+                    <MudTextField @bind-Value="newTeam.Name" Label="Name" Required="true" Class="mb-3" />
+                    <MudSelect T="string"
+                               Label="Members"
+                               MultiSelection="true"
+                               SelectedValues="newTeam.SelectedUserIds"
+                               SelectedValuesChanged="@(args => OnUserSelectionChanged(args))"
+                               ToStringFunc="ResolveUserDisplayName"
+                               Dense="true"
+                               Class="mb-2">
+                        @if (availableUsers.Any())
+                        {
+                            @foreach (var user in availableUsers)
                             {
-                                @foreach (var user in availableUsers)
-                                {
-                                    <option value="@user.Id" selected="@newTeam.SelectedUserIds.Contains(user.Id)">@user.DisplayName (@user.UserPrincipalName)</option>
-                                }
+                                <MudSelectItem T="string" Value="@user.Id">@user.DisplayName (@user.UserPrincipalName)</MudSelectItem>
                             }
-                            else
-                            {
-                                <option disabled>No users found</option>
-                            }
-                        </select>
-                        <div class="form-text">Use Ctrl/Cmd + click to select multiple. Optional: add extra user ids below.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Extra members (user ids, comma-separated)</label>
-                        <input class="form-control" @bind="newTeam.ManualMembers" placeholder="user1,user2" />
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="whole-team" @bind="newTeam.WholeTeam" />
-                        <label class="form-check-label" for="whole-team">Whole team on-call (no rotation)</label>
-                    </div>
-                    <div class="d-flex justify-content-end gap-2">
-                        <button class="btn btn-primary" @onclick="SaveTeamAsync" disabled="@isSaving">@((editingTeam != null) ? "Save team" : "Add team")</button>
+                        }
+                        else
+                        {
+                            <MudSelectItem T="string" Disabled="true" Value="@string.Empty">No users found</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Class="mb-2 text-muted">Optional: add extra user ids below.</MudText>
+                    <MudTextField @bind-Value="newTeam.ManualMembers" Label="Extra members (user ids, comma-separated)" Placeholder="user1,user2" Class="mb-3" />
+                    <MudSwitch T="bool" @bind-Checked="newTeam.WholeTeam" Color="Color.Primary" Class="mb-3" Label="Whole team on-call (no rotation)" />
+                    <div class="d-flex justify-content-end gap-2 mb-3">
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="isSaving" OnClick="SaveTeamAsync">@((editingTeam != null) ? "Save team" : "Add team")</MudButton>
                         @if (editingTeam != null)
                         {
-                            <button class="btn btn-outline-secondary" @onclick="CancelTeamEdit">Cancel</button>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="CancelTeamEdit">Cancel</MudButton>
                         }
                     </div>
-                    <hr />
-                    <ul class="list-group list-group-flush">
+                    <MudDivider />
+                    <MudList T="object" Dense="true">
                         @if (teams.Any())
                         {
                             @foreach (var team in teams)
                             {
-                                <li class="list-group-item px-0">
-                                    <div class="d-flex justify-content-between">
+                                <MudListItem>
+                                    <div class="d-flex justify-content-between w-100 align-items-center">
                                         <div>
-                                            <div class="fw-semibold">@team.Name</div>
-                                            <div class="text-muted small">@team.Members.Count(m => m.Enabled) enabled members</div>
+                                            <MudText Typo="Typo.subtitle2">@team.Name</MudText>
+                                            <MudText Typo="Typo.caption">@team.Members.Count(m => m.Enabled) enabled members</MudText>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="badge bg-light text-dark border">@((team.ModeOverride ?? RotationMode.RollingIndividual).ToString())</span>
-                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEditTeam(team)">Edit</button>
+                                            <MudChip T="string" Variant="Variant.Outlined">@((team.ModeOverride ?? RotationMode.RollingIndividual).ToString())</MudChip>
+                                            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => StartEditTeam(team))">Edit</MudButton>
                                         </div>
                                     </div>
-                                </li>
+                                </MudListItem>
                             }
                         }
                         else
                         {
-                            <li class="list-group-item px-0 text-muted small">No teams yet.</li>
+                            <MudText Typo="Typo.caption" Class="mt-2 text-muted">No teams yet.</MudText>
                         }
-                    </ul>
-                </div>
-            </div>
-        </div>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
 
-        <div class="col-12 col-xl-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
+        <MudItem xs="12" lg="4">
+            <MudCard Class="h-100">
+                <MudCardContent>
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 class="mb-0">Customer binding</h5>
-                        <span class="badge bg-light text-dark border">@bindings.Count</span>
+                        <MudText Typo="Typo.h6">Customer binding</MudText>
+                        <MudChip T="string" Variant="Variant.Outlined">@bindings.Count</MudChip>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Customer</label>
-                        <select class="form-select" @bind="newBinding.CustomerId">
-                            <option value="">Select customer</option>
-                            @foreach (var c in customers)
-                            {
-                                <option value="@c.Id">@(!string.IsNullOrWhiteSpace(c.Name) ? c.Name : c.Id)</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Plan</label>
-                        <select class="form-select" @bind="newBinding.PlanId">
-                            <option value="">Select plan</option>
-                            @foreach (var p in plans)
-                            {
-                                <option value="@p.Id">@p.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">On-hours team</label>
-                        <select class="form-select" @bind="newBinding.OnTeamId">
-                            <option value="">Select team</option>
-                            @foreach (var t in teams)
-                            {
-                                <option value="@t.Id">@t.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Off-hours team</label>
-                        <select class="form-select" @bind="newBinding.OffTeamId">
-                            <option value="">Select team</option>
-                            @foreach (var t in teams)
-                            {
-                                <option value="@t.Id">@t.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Backup team</label>
-                        <select class="form-select" @bind="newBinding.BackupTeamId">
-                            <option value="">Select team</option>
-                            @foreach (var t in teams)
-                            {
-                                <option value="@t.Id">@t.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Effective from</label>
-                        <input class="form-control" type="date" @bind="newBinding.EffectiveFrom" />
-                    </div>
-                    <div class="d-flex justify-content-end">
-                        <button class="btn btn-primary" @onclick="SaveBindingAsync" disabled="@isSaving">@((editingBinding != null) ? "Save binding" : "Bind & regenerate")</button>
+                    <MudSelect T="string" Label="Customer" @bind-Value="newBinding.CustomerId" Dense="true" Class="mb-3">
+                        <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select customer</MudSelectItem>
+                        @foreach (var c in customers)
+                        {
+                            <MudSelectItem T="string" Value="@c.Id">@(!string.IsNullOrWhiteSpace(c.Name) ? c.Name : c.Id)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="string" Label="Plan" @bind-Value="newBinding.PlanId" Dense="true" Class="mb-3">
+                        <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select plan</MudSelectItem>
+                        @foreach (var p in plans)
+                        {
+                            <MudSelectItem T="string" Value="@p.Id">@p.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="string" Label="On-hours team" @bind-Value="newBinding.OnTeamId" Dense="true" Class="mb-3">
+                        <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select team</MudSelectItem>
+                        @foreach (var t in teams)
+                        {
+                            <MudSelectItem T="string" Value="@t.Id">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="string" Label="Off-hours team" @bind-Value="newBinding.OffTeamId" Dense="true" Class="mb-3">
+                        <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select team</MudSelectItem>
+                        @foreach (var t in teams)
+                        {
+                            <MudSelectItem T="string" Value="@t.Id">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="string" Label="Backup team" @bind-Value="newBinding.BackupTeamId" Dense="true" Class="mb-3">
+                        <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select team</MudSelectItem>
+                        @foreach (var t in teams)
+                        {
+                            <MudSelectItem T="string" Value="@t.Id">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudDatePicker @bind-Date="BindingEffectiveDate" Label="Effective from" Class="mb-3" />
+                    <div class="d-flex justify-content-end gap-2 mb-3">
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="isSaving" OnClick="SaveBindingAsync">@((editingBinding != null) ? "Save binding" : "Bind & regenerate")</MudButton>
                         @if (editingBinding != null)
                         {
-                            <button class="btn btn-outline-secondary ms-2" @onclick="CancelBindingEdit">Cancel</button>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="CancelBindingEdit">Cancel</MudButton>
                         }
                     </div>
-                    <hr />
-                    <ul class="list-group list-group-flush">
+                    <MudDivider />
+                    <MudList T="object" Dense="true">
                         @if (bindings.Any())
                         {
                             @foreach (var b in bindings)
                             {
                                 var customerName = customers.FirstOrDefault(c => c.Id == b.CustomerId)?.Name ?? b.CustomerId;
                                 var planName = plans.FirstOrDefault(p => p.Id == b.PlanDefinitionId)?.Name ?? b.PlanDefinitionId;
-                                var onTeam = teams.FirstOrDefault(t => t.Id == b.OnHoursTeamId)?.Name ?? b.OnHoursTeamId;
-                                var offTeam = teams.FirstOrDefault(t => t.Id == b.OffHoursTeamId)?.Name ?? b.OffHoursTeamId;
-                                var backupTeam = teams.FirstOrDefault(t => t.Id == b.BackupTeamId)?.Name ?? b.BackupTeamId;
-                                <li class="list-group-item px-0">
+                                var onTeam = ResolveTeamName(b.OnHoursTeamId);
+                                var offTeam = ResolveTeamName(b.OffHoursTeamId);
+                                var backupTeam = ResolveTeamName(b.BackupTeamId);
+                                <MudListItem>
                                     <div class="fw-semibold">@customerName</div>
                                     <div class="text-muted small">@planName</div>
-                                    <div class="text-muted small">On: @onTeam · Off: @offTeam · Backup: @backupTeam</div>
-                                    <div class="mt-1">
-                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEditBinding(b)">Edit</button>
-                                    </div>
-                                </li>
+                                    <div class="text-muted small">On: @onTeam | Off: @offTeam | Backup: @backupTeam</div>
+                                    <MudButton Class="mt-1" Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => StartEditBinding(b))">Edit</MudButton>
+                                </MudListItem>
                             }
                         }
                         else
                         {
-                            <li class="list-group-item px-0 text-muted small">No bindings yet.</li>
+                            <MudText Typo="Typo.caption" Class="mt-2 text-muted">No bindings yet.</MudText>
                         }
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudCard>
+                <MudCardContent>
+                    <MudGrid GutterSize="2" Class="mb-3">
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudSelect T="string" Label="Select customer" @bind-Value="selectedScheduleCustomerId" @bind-Value:after="OnScheduleCustomerChanged" Dense="true">
+                                <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select</MudSelectItem>
+                                @foreach (var c in customers)
+                                {
+                                    <MudSelectItem T="string" Value="@c.Id">@(!string.IsNullOrWhiteSpace(c.Name) ? c.Name : c.Id)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4" Class="d-flex align-items-end gap-2">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Disabled="@string.IsNullOrWhiteSpace(selectedScheduleCustomerId)" OnClick="LoadScheduleSlicesAsync">Refresh</MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Disabled="@string.IsNullOrWhiteSpace(selectedScheduleCustomerId)" OnClick="RegenerateScheduleAsync">Regenerate</MudButton>
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (string.IsNullOrWhiteSpace(selectedScheduleCustomerId))
+                    {
+                        <MudText Typo="Typo.caption" Class="text-muted">Select a customer to view current and upcoming on-call coverage.</MudText>
+                    }
+                    else if (isLoadingSchedule)
+                    {
+                        <MudText Typo="Typo.caption" Class="text-muted">Loading schedule...</MudText>
+                    }
+                    else
+                    {
+                        <MudGrid GutterSize="2">
+                            <MudItem xs="12" lg="4">
+                                <MudPaper Class="pa-3">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-2">Current coverage</MudText>
+                                    @if (currentSlice is not null)
+                                    {
+                                        <MudText Typo="Typo.body2">@currentSlice.Role</MudText>
+                                        <MudText Typo="Typo.caption">Team: @ResolveTeamName(currentSlice.TeamId)</MudText>
+                                        <MudText Typo="Typo.caption">Members: @FormatMembers(currentSlice.MemberIds)</MudText>
+                                        <MudText Typo="Typo.caption">Until @TimeZoneInfo.ConvertTimeFromUtc(currentSlice.EndUtc, displayTimeZone).ToString("yyyy-MM-dd HH:mm") (@displayTimeZoneId)</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.caption" Class="text-muted">No active slice</MudText>
+                                    }
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="12" lg="8">
+                                <div class="d-flex flex-column gap-3">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <MudText Typo="Typo.subtitle2">Daily timeline (@displayTimeZoneId)</MudText>
+                                            <div class="d-flex align-items-center gap-2 small">
+                                                <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">On</MudChip>
+                                                <MudChip T="string" Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small">Off</MudChip>
+                                                <MudChip T="string" Style="background-color:#f6c344;color:#000;" Variant="Variant.Filled" Size="Size.Small">Backup</MudChip>
+                                            </div>
+                                        </div>
+                                        <MudText Typo="Typo.caption" Class="text-muted">Ticks: 00 | 06 | 12 | 18 | 24 - @scheduleSlices.Count slice(s)</MudText>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(scheduleInfo))
+                                    {
+                                        <MudAlert Severity="Severity.Info" Dense="true">@scheduleInfo</MudAlert>
+                                    }
+                                    <div class="px-2">
+                                        <div class="d-flex text-muted small justify-content-between" style="padding-left: 120px;">
+                                            <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex flex-column gap-2">
+                                        @foreach (var day in scheduleDays)
+                                        {
+                                            <div class="d-flex align-items-center gap-3">
+                                                <div style="width: 120px; min-width: 120px;">
+                                                    <MudText Typo="Typo.subtitle2">@day.Date.ToString("ddd, MMM dd")</MudText>
+                                                    @if (day.Date == DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, displayTimeZone).Date))
+                                                    {
+                                                        <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small">Today</MudChip>
+                                                    }
+                                                </div>
+                                                <MudPaper Class="flex-grow-1 position-relative px-2 py-2" Style="min-height:60px; min-width:0; background-size:25% 100%; background-image: linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px);">
+                                                    <div class="position-relative" style="height: 54px; overflow: visible;">
+                                                        @foreach (var slice in day.Slices.OrderBy(s => RoleRank(s.Role)).ThenBy(s => s.StartLocal))
+                                                        {
+                                                            <MudTooltip Text="@($"{slice.Role}: {ResolveTeamName(slice.TeamId)} {FormatSliceRange(slice)}")">
+                                                                <MudPaper Class="position-absolute rounded-pill shadow-sm"
+                                                                          Style="@($"{GetTimelineStyle(slice, day.Date)}height:14px; min-width:12px; background-color:{RoleColor(slice.Role)}; opacity:0.95; border:1px solid rgba(0,0,0,0.08);")"
+                                                                          Elevation="1">
+                                                                    <div class="d-flex align-items-center justify-content-center text-truncate"
+                                                                         style="font-size:11px; line-height:14px; padding:0 4px; color:@RoleTextColor(slice.Role);">
+                                                                        @FormatSliceInitials(slice)
+                                                                    </div>
+                                                                </MudPaper>
+                                                            </MudTooltip>
+                                                        }
+                                                    </div>
+                                                    @if (!day.Slices.Any())
+                                                    {
+                                                        <MudText Typo="Typo.caption" Class="text-muted">No coverage</MudText>
+                                                    }
+                                                </MudPaper>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </MudItem>
+                        </MudGrid>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
 }
 
 @code {
-    private readonly int regenerationHorizonDays = 60;
-
-    private bool isLoading = true;
-    private bool isSaving;
-
     private List<OnCallPlan> plans = new();
     private List<OnCallTeam> teams = new();
     private List<CustomerPlanBinding> bindings = new();
@@ -281,11 +350,28 @@ else
     private List<User> availableUsers = new();
 
     private PlanInput newPlan = new();
-    private OnCallPlan? editingPlan;
     private TeamInput newTeam = new();
-    private OnCallTeam? editingTeam;
     private BindingInput newBinding = new();
+
+    private OnCallPlan? editingPlan;
+    private OnCallTeam? editingTeam;
     private CustomerPlanBinding? editingBinding;
+
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool isLoadingSchedule;
+
+    private string selectedScheduleCustomerId = string.Empty;
+    private ScheduleSlice? currentSlice;
+    private List<ScheduleSlice> scheduleSlices = new();
+    private List<ScheduleSliceView> localizedSlices = new();
+    private List<ScheduleDayView> scheduleDays = new();
+
+    private const int scheduleViewHorizonDays = 21;
+    private const int scheduleGenerationHorizonDays = 45;
+    private string scheduleInfo = string.Empty;
+    private TimeZoneInfo displayTimeZone = TimeZoneInfo.Utc;
+    private string displayTimeZoneId = "UTC";
 
     protected override async Task OnInitializedAsync()
     {
@@ -297,103 +383,78 @@ else
         isLoading = true;
         try
         {
-            var planTask = PlanRepository.ListAsync(limit: 200);
-            var teamTask = TeamRepository.ListAsync(limit: 200);
-            var bindingTask = BindingRepository.ListAsync(limit: 200);
-            var customerTask = CustomerRepository.ListActiveAsync(limit: 200);
+            var plansTask = PlanRepository.ListAsync(limit: 200);
+            var teamsTask = TeamRepository.ListAsync(limit: 200);
+            var bindingsTask = BindingRepository.ListAsync(limit: 200);
+            var customersTask = CustomerRepository.ListAsync(limit: 200);
             var usersTask = UserRepository.ListAsync(limit: 500);
 
-            await Task.WhenAll(planTask, teamTask, bindingTask, customerTask, usersTask);
+            await Task.WhenAll(plansTask, teamsTask, bindingsTask, customersTask, usersTask);
 
-            plans = planTask.Result.OrderBy(p => p.Name).ToList();
-            teams = teamTask.Result.OrderBy(t => t.Name).ToList();
-            bindings = bindingTask.Result.OrderBy(b => b.CustomerId).ToList();
-            customers = customerTask.Result.OrderBy(c => c.Name).ToList();
+            plans = plansTask.Result.OrderBy(p => p.Name).ToList();
+            teams = teamsTask.Result.OrderBy(t => t.Name).ToList();
+            bindings = bindingsTask.Result.OrderBy(b => b.CustomerId).ToList();
+            customers = customersTask.Result.OrderBy(c => c.Name).ToList();
             availableUsers = usersTask.Result.OrderBy(u => u.DisplayName).ToList();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load on-call data");
-            Snackbar.Add("Failed to load on-call data.", Severity.Error);
+            Snackbar.Add($"Failed to load on-call data: {ex.Message}", Severity.Error);
         }
         finally
         {
             isLoading = false;
-            StateHasChanged();
         }
     }
 
     private async Task SavePlanAsync()
     {
+        if (isSaving)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newPlan.Name))
+        {
+            Snackbar.Add("Plan name is required", Severity.Warning);
+            return;
+        }
+
+        if (!TryParseTime(newPlan.Start, out var start) || !TryParseTime(newPlan.End, out var end))
+        {
+            Snackbar.Add("Provide valid on-hours start and end times", Severity.Warning);
+            return;
+        }
+
         isSaving = true;
         try
         {
-            if (string.IsNullOrWhiteSpace(newPlan.Name))
+            var plan = new OnCallPlan
             {
-                Snackbar.Add("Plan name is required.", Severity.Warning);
-                return;
-            }
+                Id = editingPlan?.Id ?? Guid.NewGuid().ToString("N"),
+                Name = newPlan.Name.Trim(),
+                TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone.Trim(),
+                OnHours = BuildOnHours(start, end, newPlan.IncludeWeekends),
+                IncludeWeekends = newPlan.IncludeWeekends,
+                Holidays = ParseHolidays(newPlan.Holidays),
+                Escalation = editingPlan?.Escalation ?? new EscalationPolicy(),
+                Rotation = editingPlan?.Rotation ?? new RotationDefaults(),
+                Overrides = editingPlan?.Overrides ?? Array.Empty<PlanOverride>(),
+                Version = editingPlan?.Version ?? "v1"
+            };
 
-            if (!TimeSpan.TryParse(newPlan.Start, out var start) || !TimeSpan.TryParse(newPlan.End, out var end))
-            {
-                Snackbar.Add("Invalid time range.", Severity.Warning);
-                return;
-            }
+            var saved = await PlanRepository.UpsertAsync(plan);
+            plans = plans.Where(p => p.Id != saved.Id).Append(saved).OrderBy(p => p.Name).ToList();
 
-            var days = newPlan.IncludeWeekends
-                ? new[] { DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday }
-                : new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
-
-            var onHours = days
-                .Select(d => new DailyWindow(d, start, end))
-                .ToList();
-
-            var holidays = (newPlan.Holidays ?? string.Empty)
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(h => DateOnly.TryParse(h, out var date) ? (DateOnly?)date : null)
-                .Where(d => d.HasValue)
-                .Select(d => d!.Value)
-                .ToList();
-
-            if (editingPlan == null)
-            {
-                var plan = new OnCallPlan
-                {
-                    Name = newPlan.Name,
-                    TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone,
-                    OnHours = onHours,
-                    IncludeWeekends = newPlan.IncludeWeekends,
-                    Holidays = holidays,
-                    Escalation = new EscalationPolicy(TimeSpan.FromMinutes(5), 3, TimeSpan.FromMinutes(5)),
-                    Rotation = new RotationDefaults(RotationMode.RollingIndividual, RotationCadence.Daily, DateOnly.FromDateTime(DateTime.UtcNow.Date), 0),
-                    Version = "v1"
-                };
-
-                await PlanRepository.UpsertAsync(plan);
-                Snackbar.Add("Plan created.", Severity.Success);
-            }
-            else
-            {
-                var updated = editingPlan with
-                {
-                    Name = newPlan.Name,
-                    TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone,
-                    OnHours = onHours,
-                    IncludeWeekends = newPlan.IncludeWeekends,
-                    Holidays = holidays
-                };
-                await PlanRepository.UpsertAsync(updated);
-                Snackbar.Add("Plan updated.", Severity.Success);
-            }
-
-            newPlan = new PlanInput();
             editingPlan = null;
-            await LoadAsync();
+            ResetPlanForm();
+            Snackbar.Add("Plan saved", Severity.Success);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to save plan");
-            Snackbar.Add("Failed to save plan.", Severity.Error);
+            Snackbar.Add($"Failed to save plan: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -404,82 +465,82 @@ else
     private void StartEditPlan(OnCallPlan plan)
     {
         editingPlan = plan;
+        var firstWindow = plan.OnHours.FirstOrDefault();
         newPlan = new PlanInput
         {
             Name = plan.Name,
             TimeZone = plan.TimeZone,
-            Start = plan.OnHours.FirstOrDefault()?.Start.ToString(@"hh\:mm") ?? "09:00",
-            End = plan.OnHours.FirstOrDefault()?.End.ToString(@"hh\:mm") ?? "17:00",
+            Start = firstWindow != null ? firstWindow.Start.ToString(@"hh\:mm", CultureInfo.InvariantCulture) : "08:00",
+            End = firstWindow != null ? firstWindow.End.ToString(@"hh\:mm", CultureInfo.InvariantCulture) : "17:00",
             IncludeWeekends = plan.IncludeWeekends,
-            Holidays = string.Join(",", plan.Holidays.Select(h => h.ToString("yyyy-MM-dd")))
+            Holidays = string.Join(',', plan.Holidays.OrderBy(h => h).Select(h => h.ToString("yyyy-MM-dd")))
         };
     }
 
     private void CancelPlanEdit()
     {
         editingPlan = null;
+        ResetPlanForm();
+    }
+
+    private void ResetPlanForm()
+    {
         newPlan = new PlanInput();
     }
 
     private async Task SaveTeamAsync()
     {
+        if (isSaving)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newTeam.Name))
+        {
+            Snackbar.Add("Team name is required", Severity.Warning);
+            return;
+        }
+
+        var memberIds = new HashSet<string>(newTeam.SelectedUserIds, StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(newTeam.ManualMembers))
+        {
+            foreach (var id in newTeam.ManualMembers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                memberIds.Add(id);
+            }
+        }
+
+        if (!memberIds.Any())
+        {
+            Snackbar.Add("Add at least one team member", Severity.Warning);
+            return;
+        }
+
         isSaving = true;
         try
         {
-            if (string.IsNullOrWhiteSpace(newTeam.Name))
+            var members = memberIds.Select((id, idx) => new TeamMember(id, true, idx)).ToList();
+            var team = new OnCallTeam
             {
-                Snackbar.Add("Team name is required.", Severity.Warning);
-                return;
-            }
+                Id = editingTeam?.Id ?? Guid.NewGuid().ToString("N"),
+                Name = newTeam.Name.Trim(),
+                Enabled = true,
+                ModeOverride = newTeam.WholeTeam ? RotationMode.WholeTeam : (RotationMode?)null,
+                CadenceOverride = editingTeam?.CadenceOverride,
+                Members = members
+            };
 
-            var members = newTeam.SelectedUserIds
-                .Concat((newTeam.ManualMembers ?? string.Empty)
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select((id, idx) => new TeamMember(id, Enabled: true, Order: idx))
-                .ToList();
+            var saved = await TeamRepository.UpsertAsync(team);
+            teams = teams.Where(t => t.Id != saved.Id).Append(saved).OrderBy(t => t.Name).ToList();
 
-            if (!members.Any())
-            {
-                Snackbar.Add("Select at least one member.", Severity.Warning);
-                return;
-            }
-
-            var modeOverride = newTeam.WholeTeam ? RotationMode.WholeTeam : RotationMode.RollingIndividual;
-
-            if (editingTeam == null)
-            {
-                var team = new OnCallTeam
-                {
-                    Name = newTeam.Name,
-                    ModeOverride = modeOverride,
-                    Members = members
-                };
-
-                await TeamRepository.UpsertAsync(team);
-                Snackbar.Add("Team created.", Severity.Success);
-            }
-            else
-            {
-                var updated = editingTeam with
-                {
-                    Name = newTeam.Name,
-                    ModeOverride = modeOverride,
-                    Members = members
-                };
-
-                await TeamRepository.UpsertAsync(updated);
-                Snackbar.Add("Team updated.", Severity.Success);
-            }
-
-            newTeam = new TeamInput();
             editingTeam = null;
-            await LoadAsync();
+            ResetTeamForm();
+            Snackbar.Add("Team saved", Severity.Success);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to save team");
-            Snackbar.Add("Failed to save team.", Severity.Error);
+            Snackbar.Add($"Failed to save team: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -490,19 +551,87 @@ else
     private void StartEditTeam(OnCallTeam team)
     {
         editingTeam = team;
+        var memberIds = team.Members.Select(m => m.UserId).ToList();
+        var knownIds = memberIds.Where(id => availableUsers.Any(u => u.Id.Equals(id, StringComparison.OrdinalIgnoreCase))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var manualIds = memberIds.Where(id => !knownIds.Contains(id));
+
         newTeam = new TeamInput
         {
             Name = team.Name,
-            WholeTeam = (team.ModeOverride ?? RotationMode.RollingIndividual) == RotationMode.WholeTeam,
-            SelectedUserIds = team.Members.Where(m => m.Enabled).Select(m => m.UserId).ToList(),
-            ManualMembers = string.Empty
+            SelectedUserIds = knownIds,
+            ManualMembers = string.Join(',', manualIds),
+            WholeTeam = (team.ModeOverride ?? RotationMode.RollingIndividual) == RotationMode.WholeTeam
         };
     }
 
     private void CancelTeamEdit()
     {
         editingTeam = null;
+        ResetTeamForm();
+    }
+
+    private void ResetTeamForm()
+    {
         newTeam = new TeamInput();
+    }
+
+    private Task OnUserSelectionChanged(IEnumerable<string> values)
+    {
+        newTeam.SelectedUserIds = values != null
+            ? new HashSet<string>(values, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveBindingAsync()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newBinding.CustomerId) || string.IsNullOrWhiteSpace(newBinding.PlanId) || string.IsNullOrWhiteSpace(newBinding.OnTeamId) || string.IsNullOrWhiteSpace(newBinding.OffTeamId) || string.IsNullOrWhiteSpace(newBinding.BackupTeamId))
+        {
+            Snackbar.Add("Select customer, plan, and all three teams", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var binding = new CustomerPlanBinding
+            {
+                Id = editingBinding?.Id ?? newBinding.CustomerId,
+                CustomerId = newBinding.CustomerId,
+                PlanDefinitionId = newBinding.PlanId,
+                OnHoursTeamId = newBinding.OnTeamId,
+                OffHoursTeamId = newBinding.OffTeamId,
+                BackupTeamId = newBinding.BackupTeamId,
+                EffectiveFrom = newBinding.EffectiveFrom,
+                EffectiveThrough = editingBinding?.EffectiveThrough,
+                CustomerOverrides = editingBinding?.CustomerOverrides ?? Array.Empty<PlanOverride>()
+            };
+
+            var saved = await BindingRepository.UpsertAsync(binding);
+            bindings = bindings.Where(b => b.CustomerId != saved.CustomerId).Append(saved).OrderBy(b => b.CustomerId).ToList();
+
+            editingBinding = null;
+            selectedScheduleCustomerId = saved.CustomerId;
+            ResetBindingForm();
+            Snackbar.Add("Binding saved", Severity.Success);
+
+            await RegenerateForCustomer(saved.CustomerId);
+            await LoadScheduleSlicesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save binding");
+            Snackbar.Add($"Failed to save binding: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 
     private void StartEditBinding(CustomerPlanBinding binding)
@@ -515,115 +644,414 @@ else
             OnTeamId = binding.OnHoursTeamId,
             OffTeamId = binding.OffHoursTeamId,
             BackupTeamId = binding.BackupTeamId,
-            EffectiveFrom = binding.EffectiveFrom.ToDateTime(TimeOnly.MinValue)
+            EffectiveFrom = binding.EffectiveFrom
         };
+
+        selectedScheduleCustomerId = binding.CustomerId;
+        _ = LoadScheduleSlicesAsync();
     }
 
     private void CancelBindingEdit()
     {
         editingBinding = null;
-        newBinding = new BindingInput { EffectiveFrom = DateTime.UtcNow.Date };
+        ResetBindingForm();
     }
 
-    private async Task SaveBindingAsync()
+    private void ResetBindingForm()
     {
-        isSaving = true;
+        newBinding = new BindingInput
+        {
+            EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.Date)
+        };
+    }
+
+    private async Task LoadScheduleSlicesAsync()
+    {
+        if (string.IsNullOrWhiteSpace(selectedScheduleCustomerId))
+        {
+            currentSlice = null;
+            return;
+        }
+
+        isLoadingSchedule = true;
         try
         {
-            if (string.IsNullOrWhiteSpace(newBinding.CustomerId) ||
-                string.IsNullOrWhiteSpace(newBinding.PlanId) ||
-                string.IsNullOrWhiteSpace(newBinding.OnTeamId) ||
-                string.IsNullOrWhiteSpace(newBinding.OffTeamId) ||
-                string.IsNullOrWhiteSpace(newBinding.BackupTeamId))
+            var nowUtc = DateTime.UtcNow;
+            var fromUtc = nowUtc.Date;
+            var toUtc = nowUtc.Date.AddDays(scheduleViewHorizonDays + 1);
+            var slices = (await ScheduleSliceRepository.ListAsync(selectedScheduleCustomerId, fromUtc, toUtc, 500)).OrderBy(s => s.StartUtc).ToList();
+
+            scheduleSlices = slices;
+            currentSlice = slices.FirstOrDefault(s => s.StartUtc <= nowUtc && s.EndUtc > nowUtc);
+            ResolveDisplayTimeZone();
+            BuildScheduleDays(nowUtc);
+
+            if (!scheduleSlices.Any())
             {
-                Snackbar.Add("Customer, plan, on/off/backup teams are required.", Severity.Warning);
-                return;
+                var fallbackFrom = nowUtc.AddDays(-7);
+                var fallbackTo = nowUtc.AddDays(90);
+                var fallbackSlices = (await ScheduleSliceRepository.ListAsync(selectedScheduleCustomerId, fallbackFrom, fallbackTo, 1000)).OrderBy(s => s.StartUtc).ToList();
+                if (fallbackSlices.Any())
+                {
+                    scheduleSlices = fallbackSlices;
+                    currentSlice = scheduleSlices.FirstOrDefault(s => s.StartUtc <= nowUtc && s.EndUtc > nowUtc);
+                    ResolveDisplayTimeZone();
+                    BuildScheduleDays(nowUtc);
+                    scheduleInfo = $"Expanded window (-7 to +90 days, {displayTimeZoneId}). Slices: {scheduleSlices.Count}, days with coverage: {scheduleDays.Count(d => d.Slices.Any())}/{scheduleDays.Count}.";
+                }
+                else
+                {
+                    scheduleInfo = "No schedule slices found for this customer. Try Regenerate and verify plan/team binding.";
+                }
             }
-
-            var binding = new CustomerPlanBinding
+            else
             {
-                Id = string.IsNullOrWhiteSpace(newBinding.CustomerId) ? newBinding.CustomerId : newBinding.CustomerId,
-                CustomerId = newBinding.CustomerId,
-                PlanDefinitionId = newBinding.PlanId,
-                OnHoursTeamId = newBinding.OnTeamId,
-                OffHoursTeamId = newBinding.OffTeamId,
-                BackupTeamId = newBinding.BackupTeamId,
-                EffectiveFrom = DateOnly.FromDateTime(newBinding.EffectiveFrom.Date)
-            };
-
-            await BindingRepository.UpsertAsync(binding);
-
-            var now = DateTime.UtcNow;
-            await ScheduleService.RegenerateAsync(binding.CustomerId, now, now.AddDays(regenerationHorizonDays));
-
-            Snackbar.Add(editingBinding == null ? "Binding created and schedule regenerated." : "Binding updated and schedule regenerated.", Severity.Success);
-            newBinding = new BindingInput { EffectiveFrom = DateTime.UtcNow.Date };
-            editingBinding = null;
-            await LoadAsync();
+                scheduleInfo = $"Window {fromUtc:yyyy-MM-dd} to {toUtc:yyyy-MM-dd} ({displayTimeZoneId}). Slices: {scheduleSlices.Count}, days with coverage: {scheduleDays.Count(d => d.Slices.Any())}/{scheduleDays.Count}.";
+            }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to save binding");
-            Snackbar.Add("Failed to save binding.", Severity.Error);
+            Logger.LogError(ex, "Failed to load schedule slices for {CustomerId}", selectedScheduleCustomerId);
+            Snackbar.Add($"Failed to load schedule: {ex.Message}", Severity.Error);
         }
         finally
         {
-            isSaving = false;
+            isLoadingSchedule = false;
         }
     }
 
-    private static string FormatOnHours(OnCallPlan plan)
+    private async Task RegenerateScheduleAsync()
     {
-        if (plan.OnHours.Count == 0) return "none";
-        var first = plan.OnHours.First();
-        var last = plan.OnHours.Last();
-        return $"{first.Start:hh\\:mm}-{first.End:hh\\:mm} ({plan.OnHours.Count} windows)";
+        if (string.IsNullOrWhiteSpace(selectedScheduleCustomerId))
+        {
+            return;
+        }
+
+        isLoadingSchedule = true;
+        try
+        {
+            await RegenerateForCustomer(selectedScheduleCustomerId);
+            Snackbar.Add("Schedule regenerated", Severity.Success);
+            await LoadScheduleSlicesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to regenerate schedule");
+            Snackbar.Add($"Failed to regenerate: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoadingSchedule = false;
+        }
     }
 
-    private sealed record PlanInput
+    private async Task RegenerateForCustomer(string customerId)
+    {
+        var fromUtc = DateTime.UtcNow.Date;
+        var toUtc = fromUtc.AddDays(scheduleGenerationHorizonDays);
+        await ScheduleService.RegenerateAsync(customerId, fromUtc, toUtc);
+    }
+
+    private Task OnScheduleCustomerChanged()
+    {
+        return LoadScheduleSlicesAsync();
+    }
+
+    private static IReadOnlyList<DailyWindow> BuildOnHours(TimeSpan start, TimeSpan end, bool includeWeekends)
+    {
+        var days = Enum.GetValues<DayOfWeek>().Where(d => includeWeekends || (d != DayOfWeek.Saturday && d != DayOfWeek.Sunday));
+        return days.Select(d => new DailyWindow(d, start, end)).ToList();
+    }
+
+    private static IReadOnlyList<DateOnly> ParseHolidays(string holidays)
+    {
+        if (string.IsNullOrWhiteSpace(holidays))
+        {
+            return Array.Empty<DateOnly>();
+        }
+
+        var result = new List<DateOnly>();
+        foreach (var value in holidays.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (DateOnly.TryParse(value, out var date))
+            {
+                result.Add(date);
+            }
+        }
+
+        return result;
+    }
+
+    private static bool TryParseTime(string value, out TimeSpan time)
+    {
+        return TimeSpan.TryParseExact(value, new[] { "hh\\:mm", "h\\:mm" }, CultureInfo.InvariantCulture, out time);
+    }
+
+    private string FormatOnHours(OnCallPlan plan)
+    {
+        var window = plan.OnHours.FirstOrDefault();
+        if (window == null)
+        {
+            return "-";
+        }
+
+        var span = $"{window.Start:hh\\:mm}-{window.End:hh\\:mm}";
+        return plan.IncludeWeekends ? $"{span} (all days)" : $"{span} (weekdays)";
+    }
+
+    private string ResolveTeamName(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return "-";
+        }
+
+        return teams.FirstOrDefault(t => t.Id == id)?.Name ?? id;
+    }
+
+    private string ResolveUserDisplayName(string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return string.Empty;
+        }
+
+        var user = availableUsers.FirstOrDefault(u => u.Id.Equals(userId, StringComparison.OrdinalIgnoreCase));
+        if (user is null)
+        {
+            return userId;
+        }
+
+        return string.IsNullOrWhiteSpace(user.UserPrincipalName)
+            ? user.DisplayName
+            : $"{user.DisplayName} ({user.UserPrincipalName})";
+    }
+
+    private string GetInitials(string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return string.Empty;
+        }
+
+        var user = availableUsers.FirstOrDefault(u => u.Id.Equals(userId, StringComparison.OrdinalIgnoreCase));
+        var name = user?.DisplayName ?? userId;
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return name.Length >= 2 ? name[..2].ToUpperInvariant() : name.ToUpperInvariant();
+        }
+
+        if (parts.Length == 1)
+        {
+            var part = parts[0];
+            return part.Length >= 2 ? part[..2].ToUpperInvariant() : part.ToUpperInvariant();
+        }
+
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+    }
+
+    private string GetTeamInitials(string? teamId)
+    {
+        if (string.IsNullOrWhiteSpace(teamId))
+        {
+            return string.Empty;
+        }
+
+        var name = teams.FirstOrDefault(t => t.Id == teamId)?.Name ?? teamId;
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return name.Length >= 2 ? name[..2].ToUpperInvariant() : name.ToUpperInvariant();
+        }
+
+        if (parts.Length == 1)
+        {
+            var part = parts[0];
+            return part.Length >= 2 ? part[..2].ToUpperInvariant() : part.ToUpperInvariant();
+        }
+
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+    }
+
+    private string FormatSliceInitials(ScheduleSliceView slice)
+    {
+        var memberIds = slice.MemberIds ?? Array.Empty<string>();
+        var initials = memberIds.Select(GetInitials).Where(i => !string.IsNullOrWhiteSpace(i)).Take(3).ToList();
+        if (initials.Count == 0)
+        {
+            return GetTeamInitials(slice.TeamId);
+        }
+
+        return string.Join("·", initials);
+    }
+
+    private string FormatMembers(IEnumerable<string> memberIds)
+    {
+        if (memberIds == null)
+        {
+            return "-";
+        }
+
+        var names = memberIds.Select(ResolveUserDisplayName).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+        return names.Any() ? string.Join(", ", names) : "-";
+    }
+
+    private void ResolveDisplayTimeZone()
+    {
+        var planId = bindings.FirstOrDefault(b => b.CustomerId == selectedScheduleCustomerId)?.PlanDefinitionId;
+        var tzId = plans.FirstOrDefault(p => p.Id == planId)?.TimeZone;
+        displayTimeZoneId = string.IsNullOrWhiteSpace(tzId) ? "UTC" : tzId;
+        try
+        {
+            displayTimeZone = TimeZoneInfo.FindSystemTimeZoneById(displayTimeZoneId);
+        }
+        catch
+        {
+            displayTimeZone = TimeZoneInfo.Utc;
+            displayTimeZoneId = "UTC";
+        }
+    }
+
+    private DateTime? BindingEffectiveDate
+    {
+        get => newBinding.EffectiveFrom.ToDateTime(TimeOnly.MinValue);
+        set => newBinding.EffectiveFrom = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : DateOnly.FromDateTime(DateTime.UtcNow.Date);
+    }
+
+    private void BuildScheduleDays(DateTime nowUtc)
+    {
+        localizedSlices = scheduleSlices
+            .Select(s => new ScheduleSliceView(
+                s,
+                TimeZoneInfo.ConvertTimeFromUtc(s.StartUtc, displayTimeZone),
+                TimeZoneInfo.ConvertTimeFromUtc(s.EndUtc, displayTimeZone)))
+            .OrderBy(v => v.StartLocal)
+            .ToList();
+
+        var localNow = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, displayTimeZone);
+        var startDate = DateOnly.FromDateTime(localNow.Date);
+        var days = new List<ScheduleDayView>();
+        for (var i = 0; i < scheduleViewHorizonDays; i++)
+        {
+            var date = startDate.AddDays(i);
+            var dayStart = date.ToDateTime(TimeOnly.MinValue);
+            var dayEnd = dayStart.AddDays(1);
+
+            var slices = localizedSlices
+                .Where(s => s.StartLocal < dayEnd && s.EndLocal > dayStart)
+                .OrderBy(s => s.StartLocal)
+                .ToList();
+
+            days.Add(new ScheduleDayView
+            {
+                Date = date,
+                Slices = slices
+            });
+        }
+
+        scheduleDays = days;
+    }
+
+    private static int RoleRank(string role) => role switch
+    {
+        "OnHours" => 0,
+        "OffHours" => 1,
+        "Backup" => 2,
+        _ => 3
+    };
+
+    private static string RoleColor(string role) => role switch
+    {
+        "OnHours" => "#0d6efd",
+        "OffHours" => "#6c757d",
+        "Backup" => "#f6c344",
+        _ => "#adb5bd"
+    };
+
+    private static string RoleTextColor(string role) => role switch
+    {
+        "Backup" => "#000",
+        _ => "#fff"
+    };
+
+    private static int RoleOffset(string role) => role switch
+    {
+        "OnHours" => 4,
+        "OffHours" => 20,
+        "Backup" => 36,
+        _ => 4
+    };
+
+    private static string FormatSliceRange(ScheduleSliceView slice) =>
+        $"{slice.StartLocal:yyyy-MM-dd HH:mm}-{slice.EndLocal:HH:mm}";
+
+    private static string GetTimelineStyle(ScheduleSliceView slice, DateOnly date)
+    {
+        var dayStart = date.ToDateTime(TimeOnly.MinValue);
+        var dayEnd = dayStart.AddDays(1);
+        var start = slice.StartLocal;
+        var end = slice.EndLocal;
+
+        if (end <= dayStart || start >= dayEnd)
+        {
+            return "left:0;width:0;";
+        }
+
+        var startMinutes = Math.Max(0, (start - dayStart).TotalMinutes);
+        var endMinutes = Math.Min(1440, (end - dayStart).TotalMinutes);
+        var widthMinutes = Math.Max(2, endMinutes - startMinutes);
+
+        var leftPct = startMinutes / 1440d * 100d;
+        var widthPct = widthMinutes / 1440d * 100d;
+
+        var top = RoleOffset(slice.Role);
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "left:{0:F2}%;width:{1:F2}%;min-width:12px;max-width:100%;top:{2}px;",
+            leftPct,
+            widthPct,
+            top);
+    }
+
+    private class PlanInput
     {
         public string Name { get; set; } = string.Empty;
         public string TimeZone { get; set; } = "UTC";
-        public string Start { get; set; } = "09:00";
+        public string Start { get; set; } = "08:00";
         public string End { get; set; } = "17:00";
-        public bool IncludeWeekends { get; set; } = false;
+        public bool IncludeWeekends { get; set; }
         public string Holidays { get; set; } = string.Empty;
     }
 
-    private sealed record TeamInput
+    private class TeamInput
     {
         public string Name { get; set; } = string.Empty;
-        public List<string> SelectedUserIds { get; set; } = new();
+        public HashSet<string> SelectedUserIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public string ManualMembers { get; set; } = string.Empty;
         public bool WholeTeam { get; set; }
     }
 
-    private Task OnUserSelectionChanged(ChangeEventArgs e)
-    {
-        if (e.Value is string[] values)
-        {
-            newTeam.SelectedUserIds = values.ToList();
-        }
-        else if (e.Value is string single)
-        {
-            newTeam.SelectedUserIds = new List<string> { single };
-        }
-        else
-        {
-            newTeam.SelectedUserIds = new List<string>();
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private sealed record BindingInput
+    private class BindingInput
     {
         public string CustomerId { get; set; } = string.Empty;
         public string PlanId { get; set; } = string.Empty;
         public string OnTeamId { get; set; } = string.Empty;
         public string OffTeamId { get; set; } = string.Empty;
         public string BackupTeamId { get; set; } = string.Empty;
-        public DateTime EffectiveFrom { get; set; } = DateTime.UtcNow.Date;
+        public DateOnly EffectiveFrom { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+    }
+
+    private class ScheduleDayView
+    {
+        public DateOnly Date { get; set; }
+        public List<ScheduleSliceView> Slices { get; set; } = new();
+    }
+
+    private record ScheduleSliceView(ScheduleSlice Slice, DateTime StartLocal, DateTime EndLocal)
+    {
+        public string Role => Slice.Role;
+        public string TeamId => Slice.TeamId;
+        public IReadOnlyList<string> MemberIds => Slice.MemberIds;
     }
 }
-
