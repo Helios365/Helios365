@@ -87,6 +87,8 @@ public record OnCallTeam
     public RotationMode? ModeOverride { get; init; }
     [JsonProperty("cadenceOverride")]
     public RotationCadence? CadenceOverride { get; init; }
+    [JsonProperty("rotationIntervalDays")]
+    public int? RotationIntervalDays { get; init; }
     [JsonProperty("members")]
     public IReadOnlyList<TeamMember> Members { get; init; } = Array.Empty<TeamMember>();
 }

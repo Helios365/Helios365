@@ -115,6 +115,7 @@ else
                     <MudText Typo="Typo.caption" Class="mb-2 text-muted">Optional: add extra user ids below.</MudText>
                     <MudTextField @bind-Value="newTeam.ManualMembers" Label="Extra members (user ids, comma-separated)" Placeholder="user1,user2" Class="mb-3" />
                     <MudSwitch T="bool" @bind-Checked="newTeam.WholeTeam" Color="Color.Primary" Class="mb-3" Label="Whole team on-call (no rotation)" />
+                    <MudTextField T="int?" @bind-Value="newTeam.RotationIntervalDays" Label="Rotation interval (days)" InputType="InputType.Number" Disabled="newTeam.WholeTeam" Class="mb-3" />
                     <div class="d-flex justify-content-end gap-2 mb-3">
                         <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="isSaving" OnClick="SaveTeamAsync">@((editingTeam != null) ? "Save team" : "Add team")</MudButton>
                         @if (editingTeam != null)
@@ -527,6 +528,7 @@ else
                 Enabled = true,
                 ModeOverride = newTeam.WholeTeam ? RotationMode.WholeTeam : (RotationMode?)null,
                 CadenceOverride = editingTeam?.CadenceOverride,
+                RotationIntervalDays = newTeam.RotationIntervalDays,
                 Members = members
             };
 
@@ -560,7 +562,8 @@ else
             Name = team.Name,
             SelectedUserIds = knownIds,
             ManualMembers = string.Join(',', manualIds),
-            WholeTeam = (team.ModeOverride ?? RotationMode.RollingIndividual) == RotationMode.WholeTeam
+            WholeTeam = (team.ModeOverride ?? RotationMode.RollingIndividual) == RotationMode.WholeTeam,
+            RotationIntervalDays = team.RotationIntervalDays
         };
     }
 
@@ -1030,6 +1033,7 @@ else
         public HashSet<string> SelectedUserIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public string ManualMembers { get; set; } = string.Empty;
         public bool WholeTeam { get; set; }
+        public int? RotationIntervalDays { get; set; }
     }
 
     private class BindingInput

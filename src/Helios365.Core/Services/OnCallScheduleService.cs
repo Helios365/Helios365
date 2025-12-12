@@ -124,7 +124,7 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
             cancellationToken.ThrowIfCancellationRequested();
 
             var overrideForDay = ResolveOverride(plan, binding, date);
-            if (IsSkippedByWeekendOrHoliday(plan, date))
+            if (IsHoliday(plan, date))
             {
                 continue;
             }
@@ -151,10 +151,12 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
             {
                 var offSlice = CreateSlice(plan, binding.CustomerId, "OffHours", offTeam, backup, date, interval, tz, fromUtc, toUtc);
                 if (offSlice != null) slices.Add(offSlice);
-
-                var backupSlice = CreateSlice(plan, binding.CustomerId, "Backup", backup, null, date, interval, tz, fromUtc, toUtc);
-                if (backupSlice != null) slices.Add(backupSlice);
             }
+
+            // Backup always on, 24/7 per day.
+            var fullDay = (startLocal: date, endLocal: date.AddDays(1));
+            var dailyBackup = CreateSlice(plan, binding.CustomerId, "Backup", backup, null, date, fullDay, tz, fromUtc, toUtc);
+            if (dailyBackup != null) slices.Add(dailyBackup);
         }
 
         return Task.FromResult<IReadOnlyList<ScheduleSlice>>(slices
@@ -182,14 +184,8 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
         return customerOverride ?? planOverride;
     }
 
-    private static bool IsSkippedByWeekendOrHoliday(OnCallPlan plan, DateTime date)
+    private static bool IsHoliday(OnCallPlan plan, DateTime date)
     {
-        var isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-        if (isWeekend && !plan.IncludeWeekends)
-        {
-            return true;
-        }
-
         if (plan.Holidays.Any(h => h == DateOnly.FromDateTime(date)))
         {
             return true;
@@ -345,13 +341,16 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
         var cadence = team.CadenceOverride ?? rotation.Cadence;
         var anchorDate = rotation.AnchorDate ?? DateOnly.FromDateTime(localDate);
         var anchorIndex = rotation.AnchorIndex < 0 ? 0 : rotation.AnchorIndex;
+        var intervalDays = team.RotationIntervalDays.HasValue && team.RotationIntervalDays.Value > 0
+            ? team.RotationIntervalDays.Value
+            : cadence switch
+            {
+                RotationCadence.Weekly => 7,
+                _ => 1
+            };
+
         var deltaDays = localDate.Date - anchorDate.ToDateTime(TimeOnly.MinValue);
-        var increments = cadence switch
-        {
-            RotationCadence.Daily => (int)Math.Floor(deltaDays.TotalDays),
-            RotationCadence.Weekly => (int)Math.Floor(deltaDays.TotalDays / 7d),
-            _ => 0
-        };
+        var increments = (int)Math.Floor(deltaDays.TotalDays / intervalDays);
 
         var idx = enabled.Count == 0 ? 0 : (anchorIndex + increments) % enabled.Count;
         if (idx < 0) idx += enabled.Count;
