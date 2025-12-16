@@ -12,12 +12,21 @@ param location string = resourceGroup().location
 @maxLength(6)
 param appName string = 'helios'
 
-@description('Administrator email address for notifications')
-param adminEmail string
+@description('Email sender address for notifications')
+param emailSender string
+
+@description('SMS sender number for Azure Communication Services (E.164 format, e.g. +15555555555)')
+param smsSender string = ''
 
 @description('Data location for Azure Communication Services')
 @allowed(['United States', 'Europe', 'Australia', 'United Kingdom', 'France', 'Germany', 'Switzerland', 'Norway', 'Canada', 'India', 'Asia Pacific', 'Africa'])
 param dataLocation string = 'Europe'
+
+@description('DNS zone name for custom domain (e.g., helios.example.com). Leave empty to skip DNS provisioning.')
+param dnsZoneName string = ''
+
+@description('Hostname prefix for the web app CNAME within the DNS zone (e.g., portal -> portal.helios.example.com)')
+param dnsWebAppRecord string = 'portal'
 
 @description('Azure AD Domain for authentication')
 param azureAdDomain string = ''
@@ -45,11 +54,13 @@ var resourceNames = {
   storageAccount: toLower('${environment}${appName}${uniqueSuffix}st')
   functionApp: '${environment}-${appName}-${uniqueSuffix}-func'
   webApp: '${environment}-${appName}-${uniqueSuffix}-web'
-  appServicePlan: '${environment}-${appName}-${uniqueSuffix}-plan'
+  functionAppPlan: '${environment}-${appName}-${uniqueSuffix}-func-asp'
+  webAppPlan: '${environment}-${appName}-${uniqueSuffix}-app-asp'
   keyVault: '${environment}-${appName}-${uniqueSuffix}-kv'
   applicationInsights: '${environment}-${appName}-${uniqueSuffix}-ai'
   logAnalytics: '${environment}-${appName}-${uniqueSuffix}-law'
   communicationService: '${environment}-${appName}-${uniqueSuffix}-acs'
+  emailService: '${environment}-${appName}-${uniqueSuffix}-email'
 }
 
 var cosmosIpRules = [for ip in allowedIpAddresses: {
@@ -89,6 +100,10 @@ var commonTags = {
   Application: appName
   'Deployed-By': 'Bicep-Template'
 }
+
+var dnsZoneEnabled = dnsZoneName != ''
+var customHostName = dnsZoneEnabled ? '${dnsWebAppRecord}.${dnsZoneName}' : ''
+var certificateName = '${webApp.name}-${dnsWebAppRecord}-managedcert'
 
 // Log Analytics Workspace
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
@@ -438,9 +453,27 @@ resource communicationService 'Microsoft.Communication/CommunicationServices@202
   }
 }
 
+// Azure Email Communication Service
+resource emailService 'Microsoft.Communication/emailServices@2023-03-31' = {
+  name: resourceNames.emailService
+  // Email Services must be deployed to 'global'
+  location: 'global'
+  tags: commonTags
+  properties: {
+    dataLocation: dataLocation
+  }
+}
+
+// DNS Zone (optional)
+resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = if (dnsZoneEnabled) {
+  name: dnsZoneName
+  location: 'global'
+  tags: commonTags
+}
+
 // App Service Plan
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
-  name: resourceNames.appServicePlan
+  name: resourceNames.functionAppPlan
   location: location
   tags: commonTags
   sku: currentConfig.appServicePlanSku
@@ -482,8 +515,9 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'CosmosDbServicePrincipalsContainer', value: 'servicePrincipals' }
         { name: 'CosmosDbActionsContainer', value: 'actions' }
         { name: 'KeyVaultUri', value: keyVault.properties.vaultUri }
-        { name: 'AzureCommunicationServicesConnectionString', value: communicationService.listKeys().primaryConnectionString }
-        { name: 'FromEmail', value: adminEmail }
+        { name: 'CommunicationServices__ConnectionString', value: communicationService.listKeys().primaryConnectionString }
+        { name: 'CommunicationServices__EmailSender', value: emailSender }
+        { name: 'CommunicationServices__SmsSender', value: smsSender }
         { name: 'ASPNETCORE_ENVIRONMENT', value: environment == 'dev' ? 'Development' : 'Production' }
         { name: 'AZURE_FUNCTIONS_ENVIRONMENT', value: environment == 'dev' ? 'Development' : 'Production' }
       ]
@@ -493,10 +527,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
 
 // App Service Plan for Web App (separate from Functions)
 resource webAppServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
-  name: '${resourceNames.appServicePlan}-webapp'
+  name: resourceNames.webAppPlan
   location: location
   tags: commonTags
-  sku: environment == 'dev' ? { name: 'F1', tier: 'Free' } : { name: 'B1', tier: 'Basic' }
+  sku: { name: 'B1', tier: 'Basic' }
   kind: 'linux'
   properties: {
     reserved: true // Linux
@@ -543,6 +577,10 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'CosmosDb__OnCallTeamsContainer', value: 'onCallTeams' }
         { name: 'CosmosDb__PlanBindingsContainer', value: 'planBindings' }
         { name: 'CosmosDb__ScheduleSlicesContainer', value: 'scheduleSlices' }
+        // Communication Services
+        { name: 'CommunicationServices__ConnectionString', value: communicationService.listKeys().primaryConnectionString }
+        { name: 'CommunicationServices__EmailSender', value: emailSender }
+        { name: 'CommunicationServices__SmsSender', value: smsSender }
         // Logging Configuration
         { name: 'Logging__LogLevel__Default', value: environment == 'dev' ? 'Debug' : 'Information' }
         { name: 'Logging__LogLevel__Microsoft.AspNetCore', value: environment == 'dev' ? 'Warning' : 'Warning' }
@@ -552,6 +590,70 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'DirectoryService__Groups__Reader', value: directoryServiceGroups.reader }
       ]
     }
+  }
+}
+
+// CNAME for web app (optional DNS)
+resource webAppCname 'Microsoft.Network/dnsZones/CNAME@2018-05-01' = if (dnsZoneEnabled) {
+  name: dnsWebAppRecord
+  parent: dnsZone
+  properties: {
+    TTL: 300
+    CNAMERecord: {
+      cname: webApp.properties.defaultHostName
+    }
+  }
+}
+
+resource webAppTxt 'Microsoft.Network/dnsZones/TXT@2018-05-01' = if (dnsZoneEnabled) {
+  name: 'asuid.${dnsWebAppRecord}'
+  parent: dnsZone
+  properties: {
+    TTL: 3600
+    TXTRecords: [
+      {
+        value: [
+          webApp.properties.customDomainVerificationId
+        ]
+      }
+    ]
+  }
+}
+
+resource webAppManagedCert 'Microsoft.Web/certificates@2023-01-01' = if (dnsZoneEnabled) {
+  name: '${webApp.name}-${dnsWebAppRecord}-managedcert'
+  location: location
+  properties: {
+    serverFarmId: webAppServicePlan.id
+    canonicalName: customHostName
+  }
+  dependsOn: [
+    webAppCname
+    webAppTxt
+    webAppHostnameBinding
+  ]
+}
+
+resource webAppHostnameBinding 'Microsoft.Web/sites/hostnameBindings@2023-01-01' = if (dnsZoneEnabled) {
+  name: customHostName
+  parent: webApp
+  properties: {
+    hostNameType: 'Verified'
+    customHostNameDnsRecordType: 'CName'
+  }
+  dependsOn: [
+    webAppCname
+    webAppTxt
+  ]
+}
+
+// Upgrade binding to SSL after managed cert is issued
+module webAppHostnameBindingSsl 'modules/webapp-ssl-binding.bicep' = if (dnsZoneEnabled) {
+  name: 'webAppHostnameBindingSsl'
+  params: {
+    webAppName: webApp.name
+    hostName: customHostName
+    certificateName: certificateName
   }
 }
 

@@ -26,6 +26,8 @@
     "ConnectionString": "<cosmos db connection string>"
   },
   "CommunicationServices": {
-    "ConnectionString": "<communication services connection string>"
+    "ConnectionString": "<communication services connection string>",
+    "EmailSender": "<email sender, e.g. no-reply@contoso.com>",
+    "SmsSender": "<sms sender phone number>"
   }
 }

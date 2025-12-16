@@ -1,4 +1,6 @@
 using System.Net.Http;
+using Azure.Communication.Email;
+using Azure.Communication.Sms;
 using Helios365.Core.Repositories;
 using Helios365.Core.Services.Clients;
 using Helios365.Core.Services.Handlers;
@@ -14,6 +16,7 @@ using Microsoft.Graph;
 using Helios365.Core.Models;
 using Helios365.Core.Contracts;
 using Helios365.Core.Services;
+using Microsoft.Extensions.Options;
 
 namespace Helios365.Web.Extensions;
 
@@ -61,6 +64,44 @@ public static class ServiceCollectionExtensions
         {
             Timeout = TimeSpan.FromSeconds(60)
         });
+
+        services.Configure<CommunicationServiceOptions>(options =>
+        {
+            var communicationSection = configuration.GetSection("CommunicationServices");
+            options.ConnectionString = communicationSection["ConnectionString"]
+                ?? configuration["AzureCommunicationServicesConnectionString"]
+                ?? string.Empty;
+            options.EmailSender = communicationSection["EmailSender"]
+                ?? configuration["FromEmail"]
+                ?? string.Empty;
+            options.SmsSender = communicationSection["SmsSender"]
+                ?? configuration["FromSms"]
+                ?? string.Empty;
+        });
+
+        services.AddSingleton<EmailClient>(sp =>
+        {
+            var communicationOptions = sp.GetRequiredService<IOptions<CommunicationServiceOptions>>().Value;
+            if (string.IsNullOrWhiteSpace(communicationOptions.ConnectionString))
+            {
+                throw new InvalidOperationException("CommunicationServices:ConnectionString is required to send email or SMS.");
+            }
+
+            return new EmailClient(communicationOptions.ConnectionString);
+        });
+
+        services.AddSingleton<SmsClient>(sp =>
+        {
+            var communicationOptions = sp.GetRequiredService<IOptions<CommunicationServiceOptions>>().Value;
+            if (string.IsNullOrWhiteSpace(communicationOptions.ConnectionString))
+            {
+                throw new InvalidOperationException("CommunicationServices:ConnectionString is required to send email or SMS.");
+            }
+
+            return new SmsClient(communicationOptions.ConnectionString);
+        });
+
+        services.AddScoped<ICommunicationService, CommunicationService>();
 
         services.AddScoped<IWebTestService, WebTestService>();
         services.AddScoped<IMetricsClient, MetricsClient>();

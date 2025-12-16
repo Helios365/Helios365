@@ -1,8 +1,10 @@
 using System.Net.Http;
 using Azure.Communication.Email;
+using Azure.Communication.Sms;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Azure.ResourceManager.Resources;
+using Helios365.Core.Contracts;
 using Helios365.Core.Repositories;
 using Helios365.Core.Services;
 using Helios365.Core.Services.Clients;
@@ -11,6 +13,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Helios365.Functions.Extensions;
 
@@ -115,6 +118,41 @@ public static class ServiceCollectionExtensions
             throw new InvalidOperationException("KeyVaultUri is required for external service integrations.");
         }
 
+        services.Configure<CommunicationServiceOptions>(options =>
+        {
+            options.ConnectionString = configuration["CommunicationServices:ConnectionString"]
+                ?? configuration["AzureCommunicationServicesConnectionString"]
+                ?? string.Empty;
+            options.EmailSender = configuration["CommunicationServices:EmailSender"]
+                ?? configuration["FromEmail"]
+                ?? string.Empty;
+            options.SmsSender = configuration["CommunicationServices:SmsSender"]
+                ?? configuration["FromSms"]
+                ?? string.Empty;
+        });
+
+        services.AddSingleton<EmailClient>(sp =>
+        {
+            var communicationOptions = sp.GetRequiredService<IOptions<CommunicationServiceOptions>>().Value;
+            if (string.IsNullOrWhiteSpace(communicationOptions.ConnectionString))
+            {
+                throw new InvalidOperationException("CommunicationServices:ConnectionString is required to send email or SMS.");
+            }
+
+            return new EmailClient(communicationOptions.ConnectionString);
+        });
+
+        services.AddSingleton<SmsClient>(sp =>
+        {
+            var communicationOptions = sp.GetRequiredService<IOptions<CommunicationServiceOptions>>().Value;
+            if (string.IsNullOrWhiteSpace(communicationOptions.ConnectionString))
+            {
+                throw new InvalidOperationException("CommunicationServices:ConnectionString is required to send email or SMS.");
+            }
+
+            return new SmsClient(communicationOptions.ConnectionString);
+        });
+
         services.AddSingleton<SecretClient>(_ => new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential()));
 
         services.AddSingleton(sp => new HttpClient
@@ -143,6 +181,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IResourceService, ResourceService>();
         services.AddScoped<IResourceSyncService, ResourceSyncService>();
         services.AddScoped<IAlertService, AlertService>();
+        services.AddScoped<ICommunicationService, CommunicationService>();
 
         return services;
     }

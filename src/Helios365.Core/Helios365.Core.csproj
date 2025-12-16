@@ -19,6 +19,7 @@
     <PackageReference Include="Azure.ResourceManager.Compute" Version="1.13.0" />
     <PackageReference Include="Azure.Monitor.Query" Version="1.7.1" />
     <PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
+    <PackageReference Include="Azure.Communication.Sms" Version="1.0.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />

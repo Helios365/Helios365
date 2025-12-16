@@ -73,7 +73,11 @@ Store Service Principal secrets:
 - Value: Client Secret
 
 ### Azure Communication Services
-For sending escalation emails
+- Used for plain-text email and SMS notifications
+- Settings:
+  - `CommunicationServices:ConnectionString`
+  - `CommunicationServices:EmailSender`
+  - `CommunicationServices:SmsSender`
 
 
 # Development
