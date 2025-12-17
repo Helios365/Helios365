@@ -102,8 +102,6 @@ var commonTags = {
 }
 
 var dnsZoneEnabled = dnsZoneName != ''
-var customHostName = dnsZoneEnabled ? '${dnsWebAppRecord}.${dnsZoneName}' : ''
-var certificateName = '${webApp.name}-${dnsWebAppRecord}-managedcert'
 
 // Log Analytics Workspace
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
@@ -174,6 +172,7 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   tags: commonTags
   kind: 'GlobalDocumentDB'
   properties: {
+    minimalTlsVersion: 'Tls12'
     databaseAccountOfferType: 'Standard'
     consistencyPolicy: { defaultConsistencyLevel: 'Session' }
     locations: [
@@ -202,6 +201,10 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
     ipRules: cosmosIpRules
     networkAclBypass: 'AzureServices'
     publicNetworkAccess: 'Enabled'
+    analyticalStorageConfiguration: {
+      schemaType: 'WellDefined'
+    }
+    defaultIdentity: 'FirstPartyIdentity'
   }
 }
 
@@ -210,6 +213,7 @@ resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024
   parent: cosmosDb
   name: 'helios365'
   properties: {
+    
     resource: { id: 'helios365' }
     options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
   }
@@ -230,6 +234,10 @@ resource customersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
         excludedPaths: [{ path: '/"_etag"/?' }]
       }
       defaultTtl: -1
+      conflictResolutionPolicy: {
+        mode: 'LastWriterWins'
+        conflictResolutionPath: '/_ts'
+      }
     }
     options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
   }
@@ -249,6 +257,10 @@ resource resourcesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
         excludedPaths: [{ path: '/"_etag"/?' }]
       }
       defaultTtl: -1
+      conflictResolutionPolicy: {
+        mode: 'LastWriterWins'
+        conflictResolutionPath: '/_ts'
+      }
     }
     options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
   }
@@ -268,6 +280,10 @@ resource alertsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
         excludedPaths: [{ path: '/"_etag"/?' }]
       }
       defaultTtl: -1
+      conflictResolutionPolicy: {
+        mode: 'LastWriterWins'
+        conflictResolutionPath: '/_ts'
+      }
     }
     options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
   }
@@ -287,6 +303,10 @@ resource servicePrincipalsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDa
         excludedPaths: [{ path: '/"_etag"/?' }]
       }
       defaultTtl: -1
+      conflictResolutionPolicy: {
+        mode: 'LastWriterWins'
+        conflictResolutionPath: '/_ts'
+      }
     }
     options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
   }
@@ -306,6 +326,10 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         excludedPaths: [{ path: '/"_etag"/?' }]
       }
       defaultTtl: -1
+      conflictResolutionPolicy: {
+        mode: 'LastWriterWins'
+        conflictResolutionPath: '/_ts'
+      }
     }
     options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
   }
@@ -314,8 +338,8 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
   resource actionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
     parent: cosmosDatabase
     name: 'actions'
-    properties: {
-      resource: {
+  properties: {
+    resource: {
       id: 'actions'
       partitionKey: { paths: ['/customerId'], kind: 'Hash' }
       indexingPolicy: {
@@ -325,10 +349,15 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         excludedPaths: [{ path: '/"_etag"/?' }]
       }
       defaultTtl: -1
+      // Keep explicit to avoid drift and use Cosmos default behavior (LWW on server timestamp)
+      conflictResolutionPolicy: {
+        mode: 'LastWriterWins'
+        conflictResolutionPath: '/_ts'
       }
-      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
     }
+    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
   }
+}
 
   resource onCallPlansContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = {
     parent: cosmosDatabase
@@ -345,8 +374,14 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         indexingPolicy: {
           indexingMode: 'consistent'
           automatic: true
+          includedPaths: [{ path: '/*' }]
+          excludedPaths: [{ path: '/"_etag"/?' }]
         }
         defaultTtl: -1
+        conflictResolutionPolicy: {
+          mode: 'LastWriterWins'
+          conflictResolutionPath: '/_ts'
+        }
       }
       options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
     }
@@ -367,8 +402,14 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         indexingPolicy: {
           indexingMode: 'consistent'
           automatic: true
+          includedPaths: [{ path: '/*' }]
+          excludedPaths: [{ path: '/"_etag"/?' }]
         }
         defaultTtl: -1
+        conflictResolutionPolicy: {
+          mode: 'LastWriterWins'
+          conflictResolutionPath: '/_ts'
+        }
       }
       options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
     }
@@ -389,8 +430,14 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         indexingPolicy: {
           indexingMode: 'consistent'
           automatic: true
+          includedPaths: [{ path: '/*' }]
+          excludedPaths: [{ path: '/"_etag"/?' }]
         }
         defaultTtl: -1
+        conflictResolutionPolicy: {
+          mode: 'LastWriterWins'
+          conflictResolutionPath: '/_ts'
+        }
       }
       options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
     }
@@ -411,8 +458,14 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         indexingPolicy: {
           indexingMode: 'consistent'
           automatic: true
+          includedPaths: [{ path: '/*' }]
+          excludedPaths: [{ path: '/"_etag"/?' }]
         }
         defaultTtl: -1
+        conflictResolutionPolicy: {
+          mode: 'LastWriterWins'
+          conflictResolutionPath: '/_ts'
+        }
       }
       options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
     }
@@ -435,8 +488,8 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     // Remove enablePurgeProtection to avoid conflicts - it defaults based on enableSoftDelete
     networkAcls: {
       bypass: 'AzureServices'
-      defaultAction: 'Allow'
-      ipRules: []
+      defaultAction: 'Deny'
+      ipRules: [for ip in allowedIpAddresses: { value: ip }]
       virtualNetworkRules: []
     }
     publicNetworkAccess: 'Enabled'
@@ -619,44 +672,6 @@ resource webAppTxt 'Microsoft.Network/dnsZones/TXT@2018-05-01' = if (dnsZoneEnab
     ]
   }
 }
-
-resource webAppManagedCert 'Microsoft.Web/certificates@2023-01-01' = if (dnsZoneEnabled) {
-  name: '${webApp.name}-${dnsWebAppRecord}-managedcert'
-  location: location
-  properties: {
-    serverFarmId: webAppServicePlan.id
-    canonicalName: customHostName
-  }
-  dependsOn: [
-    webAppCname
-    webAppTxt
-    webAppHostnameBinding
-  ]
-}
-
-resource webAppHostnameBinding 'Microsoft.Web/sites/hostnameBindings@2023-01-01' = if (dnsZoneEnabled) {
-  name: customHostName
-  parent: webApp
-  properties: {
-    hostNameType: 'Verified'
-    customHostNameDnsRecordType: 'CName'
-  }
-  dependsOn: [
-    webAppCname
-    webAppTxt
-  ]
-}
-
-// Upgrade binding to SSL after managed cert is issued
-module webAppHostnameBindingSsl 'modules/webapp-ssl-binding.bicep' = if (dnsZoneEnabled) {
-  name: 'webAppHostnameBindingSsl'
-  params: {
-    webAppName: webApp.name
-    hostName: customHostName
-    certificateName: certificateName
-  }
-}
-
 // Role Assignment - Key Vault Secrets User for Function App
 resource keyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, functionApp.id, '4633458b-17de-408a-b874-0445c86b69e6')
