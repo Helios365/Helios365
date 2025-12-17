@@ -32,6 +32,15 @@ Set-AzKeyVaultSecret -VaultName <environment>-helios-xxxx-kv -Name "AzureAd--Cli
 
 ```
 
+### Validate Domain in ACS
+
+``` powershell
+.\scripts\New-AcsEmailDomain.ps1 -ResourceGroupName <rg> -EmailServiceName <environment>-helios-xxxx-email -DomainName <domain>
+
+# wait until DNS is replicated
+.\scripts\New-AcsEmailDomain.ps1 -ResourceGroupName <rg> -EmailServiceName <environment>-helios-xxxx-email -DomainName <domain> -InitiateVerification
+```
+
 ## Workflow
 
 ```
