@@ -2,7 +2,7 @@
 
 🌞 24/7/365 Automated Incident Response for Azure
 
-## Deploy to Azure
+## Install
 
 Deploy the complete Helios365 infrastructure to Azure in minutes:
 
@@ -27,8 +27,20 @@ Deploy the complete Helios365 infrastructure to Azure in minutes:
 # Create App Registration Client Secret
 Set-AzKeyVaultSecret -VaultName <environment>-helios-xxxx-kv -Name "AzureAd--ClientSecret" -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
 
+```
+
+### Give Microsoft Graph permission to web app
+
+``` powershell
+
 # Grant Web App Microsoft Graph permissions needed for reading Entra groups and users
 ./scripts/Grant-AppServiceGraphPermissions.ps1 -ResourceGroupName <rg> -AppServiceName <environment>-helios-xxxx-web
+
+```
+
+### Create managed certificate for web app
+``` powershell
+.\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <environment>-helios-xxxx-web -HostName portal.helios.viedoc.com
 
 ```
 
