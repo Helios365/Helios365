@@ -29,9 +29,17 @@ public class DirectorySyncService : IDirectorySyncService
 
         profile.DisplayName = user.DisplayName;
         profile.UserPrincipalName = user.UserPrincipalName;
-        profile.Mail = user.Mail;
-        profile.MobilePhone = user.MobilePhone;
-        profile.BusinessPhones = user.BusinessPhones;
+
+        if (!string.IsNullOrWhiteSpace(user.Mail))
+        {
+            profile.Mail = user.Mail;
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.MobilePhone))
+        {
+            profile.MobilePhone = user.MobilePhone;
+        }
+
         profile.LastSyncedUtc = DateTimeOffset.UtcNow;
 
         await repository.UpsertAsync(profile, cancellationToken).ConfigureAwait(false);

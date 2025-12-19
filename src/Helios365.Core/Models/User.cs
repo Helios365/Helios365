@@ -10,10 +10,9 @@ public class User
     public string UserPrincipalName { get; set; } = string.Empty;
     public string? Mail { get; set; }
     public string? MobilePhone { get; set; }
-    public IReadOnlyList<string> BusinessPhones { get; set; } = Array.Empty<string>();
 
     // App-specific fields
-    public string? NotificationPhone { get; set; }
+    public bool NotificationConsentGranted { get; set; }
     public string? TimeZone { get; set; }
     public DateTimeOffset LastSyncedUtc { get; set; } = DateTimeOffset.UtcNow;
 }

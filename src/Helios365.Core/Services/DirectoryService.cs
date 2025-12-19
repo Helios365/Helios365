@@ -20,7 +20,6 @@ public class DirectoryService : IDirectoryService
         "userPrincipalName",
         "mail",
         "mobilePhone",
-        "businessPhones",
         "accountEnabled"
     };
 
@@ -177,6 +176,6 @@ public class DirectoryService : IDirectoryService
         UserPrincipalName = user.UserPrincipalName ?? string.Empty,
         Mail = user.Mail,
         MobilePhone = user.MobilePhone,
-        BusinessPhones = user.BusinessPhones?.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray() ?? Array.Empty<string>()
+        // Business phones intentionally not synced; rely on mobile for notifications.
     };
 }

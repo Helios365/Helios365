@@ -1,0 +1,155 @@
+@using System.ComponentModel.DataAnnotations
+@inject IProfileService ProfileService
+@inject ILogger<ProfileCompletionModal> Logger
+
+<AuthorizeView Roles="Helios.Operator">
+    <Authorized Context="auth">
+        <MudOverlay Visible="isLoaded && shouldShowModal" DarkBackground="true" Class="d-flex align-items-center justify-content-center">
+            <MudPaper Class="pa-6" Style="width: 420px; max-width: 90vw;">
+                <MudStack Spacing="2">
+                    <div>
+                        <MudText Typo="Typo.h6">Complete your contact info</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Add an email and mobile number so we can reach you with alerts.
+                        </MudText>
+                    </div>
+                    <MudForm @ref="formRef" Model="form" OnValidSubmit="SaveAsync">
+                        <MudTextField T="string"
+                                      For="@(() => form.Mail)"
+                                      @bind-Value="form.Mail"
+                                      Label="Email"
+                                      Required="true"
+                                      InputType="InputType.Email"
+                                      FullWidth="true"
+                                      AutoComplete="email"
+                                      Class="mb-3" />
+                        <MudTextField T="string"
+                                      For="@(() => form.MobilePhone)"
+                                      @bind-Value="form.MobilePhone"
+                                      Label="Mobile phone"
+                                      Placeholder="+46701234567"
+                                      Required="true"
+                                      FullWidth="true"
+                                      AutoComplete="tel"
+                                      Class="mb-3" />
+                        <MudCheckBox T="bool"
+                                     @bind-Checked="form.NotificationConsentGranted"
+                                     Label="I allow Helios365 to text or call this number for notifications."
+                                     Class="mb-3" />
+                        @if (!string.IsNullOrWhiteSpace(errorMessage))
+                        {
+                            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">@errorMessage</MudAlert>
+                        }
+                        <div class="d-flex justify-content-end">
+                            <MudButton ButtonType="ButtonType.Submit"
+                                       Disabled="@isSaving"
+                                       Color="Color.Primary"
+                                       Variant="Variant.Filled">
+                                @if (isSaving)
+                                {
+                                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
+                                }
+                                Save &amp; Continue
+                            </MudButton>
+                        </div>
+                    </MudForm>
+                </MudStack>
+            </MudPaper>
+        </MudOverlay>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private readonly ContactForm form = new();
+    private MudForm? formRef;
+    private User? profile;
+    private bool isLoaded;
+    private bool isSaving;
+    private bool shouldShowModal;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfileAsync();
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        try
+        {
+            profile = await ProfileService.GetCurrentAsync();
+            if (profile != null)
+            {
+                form.Mail = profile.Mail ?? string.Empty;
+                form.MobilePhone = profile.MobilePhone ?? string.Empty;
+                form.NotificationConsentGranted = profile.NotificationConsentGranted;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load current user profile");
+            errorMessage = "We could not load your profile. Please try again.";
+        }
+        finally
+        {
+            isLoaded = true;
+            shouldShowModal = NeedsContact();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private bool NeedsContact() =>
+        string.IsNullOrWhiteSpace(form.Mail)
+        || string.IsNullOrWhiteSpace(form.MobilePhone)
+        || !form.NotificationConsentGranted;
+
+    private async Task SaveAsync()
+    {
+        if (formRef == null || isSaving)
+        {
+            return;
+        }
+
+        errorMessage = string.Empty;
+        form.Mail = form.Mail?.Trim() ?? string.Empty;
+        form.MobilePhone = form.MobilePhone?.Trim() ?? string.Empty;
+
+        await formRef.Validate();
+        if (!formRef.IsValid)
+        {
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            profile = await ProfileService.UpdateContactAsync(form.Mail, form.MobilePhone, form.NotificationConsentGranted);
+            shouldShowModal = NeedsContact();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save contact details for current user");
+            errorMessage = "Saving failed. Please verify the details and try again.";
+            shouldShowModal = true;
+        }
+        finally
+        {
+            isSaving = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private class ContactForm
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Enter a valid email")]
+        public string Mail { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Mobile phone is required")]
+        [RegularExpression("^\\+[1-9][0-9]{7,14}$", ErrorMessage = "Use international format, e.g. +46701234567")]
+        public string MobilePhone { get; set; } = string.Empty;
+
+        [Range(typeof(bool), "true", "true", ErrorMessage = "Please allow Helios365 to text or call this number.")]
+        public bool NotificationConsentGranted { get; set; }
+    }
+}

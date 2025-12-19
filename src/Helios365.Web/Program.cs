@@ -3,6 +3,7 @@ using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 using Helios365.Web.Extensions;
 using Helios365.Core.Services;
+using Helios365.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
@@ -85,6 +86,7 @@ builder.Services.AddServerSideBlazor()
 builder.Services.AddCosmosDb(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddRepositories(builder.Configuration);
 builder.Services.AddMudServices();
+builder.Services.AddScoped<IProfileService, ProfileService>();
 
 var app = builder.Build();
 
