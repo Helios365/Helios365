@@ -23,40 +23,40 @@
 }
 else
 {
-    <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center">
-                    <div class="display-6 text-primary">@alertViews.Count</div>
-                    <div class="text-muted">Total alerts</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center">
-                    <div class="display-6 text-dark">@openCount</div>
-                    <div class="text-muted">Open</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center">
-                    <div class="display-6 text-warning">@escalatedCount</div>
-                    <div class="text-muted">Escalated</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center">
-                    <div class="display-6 text-danger">@criticalCount</div>
-                    <div class="text-muted">Critical</div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <MudGrid Class="mb-4">
+        <MudItem xs="6" lg="3">
+            <MudCard Elevation="1" Class="h-100">
+                <MudCardContent Class="text-center">
+                    <MudText Typo="Typo.h4" Color="Color.Primary">@alertViews.Count</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total alerts</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="6" lg="3">
+            <MudCard Elevation="1" Class="h-100">
+                <MudCardContent Class="text-center">
+                    <MudText Typo="Typo.h4">@openCount</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Open</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="6" lg="3">
+            <MudCard Elevation="1" Class="h-100">
+                <MudCardContent Class="text-center">
+                    <MudText Typo="Typo.h4" Color="Color.Warning">@escalatedCount</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Escalated</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="6" lg="3">
+            <MudCard Elevation="1" Class="h-100">
+                <MudCardContent Class="text-center">
+                    <MudText Typo="Typo.h4" Color="Color.Error">@criticalCount</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Critical</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
 
     <MudPaper Class="pa-4">
         <div class="d-flex flex-wrap gap-3 mb-3 align-items-center">

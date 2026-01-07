@@ -285,30 +285,22 @@ a:hover {
 #components-reconnect-modal {
     display: none;
     position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    bottom: 1rem;
+    right: 1rem;
     z-index: 1000;
-    overflow: hidden;
-    background-color: rgba(0, 0, 0, 0.5);
-    text-align: center;
-    font-weight: bold;
 }
 
 #components-reconnect-modal::before {
     content: 'Attempting to reconnect to the server...';
     display: block;
-    padding: 2rem;
-    font-size: 1.2rem;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: white;
+    padding: 1rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #663c00;
+    background: #fff3cd;
     border-radius: 0.5rem;
-    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.3);
-    opacity: 1;
+    box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.2);
+    border-left: 4px solid #ffc107;
 }
 
 #components-reconnect-modal.components-reconnect-show,
@@ -319,10 +311,16 @@ a:hover {
 
 #components-reconnect-modal.components-reconnect-failed::before {
     content: 'Reconnection failed. Reload the page.';
+    color: #842029;
+    background: #f8d7da;
+    border-left-color: #dc3545;
 }
 
 #components-reconnect-modal.components-reconnect-rejected::before {
-    content: 'Could not reconnect to the server. Reload the page.';
+    content: 'Could not reconnect. Reload the page.';
+    color: #842029;
+    background: #f8d7da;
+    border-left-color: #dc3545;
 }
 
 .diagnostics-paper {

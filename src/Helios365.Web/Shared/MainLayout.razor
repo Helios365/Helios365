@@ -39,47 +39,48 @@
 
                 <!-- Mobile menu toggle -->
                 <div class="d-lg-none">
-                    <button class="btn btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNav">
-                        <i class="bi bi-list"></i>
-                    </button>
+                    <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                                   Color="Color.Inherit"
+                                   data-bs-toggle="collapse"
+                                   data-bs-target="#mobileNav" />
                 </div>
             </div>
 
             <!-- Mobile navigation (collapsible) -->
             <div class="collapse d-lg-none mb-3" id="mobileNav">
                 <div class="border-top border-white border-opacity-25 pt-3">
-                    <div class="row">
-                        <div class="col-6 col-sm-3 mb-2">
+                    <MudGrid>
+                        <MudItem xs="6" sm="3" Class="mb-2">
                             <NavLink class="nav-link text-white-50 p-2 rounded" href="/" Match="NavLinkMatch.All">
                                 <i class="bi bi-speedometer2 d-block text-center mb-1" style="font-size: 1.5rem;"></i>
                                 <small class="d-block text-center">Dashboard</small>
                             </NavLink>
-                        </div>
-                        <div class="col-6 col-sm-3 mb-2">
+                        </MudItem>
+                        <MudItem xs="6" sm="3" Class="mb-2">
                             <NavLink class="nav-link text-white-50 p-2 rounded" href="/alerts">
                                 <i class="bi bi-exclamation-triangle d-block text-center mb-1" style="font-size: 1.5rem;"></i>
                                 <small class="d-block text-center">Alerts</small>
                             </NavLink>
-                        </div>
-                        <div class="col-6 col-sm-3 mb-2">
+                        </MudItem>
+                        <MudItem xs="6" sm="3" Class="mb-2">
                             <NavLink class="nav-link text-white-50 p-2 rounded" href="/customers">
                                 <i class="bi bi-people d-block text-center mb-1" style="font-size: 1.5rem;"></i>
                                 <small class="d-block text-center">Customers</small>
                             </NavLink>
-                        </div>
-                        <div class="col-6 col-sm-3 mb-2">
+                        </MudItem>
+                        <MudItem xs="6" sm="3" Class="mb-2">
                             <NavLink class="nav-link text-white-50 p-2 rounded" href="/resources">
                                 <i class="bi bi-server d-block text-center mb-1" style="font-size: 1.5rem;"></i>
                                 <small class="d-block text-center">Resources</small>
                             </NavLink>
-                        </div>
-                        <div class="col-6 col-sm-3 mb-2">
+                        </MudItem>
+                        <MudItem xs="6" sm="3" Class="mb-2">
                             <NavLink class="nav-link text-white-50 p-2 rounded" href="/oncall">
                                 <i class="bi bi-telephone-inbound d-block text-center mb-1" style="font-size: 1.5rem;"></i>
                                 <small class="d-block text-center">On-Call</small>
                             </NavLink>
-                        </div>
-                    </div>
+                        </MudItem>
+                    </MudGrid>
                     <div class="text-center mt-2">
                         <LoginDisplay />
                     </div>
@@ -98,20 +99,17 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            <div class="row">
-                <div class="col-md-6">
+            <MudGrid>
+                <MudItem xs="12" md="6">
                     <div class="d-flex align-items-center mb-2">
                         <img src="logo.png" alt="Helios365" class="me-2" style="height:20px;" />
                         <strong>Helios365</strong>
                     </div>
-                </div>
-                <div class="col-md-6 text-md-end">
-                    <p class="text-muted small mb-1">© @DateTime.Now.Year Helios365. All rights reserved.</p>
-                    <div class="text-muted small">
-                        <a class="text-muted me-3" href="/privacy">Privacy</a>
-                    </div>
-                </div>
-            </div>
+                </MudItem>
+                <MudItem xs="12" md="6" Class="text-md-end">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">© @DateTime.Now.Year Helios365. All rights reserved.</MudText>
+                </MudItem>
+            </MudGrid>
         </div>
     </footer>
 </div>

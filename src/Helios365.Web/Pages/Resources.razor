@@ -18,24 +18,24 @@
 }
 else
 {
-    <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center">
-                    <div class="display-6 text-primary">@resourceViews.Count</div>
-                    <div class="text-muted">Total resources</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center">
-                    <div class="display-6 text-dark">@resourceViews.Select(r => r.Resource.CustomerId).Distinct().Count()</div>
-                    <div class="text-muted">Customers covered</div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <MudGrid Class="mb-4">
+        <MudItem xs="6" lg="3">
+            <MudCard Elevation="1" Class="h-100">
+                <MudCardContent Class="text-center">
+                    <MudText Typo="Typo.h4" Color="Color.Primary">@resourceViews.Count</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total resources</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="6" lg="3">
+            <MudCard Elevation="1" Class="h-100">
+                <MudCardContent Class="text-center">
+                    <MudText Typo="Typo.h4">@resourceViews.Select(r => r.Resource.CustomerId).Distinct().Count()</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Customers covered</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
 
     <MudPaper Class="pa-4">
         <div class="d-flex flex-wrap gap-3 mb-3 align-items-center">

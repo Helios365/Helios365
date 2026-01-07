@@ -2,24 +2,24 @@
 
 <MudPaper Class="pa-4 mb-3">
     <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
-    <div class="row g-3">
-        <div class="col-md-6">
+    <MudGrid>
+        <MudItem xs="12" md="6">
             <MudText Color="Color.Secondary" Typo="Typo.caption">Resource ID</MudText>
             <MudText Class="text-break text-monospace">@Resource?.ResourceId</MudText>
-        </div>
-        <div class="col-md-6">
+        </MudItem>
+        <MudItem xs="12" md="6">
             <MudText Color="Color.Secondary" Typo="Typo.caption">Resource Type</MudText>
             <MudText>@Resource?.ResourceType</MudText>
-        </div>
-        <div class="col-md-6">
+        </MudItem>
+        <MudItem xs="12" md="6">
             <MudText Color="Color.Secondary" Typo="Typo.caption">Resource Group</MudText>
             <MudText>@GetMetadata("resourceGroup")</MudText>
-        </div>
-        <div class="col-md-6">
+        </MudItem>
+        <MudItem xs="12" md="6">
             <MudText Color="Color.Secondary" Typo="Typo.caption">Location</MudText>
             <MudText>@GetMetadata("location")</MudText>
-        </div>
-    </div>
+        </MudItem>
+    </MudGrid>
 
     @if (Resource?.Metadata is not null && Resource.Metadata.Count > 0)
     {
