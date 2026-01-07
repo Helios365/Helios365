@@ -12,7 +12,8 @@ public class User
     public string? MobilePhone { get; set; }
 
     // App-specific fields
-    public bool NotificationConsentGranted { get; set; }
+    [JsonProperty("policiesAccepted")]
+    public bool PoliciesAccepted { get; set; }
     public string? TimeZone { get; set; }
     public DateTimeOffset LastSyncedUtc { get; set; } = DateTimeOffset.UtcNow;
 }

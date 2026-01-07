@@ -1,76 +1,132 @@
 @using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
 @inject IProfileService ProfileService
 @inject ILogger<ProfileCompletionModal> Logger
+@inject AuthenticationStateProvider AuthStateProvider
 
-<AuthorizeView Roles="Helios.Operator">
-    <Authorized Context="auth">
-        <MudOverlay Visible="isLoaded && shouldShowModal" DarkBackground="true" Class="d-flex align-items-center justify-content-center">
-            <MudPaper Class="pa-6" Style="width: 420px; max-width: 90vw;">
-                <MudStack Spacing="2">
-                    <div>
-                        <MudText Typo="Typo.h6">Complete your contact info</MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            Add an email and mobile number so we can reach you with alerts.
-                        </MudText>
-                    </div>
-                    <MudForm @ref="formRef" Model="form" OnValidSubmit="SaveAsync">
-                        <MudTextField T="string"
-                                      For="@(() => form.Mail)"
-                                      @bind-Value="form.Mail"
-                                      Label="Email"
-                                      Required="true"
-                                      InputType="InputType.Email"
-                                      FullWidth="true"
-                                      AutoComplete="email"
-                                      Class="mb-3" />
-                        <MudTextField T="string"
-                                      For="@(() => form.MobilePhone)"
-                                      @bind-Value="form.MobilePhone"
-                                      Label="Mobile phone"
-                                      Placeholder="+46701234567"
-                                      Required="true"
-                                      FullWidth="true"
-                                      AutoComplete="tel"
-                                      Class="mb-3" />
-                        <MudCheckBox T="bool"
-                                     @bind-Checked="form.NotificationConsentGranted"
-                                     Label="I allow Helios365 to text or call this number for notifications."
-                                     Class="mb-3" />
-                        @if (!string.IsNullOrWhiteSpace(errorMessage))
-                        {
-                            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">@errorMessage</MudAlert>
-                        }
-                        <div class="d-flex justify-content-end">
-                            <MudButton ButtonType="ButtonType.Submit"
-                                       Disabled="@isSaving"
-                                       Color="Color.Primary"
-                                       Variant="Variant.Filled">
-                                @if (isSaving)
-                                {
-                                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
-                                }
-                                Save &amp; Continue
-                            </MudButton>
+<MudDialog @bind-Visible="dialogVisible" Options="dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Complete your contact info</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            Add an email and mobile number so we can reach you.
+        </MudText>
+        <MudForm @ref="formRef" Model="form" OnValidSubmit="SaveAsync">
+            <MudTextField T="string"
+                          For="@(() => form.Mail)"
+                          @bind-Value="form.Mail"
+                          Label="Email"
+                          Required="true"
+                          InputType="InputType.Email"
+                          FullWidth="true"
+                          AutoComplete="email"
+                          Class="mb-3" />
+            <MudTextField T="string"
+                          For="@(() => form.MobilePhone)"
+                          @bind-Value="form.MobilePhone"
+                          Label="Mobile phone"
+                          Placeholder="+46701234567"
+                          Required="true"
+                          FullWidth="true"
+                          AutoComplete="tel"
+                          Class="mb-3" />
+            
+            <MudExpansionPanels Class="mb-3" Elevation="0">
+                <MudExpansionPanel Dense="true">
+                    <TitleContent>
+                        <div class="d-flex align-items-center">
+                            <MudText>Privacy Policy & Terms of Service</MudText>
                         </div>
-                    </MudForm>
-                </MudStack>
-            </MudPaper>
-        </MudOverlay>
-    </Authorized>
-</AuthorizeView>
+                    </TitleContent>
+                    <ChildContent>
+                        <div style="max-height: 300px; overflow-y: auto; padding: 8px;">
+                            <PolicyContent ShowDivider="true" />
+                        </div>
+                    </ChildContent>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+            
+            <MudCheckBox @bind-Value="form.PoliciesAccepted"
+                         For="@(() => form.PoliciesAccepted)"
+                         Label="I agree to the Privacy Policy and Terms of Service."
+                         Class="mb-3" />
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">@errorMessage</MudAlert>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="SaveAsync"
+                   Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="@isSaving">
+            @if (isSaving)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
+            }
+            Save &amp; Continue
+        </MudButton>
+    </DialogActions>
+</MudDialog>
 
 @code {
+    [Parameter]
+    public bool ForceShow { get; set; }
+    
+    [Parameter]
+    public EventCallback OnClosed { get; set; }
+    
+    private bool dialogVisible;
+    private bool isOperator;
     private readonly ContactForm form = new();
     private MudForm? formRef;
     private User? profile;
     private bool isLoaded;
     private bool isSaving;
-    private bool shouldShowModal;
     private string errorMessage = string.Empty;
+    
+    private readonly DialogOptions dialogOptions = new()
+    {
+        MaxWidth = MaxWidth.Small,
+        FullWidth = true,
+        CloseOnEscapeKey = false,
+        BackdropClick = false
+    };
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        // Check if user has Helios.Operator role
+        isOperator = user.IsInRole("Helios.Operator") || 
+                     user.HasClaim(c => c.Type == ClaimTypes.Role && c.Value == "Helios.Operator");
+        
         await LoadProfileAsync();
+    }
+    
+    protected override void OnParametersSet()
+    {
+        // When ForceShow changes to true, open the dialog
+        if (ForceShow && isLoaded)
+        {
+            dialogVisible = true;
+        }
+    }
+    
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && isLoaded)
+        {
+            var needsModal = ForceShow || NeedsContact();
+            if (needsModal != dialogVisible)
+            {
+                dialogVisible = needsModal;
+                StateHasChanged();
+            }
+        }
     }
 
     private async Task LoadProfileAsync()
@@ -82,7 +138,8 @@
             {
                 form.Mail = profile.Mail ?? string.Empty;
                 form.MobilePhone = profile.MobilePhone ?? string.Empty;
-                form.NotificationConsentGranted = profile.NotificationConsentGranted;
+                form.PoliciesAccepted = profile.PoliciesAccepted;
+                Logger.LogInformation("Loaded profile: PoliciesAccepted={PoliciesAccepted}", profile.PoliciesAccepted);
             }
         }
         catch (Exception ex)
@@ -93,7 +150,7 @@
         finally
         {
             isLoaded = true;
-            shouldShowModal = NeedsContact();
+            dialogVisible = ForceShow || NeedsContact();
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -101,7 +158,7 @@
     private bool NeedsContact() =>
         string.IsNullOrWhiteSpace(form.Mail)
         || string.IsNullOrWhiteSpace(form.MobilePhone)
-        || !form.NotificationConsentGranted;
+        || !form.PoliciesAccepted;
 
     private async Task SaveAsync()
     {
@@ -123,14 +180,27 @@
         isSaving = true;
         try
         {
-            profile = await ProfileService.UpdateContactAsync(form.Mail, form.MobilePhone, form.NotificationConsentGranted);
-            shouldShowModal = NeedsContact();
+            Logger.LogInformation("Checkbox value before save: {CheckboxValue}", form.PoliciesAccepted);
+            Logger.LogInformation("Saving profile: Mail={Mail}, MobilePhone={MobilePhone}, PoliciesAccepted={PoliciesAccepted}", 
+                form.Mail, form.MobilePhone, form.PoliciesAccepted);
+            profile = await ProfileService.UpdateContactAsync(form.Mail, form.MobilePhone, form.PoliciesAccepted);
+            
+            // Close the dialog after successful save
+            dialogVisible = false;
+            StateHasChanged();
+            
+            // Small delay to let the dialog close animation complete
+            await Task.Delay(100);
+            
+            if (OnClosed.HasDelegate)
+            {
+                await OnClosed.InvokeAsync();
+            }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to save contact details for current user");
             errorMessage = "Saving failed. Please verify the details and try again.";
-            shouldShowModal = true;
         }
         finally
         {
@@ -149,7 +219,15 @@
         [RegularExpression("^\\+[1-9][0-9]{7,14}$", ErrorMessage = "Use international format, e.g. +46701234567")]
         public string MobilePhone { get; set; } = string.Empty;
 
-        [Range(typeof(bool), "true", "true", ErrorMessage = "Please allow Helios365 to text or call this number.")]
-        public bool NotificationConsentGranted { get; set; }
+        [MustBeTrue(ErrorMessage = "Please confirm you agree to our Privacy Policy and Terms.")]
+        public bool PoliciesAccepted { get; set; }
+    }
+
+    public class MustBeTrueAttribute : ValidationAttribute
+    {
+        public override bool IsValid(object? value)
+        {
+            return value is bool b && b;
+        }
     }
 }

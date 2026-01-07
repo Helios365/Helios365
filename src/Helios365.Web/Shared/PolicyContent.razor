@@ -1,0 +1,46 @@
+@* Shared Privacy Policy and Terms of Service content *@
+
+<MudText Typo="Typo.body2">
+    <strong>Privacy Policy</strong><br/><br/>
+    <strong>What we collect:</strong><br/>
+    • Email address<br/>
+    • Mobile phone number<br/>
+    • Name, user principal, tenant/object identifiers<br/>
+    • Usage data and logs<br/><br/>
+    <strong>How we use your data:</strong><br/>
+    • Send critical alerts and notifications<br/>
+    • Triage and deliver alert notifications via SMS or voice calls<br/>
+    • Provide operational updates for on-call scheduling and customer incidents<br/>
+    • Communicate about service updates<br/>
+    • Authenticate and authorize your access to Helios365<br/>
+    • Improve our services<br/><br/>
+    <strong>Data retention:</strong><br/>
+    Your data is stored securely and retained for as long as you maintain an active account. Contact details are kept while your account is active or until you update/remove them. Access is limited to authorized personnel and services needed to deliver alerts.<br/><br/>
+    <strong>Your rights:</strong><br/>
+    You can request access, correction, or deletion of your personal data at any time. Update or correct your contact details on the Profile page. Contact your administrator if you need your account removed.<br/><br/>
+    
+    @if (ShowDivider)
+    {
+        <MudDivider Class="my-3" /><br/>
+    }
+    
+    <strong>Terms of Service</strong><br/><br/>
+    <strong>Acceptable Use:</strong><br/>
+    • You will provide accurate contact information<br/>
+    • You will not misuse or abuse the service<br/>
+    • You will keep your credentials secure<br/>
+    • Use Helios365 only for authorized operational monitoring and response<br/>
+    • Keep credentials and MFA devices secure; do not share accounts<br/>
+    • Do not misuse alerting channels (SMS/voice/email) or send non-operational traffic<br/><br/>
+    <strong>Service Availability:</strong><br/>
+    We strive to maintain service availability but do not guarantee uninterrupted access. Features and availability may change; scheduled maintenance or incidents may temporarily impact access.<br/><br/>
+    <strong>Notifications:</strong><br/>
+    By providing your contact information, you consent to receive alerts and service communications. Contact details you provide are used to deliver alerts and operational messages as described above.<br/><br/>
+    <strong>Changes to Terms:</strong><br/>
+    We may update these terms from time to time. Continued use constitutes acceptance of updated terms.
+</MudText>
+
+@code {
+    [Parameter]
+    public bool ShowDivider { get; set; } = true;
+}

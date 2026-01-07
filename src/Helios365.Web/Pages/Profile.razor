@@ -13,72 +13,47 @@
     <MudItem xs="12" lg="6">
         <MudCard>
             <MudCardHeader>
-                <MudText Typo="Typo.h6">Profile</MudText>
-            </MudCardHeader>
-            <MudCardContent>
-                <MudStack Spacing="2">
-                    <MudText Typo="Typo.subtitle2">@UserName</MudText>
-                    <MudText Typo="Typo.body2"><strong>User principal:</strong> @PreferredUsername</MudText>
-                    <MudText Typo="Typo.body2"><strong>Tenant:</strong> <code>@TenantId</code></MudText>
-                    <MudText Typo="Typo.body2"><strong>Object ID:</strong> <code>@ObjectId</code></MudText>
-                </MudStack>
-            </MudCardContent>
-        </MudCard>
-    </MudItem>
-    <MudItem xs="12" lg="6">
-        <MudCard>
-            <MudCardHeader>
                 <div class="d-flex justify-content-between align-items-center w-100">
-                    <MudText Typo="Typo.h6">Contact</MudText>
-                    @if (!string.IsNullOrWhiteSpace(saveStatus))
-                    {
-                        <MudChip T="string" Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small">@saveStatus</MudChip>
-                    }
+                    <MudText Typo="Typo.h6">Contact Information</MudText>
+                    <MudButton OnClick="OpenEditModal" 
+                               Color="Color.Primary" 
+                               Variant="Variant.Text"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Edit">
+                        Edit
+                    </MudButton>
                 </div>
             </MudCardHeader>
             <MudCardContent>
-                <MudForm @ref="formRef" Model="contactForm" OnValidSubmit="SaveContactAsync">
-                    <MudTextField T="string"
-                                  For="@(() => contactForm.Mail)"
-                                  @bind-Value="contactForm.Mail"
-                                  Label="Email"
-                                  Required="true"
-                                  InputType="InputType.Email"
-                                  Variant="Variant.Text"
-                                  FullWidth="true"
-                                  AutoComplete="email"
-                                  Class="mb-3" />
-                    <MudTextField T="string"
-                                  For="@(() => contactForm.MobilePhone)"
-                                  @bind-Value="contactForm.MobilePhone"
-                                  Label="Mobile phone"
-                                  Placeholder="+46701234567"
-                                  Required="true"
-                                  Variant="Variant.Text"
-                                  FullWidth="true"
-                                  AutoComplete="tel"
-                                  Class="mb-3" />
-                    <MudCheckBox T="bool"
-                                 @bind-Checked="contactForm.NotificationConsentGranted"
-                                 Label="I allow Helios365 to text or call this number for notifications."
-                                 Class="mb-3" />
-                    @if (!string.IsNullOrWhiteSpace(errorMessage))
-                    {
-                        <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">@errorMessage</MudAlert>
-                    }
-                    <div class="d-flex justify-content-end">
-                        <MudButton OnClick="ValidateAndSave"
-                                   Disabled="@isSaving"
-                                   Color="Color.Primary"
-                                   Variant="Variant.Filled">
-                            @if (isSaving)
-                            {
-                                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="me-2" />
-                            }
-                            Save contact info
-                        </MudButton>
-                    </div>
-                </MudForm>
+                @if (isLoading)
+                {
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                }
+                else if (currentProfile == null || string.IsNullOrWhiteSpace(currentProfile.Mail))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">No contact information set.</MudText>
+                }
+                else
+                {
+                    <MudStack Spacing="2">
+                        <div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Email</MudText>
+                            <MudText Typo="Typo.body2">@currentProfile.Mail</MudText>
+                        </div>
+                        <div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Mobile Phone</MudText>
+                            <MudText Typo="Typo.body2">@(currentProfile.MobilePhone ?? "-")</MudText>
+                        </div>
+                        <div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Policies Accepted</MudText>
+                            <MudChip T="string" 
+                                     Size="Size.Small" 
+                                     Color="@(currentProfile.PoliciesAccepted ? Color.Success : Color.Default)">
+                                @(currentProfile.PoliciesAccepted ? "Yes" : "No")
+                            </MudChip>
+                        </div>
+                    </MudStack>
+                }
             </MudCardContent>
         </MudCard>
     </MudItem>
@@ -112,28 +87,22 @@
     </MudItem>
 </MudGrid>
 
+@if (showEditModal)
+{
+    <ProfileCompletionModal ForceShow="true" OnClosed="HandleModalClosed" />
+}
+
 @code {
-    private string UserName { get; set; } = string.Empty;
-    private string PreferredUsername { get; set; } = string.Empty;
-    private string TenantId { get; set; } = string.Empty;
-    private string ObjectId { get; set; } = string.Empty;
     private List<string> Roles { get; set; } = new();
 
-    private readonly ContactForm contactForm = new();
-    private MudForm? formRef;
-    private bool isSaving;
-    private string saveStatus = string.Empty;
-    private string errorMessage = string.Empty;
+    private User? currentProfile;
+    private bool isLoading = true;
+    private bool showEditModal;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-
-        UserName = user.Identity?.Name ?? string.Empty;
-        PreferredUsername = user.FindFirstValue("preferred_username") ?? string.Empty;
-        TenantId = user.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid") ?? string.Empty;
-        ObjectId = user.FindFirstValue("http://schemas.microsoft.com/identity/claims/objectidentifier") ?? string.Empty;
 
         Roles = user.Claims
             .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles")
@@ -147,84 +116,38 @@
 
     private async Task LoadProfileAsync()
     {
-        errorMessage = string.Empty;
-        saveStatus = string.Empty;
+        isLoading = true;
         try
         {
-            var profile = await ProfileService.GetCurrentAsync();
-            if (profile != null)
-            {
-                contactForm.Mail = profile.Mail ?? string.Empty;
-                contactForm.MobilePhone = profile.MobilePhone ?? string.Empty;
-                contactForm.NotificationConsentGranted = profile.NotificationConsentGranted;
-            }
+            currentProfile = await ProfileService.GetCurrentAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to load profile for editing");
-            errorMessage = "Could not load your profile right now.";
-        }
-    }
-
-    private async Task ValidateAndSave()
-    {
-        if (formRef == null || isSaving)
-        {
-            return;
-        }
-
-        errorMessage = string.Empty;
-        saveStatus = string.Empty;
-        contactForm.Mail = contactForm.Mail?.Trim() ?? string.Empty;
-        contactForm.MobilePhone = contactForm.MobilePhone?.Trim() ?? string.Empty;
-
-        await formRef.Validate();
-        if (!formRef.IsValid)
-        {
-            return;
-        }
-
-        await SaveContactAsync();
-    }
-
-    private async Task SaveContactAsync()
-    {
-        if (isSaving)
-        {
-            return;
-        }
-
-        isSaving = true;
-        try
-        {
-            var updated = await ProfileService.UpdateContactAsync(contactForm.Mail, contactForm.MobilePhone, contactForm.NotificationConsentGranted);
-            contactForm.Mail = updated.Mail ?? contactForm.Mail;
-            contactForm.MobilePhone = updated.MobilePhone ?? contactForm.MobilePhone;
-            contactForm.NotificationConsentGranted = updated.NotificationConsentGranted;
-            saveStatus = "Saved";
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to update contact info");
-            errorMessage = "Saving failed. Please try again.";
+            Logger.LogError(ex, "Failed to load profile");
         }
         finally
         {
-            isSaving = false;
+            isLoading = false;
         }
     }
 
-    private class ContactForm
+    private void OpenEditModal()
     {
-        [Required(ErrorMessage = "Email is required")]
-        [EmailAddress(ErrorMessage = "Enter a valid email")]
-        public string Mail { get; set; } = string.Empty;
+        showEditModal = true;
+    }
+    
+    private async Task HandleModalClosed()
+    {
+        showEditModal = false;
+        await LoadProfileAsync();
+    }
 
-        [Required(ErrorMessage = "Mobile phone is required")]
-        [RegularExpression("^\\+[1-9][0-9]{7,14}$", ErrorMessage = "Use international format, e.g. +46701234567")]
-        public string MobilePhone { get; set; } = string.Empty;
-
-        [Range(typeof(bool), "true", "true", ErrorMessage = "Please allow Helios365 to text or call this number.")]
-        public bool NotificationConsentGranted { get; set; }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && showEditModal)
+        {
+            await Task.Delay(100);
+            await LoadProfileAsync();
+        }
     }
 }

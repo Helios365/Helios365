@@ -9,7 +9,7 @@ namespace Helios365.Web.Services;
 public interface IProfileService
 {
     Task<User?> GetCurrentAsync(CancellationToken cancellationToken = default);
-    Task<User> UpdateContactAsync(string mail, string mobilePhone, bool notificationConsentGranted, CancellationToken cancellationToken = default);
+    Task<User> UpdateContactAsync(string mail, string mobilePhone, bool policiesAccepted, CancellationToken cancellationToken = default);
 }
 
 public class ProfileService : IProfileService
@@ -39,7 +39,7 @@ public class ProfileService : IProfileService
         return await userRepository.GetAsync(userId, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<User> UpdateContactAsync(string mail, string mobilePhone, bool notificationConsentGranted, CancellationToken cancellationToken = default)
+    public async Task<User> UpdateContactAsync(string mail, string mobilePhone, bool policiesAccepted, CancellationToken cancellationToken = default)
     {
         var authState = await authStateProvider.GetAuthenticationStateAsync().ConfigureAwait(false);
         var principal = authState.User;
@@ -66,7 +66,7 @@ public class ProfileService : IProfileService
             profile.MobilePhone = mobilePhone.Trim();
         }
 
-        profile.NotificationConsentGranted = notificationConsentGranted;
+        profile.PoliciesAccepted = policiesAccepted;
         profile.LastSyncedUtc = DateTimeOffset.UtcNow;
 
         try

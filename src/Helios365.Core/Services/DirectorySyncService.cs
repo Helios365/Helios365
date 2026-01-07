@@ -40,6 +40,12 @@ public class DirectorySyncService : IDirectorySyncService
             profile.MobilePhone = user.MobilePhone;
         }
 
+        // Preserve user choices (e.g., policy acceptance) from existing profile
+        if (existing != null)
+        {
+            profile.PoliciesAccepted = existing.PoliciesAccepted;
+        }
+
         profile.LastSyncedUtc = DateTimeOffset.UtcNow;
 
         await repository.UpsertAsync(profile, cancellationToken).ConfigureAwait(false);
