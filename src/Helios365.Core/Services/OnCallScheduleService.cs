@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Helios365.Core.Models;
 using Helios365.Core.Repositories;
 
@@ -8,7 +5,6 @@ namespace Helios365.Core.Services;
 
 /// <summary>
 /// Generates on-call schedule slices from reusable plans + team bindings.
-/// A concrete implementation should handle time zones/DST and rotation math.
 /// </summary>
 public interface IOnCallScheduleGenerator
 {
@@ -24,73 +20,304 @@ public interface IOnCallScheduleGenerator
 }
 
 /// <summary>
-/// Orchestrates schedule generation, persistence, and lookup of current coverage.
+/// Data transfer object for all on-call administration data.
 /// </summary>
-public interface IOnCallScheduleService
+public record OnCallData(
+    IReadOnlyList<OnCallPlan> Plans,
+    IReadOnlyList<OnCallTeam> Teams,
+    IReadOnlyList<CustomerPlanBinding> Bindings,
+    IReadOnlyList<Customer> Customers,
+    IReadOnlyList<User> Users);
+
+/// <summary>
+/// Current on-call coverage including primary (on/off hours) and backup.
+/// </summary>
+public record CurrentCoverage(
+    ScheduleSlice? PrimarySlice,
+    ScheduleSlice? BackupSlice)
 {
-    Task RegenerateAsync(string customerId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
-    Task<ScheduleSlice?> GetCurrentAsync(string customerId, DateTime utcNow, CancellationToken cancellationToken = default);
+    public bool HasCoverage => PrimarySlice != null || BackupSlice != null;
 }
 
 /// <summary>
-/// Base implementation outline; concrete class should be registered with DI.
+/// Result of a schedule query including slices and display context.
 /// </summary>
+public record ScheduleQueryResult(
+    IReadOnlyList<ScheduleSlice> Slices,
+    CurrentCoverage CurrentCoverage,
+    TimeZoneInfo DisplayTimeZone,
+    string DisplayTimeZoneId);
+
+/// <summary>
+/// Orchestrates on-call administration: CRUD for plans/teams/bindings,
+/// schedule generation, and lookup of current coverage.
+/// </summary>
+public interface IOnCallScheduleService
+{
+    // Data loading
+    Task<OnCallData> GetOnCallDataAsync(CancellationToken cancellationToken = default);
+
+    // Plan operations
+    Task<OnCallPlan> SavePlanAsync(OnCallPlan plan, CancellationToken cancellationToken = default);
+    Task<OnCallPlan?> GetPlanAsync(string planId, CancellationToken cancellationToken = default);
+
+    // Team operations
+    Task<OnCallTeam> SaveTeamAsync(OnCallTeam team, CancellationToken cancellationToken = default);
+    Task<OnCallTeam?> GetTeamAsync(string teamId, CancellationToken cancellationToken = default);
+
+    // Binding operations
+    Task<CustomerPlanBinding> SaveBindingAsync(CustomerPlanBinding binding, CancellationToken cancellationToken = default);
+    Task<CustomerPlanBinding?> GetBindingAsync(string customerId, CancellationToken cancellationToken = default);
+
+    // Schedule operations
+    Task RegenerateAsync(string customerId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
+    Task<CurrentCoverage> GetCurrentCoverageAsync(string customerId, DateTime utcNow, CancellationToken cancellationToken = default);
+    Task<ScheduleQueryResult> GetScheduleAsync(string customerId, DateTime fromUtc, DateTime toUtc, int limit = 500, CancellationToken cancellationToken = default);
+
+    // Helpers
+    TimeZoneInfo ResolveDisplayTimeZone(string customerId, IReadOnlyList<CustomerPlanBinding> bindings, IReadOnlyList<OnCallPlan> plans);
+}
+
 public class OnCallScheduleService : IOnCallScheduleService
 {
-    private readonly IOnCallPlanRepository planRepository;
-    private readonly IOnCallTeamRepository teamRepository;
-    private readonly ICustomerPlanBindingRepository bindingRepository;
-    private readonly IScheduleSliceRepository sliceRepository;
-    private readonly IOnCallScheduleGenerator generator;
+    private readonly IOnCallPlanRepository _planRepository;
+    private readonly IOnCallTeamRepository _teamRepository;
+    private readonly ICustomerPlanBindingRepository _bindingRepository;
+    private readonly ICustomerRepository _customerRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IScheduleSliceRepository _sliceRepository;
+    private readonly IOnCallScheduleGenerator _generator;
 
     public OnCallScheduleService(
         IOnCallPlanRepository planRepository,
         IOnCallTeamRepository teamRepository,
         ICustomerPlanBindingRepository bindingRepository,
+        ICustomerRepository customerRepository,
+        IUserRepository userRepository,
         IScheduleSliceRepository sliceRepository,
         IOnCallScheduleGenerator generator)
     {
-        this.planRepository = planRepository;
-        this.teamRepository = teamRepository;
-        this.bindingRepository = bindingRepository;
-        this.sliceRepository = sliceRepository;
-        this.generator = generator;
+        _planRepository = planRepository;
+        _teamRepository = teamRepository;
+        _bindingRepository = bindingRepository;
+        _customerRepository = customerRepository;
+        _userRepository = userRepository;
+        _sliceRepository = sliceRepository;
+        _generator = generator;
+    }
+
+    public async Task<OnCallData> GetOnCallDataAsync(CancellationToken cancellationToken = default)
+    {
+        var plansTask = _planRepository.ListAsync(200, 0, cancellationToken);
+        var teamsTask = _teamRepository.ListAsync(200, 0, cancellationToken);
+        var bindingsTask = _bindingRepository.ListAsync(200, 0, cancellationToken);
+        var customersTask = _customerRepository.ListAsync(200, 0, cancellationToken);
+        var usersTask = _userRepository.ListAsync(500, 0, cancellationToken);
+
+        await Task.WhenAll(plansTask, teamsTask, bindingsTask, customersTask, usersTask);
+
+        return new OnCallData(
+            plansTask.Result.OrderBy(p => p.Name).ToList(),
+            teamsTask.Result.OrderBy(t => t.Name).ToList(),
+            bindingsTask.Result.OrderBy(b => b.CustomerId).ToList(),
+            customersTask.Result.OrderBy(c => c.Name).ToList(),
+            usersTask.Result.OrderBy(u => u.DisplayName).ToList());
+    }
+
+    public async Task<OnCallPlan> SavePlanAsync(OnCallPlan plan, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(plan.Name))
+        {
+            throw new ArgumentException("Plan name is required", nameof(plan));
+        }
+
+        if (string.IsNullOrWhiteSpace(plan.Id))
+        {
+            plan = plan with { Id = Guid.NewGuid().ToString("N") };
+        }
+
+        if (string.IsNullOrWhiteSpace(plan.TimeZone))
+        {
+            plan = plan with { TimeZone = "UTC" };
+        }
+
+        return await _planRepository.UpsertAsync(plan, cancellationToken);
+    }
+
+    public async Task<OnCallPlan?> GetPlanAsync(string planId, CancellationToken cancellationToken = default)
+    {
+        return await _planRepository.GetAsync(planId, cancellationToken);
+    }
+
+    public async Task<OnCallTeam> SaveTeamAsync(OnCallTeam team, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(team.Name))
+        {
+            throw new ArgumentException("Team name is required", nameof(team));
+        }
+
+        if (!team.Members.Any())
+        {
+            throw new ArgumentException("Team must have at least one member", nameof(team));
+        }
+
+        if (string.IsNullOrWhiteSpace(team.Id))
+        {
+            team = team with { Id = Guid.NewGuid().ToString("N") };
+        }
+
+        return await _teamRepository.UpsertAsync(team, cancellationToken);
+    }
+
+    public async Task<OnCallTeam?> GetTeamAsync(string teamId, CancellationToken cancellationToken = default)
+    {
+        return await _teamRepository.GetAsync(teamId, cancellationToken);
+    }
+
+    public async Task<CustomerPlanBinding> SaveBindingAsync(CustomerPlanBinding binding, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(binding.CustomerId))
+        {
+            throw new ArgumentException("Customer is required", nameof(binding));
+        }
+
+        if (string.IsNullOrWhiteSpace(binding.PlanDefinitionId))
+        {
+            throw new ArgumentException("Plan is required", nameof(binding));
+        }
+
+        if (string.IsNullOrWhiteSpace(binding.OnHoursTeamId) ||
+            string.IsNullOrWhiteSpace(binding.OffHoursTeamId) ||
+            string.IsNullOrWhiteSpace(binding.BackupTeamId))
+        {
+            throw new ArgumentException("All three teams (on-hours, off-hours, backup) are required", nameof(binding));
+        }
+
+        if (string.IsNullOrWhiteSpace(binding.Id))
+        {
+            binding = binding with { Id = binding.CustomerId };
+        }
+
+        return await _bindingRepository.UpsertAsync(binding, cancellationToken);
+    }
+
+    public async Task<CustomerPlanBinding?> GetBindingAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        return await _bindingRepository.GetAsync(customerId, cancellationToken);
     }
 
     public async Task RegenerateAsync(string customerId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
     {
-        var binding = await bindingRepository.GetAsync(customerId, cancellationToken) ?? throw new InvalidOperationException($"No binding for customer {customerId}");
-        var plan = await planRepository.GetAsync(binding.PlanDefinitionId, cancellationToken) ?? throw new InvalidOperationException($"Plan {binding.PlanDefinitionId} not found");
+        var binding = await _bindingRepository.GetAsync(customerId, cancellationToken)
+            ?? throw new InvalidOperationException($"No binding for customer {customerId}");
+        var plan = await _planRepository.GetAsync(binding.PlanDefinitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Plan {binding.PlanDefinitionId} not found");
 
-        var onTeam = await GetTeamAsync(binding.OnHoursTeamId, cancellationToken);
-        var offTeam = await GetTeamAsync(binding.OffHoursTeamId, cancellationToken);
-        var backupTeam = await GetTeamAsync(binding.BackupTeamId, cancellationToken);
+        var onTeam = await GetRequiredTeamAsync(binding.OnHoursTeamId, cancellationToken);
+        var offTeam = await GetRequiredTeamAsync(binding.OffHoursTeamId, cancellationToken);
+        var backupTeam = await GetRequiredTeamAsync(binding.BackupTeamId, cancellationToken);
 
-        // Drop future slices and regenerate forward
-        await sliceRepository.DeleteFutureAsync(customerId, fromUtc, cancellationToken);
+        await _sliceRepository.DeleteFutureAsync(customerId, fromUtc, cancellationToken);
 
-        var slices = await generator.GenerateAsync(plan, binding, onTeam, offTeam, backupTeam, fromUtc, toUtc, cancellationToken);
-        await sliceRepository.UpsertManyAsync(slices, cancellationToken);
+        var slices = await _generator.GenerateAsync(plan, binding, onTeam, offTeam, backupTeam, fromUtc, toUtc, cancellationToken);
+        await _sliceRepository.UpsertManyAsync(slices, cancellationToken);
     }
 
-    public async Task<ScheduleSlice?> GetCurrentAsync(string customerId, DateTime utcNow, CancellationToken cancellationToken = default)
+    public async Task<CurrentCoverage> GetCurrentCoverageAsync(string customerId, DateTime utcNow, CancellationToken cancellationToken = default)
     {
-        // Use slices if present; otherwise lazily regenerate a small horizon
-        var slices = await sliceRepository.ListAsync(customerId, utcNow.AddHours(-1), utcNow.AddHours(1), limit: 10, cancellationToken);
-        var current = slices.FirstOrDefault(s => s.StartUtc <= utcNow && s.EndUtc > utcNow);
-        return current;
+        var slices = await _sliceRepository.ListAsync(customerId, utcNow.AddHours(-1), utcNow.AddHours(1), 20, cancellationToken);
+        var activeSlices = slices.Where(s => s.StartUtc <= utcNow && s.EndUtc > utcNow).ToList();
+
+        var primarySlice = activeSlices.FirstOrDefault(s => s.Role == "OnHours" || s.Role == "OffHours");
+        var backupSlice = activeSlices.FirstOrDefault(s => s.Role == "Backup");
+
+        return new CurrentCoverage(primarySlice, backupSlice);
     }
 
-    private async Task<OnCallTeam> GetTeamAsync(string id, CancellationToken cancellationToken)
+    public async Task<ScheduleQueryResult> GetScheduleAsync(string customerId, DateTime fromUtc, DateTime toUtc, int limit = 500, CancellationToken cancellationToken = default)
     {
-        var team = await teamRepository.GetAsync(id, cancellationToken);
+        var nowUtc = DateTime.UtcNow;
+        var slices = (await _sliceRepository.ListAsync(customerId, fromUtc, toUtc, limit, cancellationToken))
+            .OrderBy(s => s.StartUtc)
+            .ToList();
+
+        // If no slices found in the requested window, try an expanded window
+        if (!slices.Any())
+        {
+            var fallbackFrom = nowUtc.AddDays(-7);
+            var fallbackTo = nowUtc.AddDays(90);
+            slices = (await _sliceRepository.ListAsync(customerId, fallbackFrom, fallbackTo, 1000, cancellationToken))
+                .OrderBy(s => s.StartUtc)
+                .ToList();
+        }
+
+        // Get current coverage (primary + backup)
+        var activeSlices = slices.Where(s => s.StartUtc <= nowUtc && s.EndUtc > nowUtc).ToList();
+        var primarySlice = activeSlices.FirstOrDefault(s => s.Role == "OnHours" || s.Role == "OffHours");
+        var backupSlice = activeSlices.FirstOrDefault(s => s.Role == "Backup");
+        var currentCoverage = new CurrentCoverage(primarySlice, backupSlice);
+
+        // Resolve display time zone from binding/plan
+        var binding = await _bindingRepository.GetAsync(customerId, cancellationToken);
+        var (timeZone, timeZoneId) = await ResolveTimeZoneAsync(binding, cancellationToken);
+
+        return new ScheduleQueryResult(slices, currentCoverage, timeZone, timeZoneId);
+    }
+
+    public TimeZoneInfo ResolveDisplayTimeZone(string customerId, IReadOnlyList<CustomerPlanBinding> bindings, IReadOnlyList<OnCallPlan> plans)
+    {
+        var planId = bindings.FirstOrDefault(b => b.CustomerId == customerId)?.PlanDefinitionId;
+        var tzId = plans.FirstOrDefault(p => p.Id == planId)?.TimeZone;
+
+        if (string.IsNullOrWhiteSpace(tzId))
+        {
+            return TimeZoneInfo.Utc;
+        }
+
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(tzId);
+        }
+        catch
+        {
+            return TimeZoneInfo.Utc;
+        }
+    }
+
+    private async Task<OnCallTeam> GetRequiredTeamAsync(string id, CancellationToken cancellationToken)
+    {
+        var team = await _teamRepository.GetAsync(id, cancellationToken);
         return team ?? throw new InvalidOperationException($"Team {id} not found");
+    }
+
+    private async Task<(TimeZoneInfo TimeZone, string TimeZoneId)> ResolveTimeZoneAsync(CustomerPlanBinding? binding, CancellationToken cancellationToken)
+    {
+        if (binding == null)
+        {
+            return (TimeZoneInfo.Utc, "UTC");
+        }
+
+        var plan = await _planRepository.GetAsync(binding.PlanDefinitionId, cancellationToken);
+        var tzId = plan?.TimeZone;
+
+        if (string.IsNullOrWhiteSpace(tzId))
+        {
+            return (TimeZoneInfo.Utc, "UTC");
+        }
+
+        try
+        {
+            return (TimeZoneInfo.FindSystemTimeZoneById(tzId), tzId);
+        }
+        catch
+        {
+            return (TimeZoneInfo.Utc, "UTC");
+        }
     }
 }
 
 /// <summary>
 /// Default generator implementation; handles per-day windows, rotation, and local-time conversion.
-/// Assumes OnHours windows do not cross midnight; adjust if you need overnight spans.
 /// </summary>
 public class OnCallScheduleGenerator : IOnCallScheduleGenerator
 {
@@ -153,7 +380,6 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
                 if (offSlice != null) slices.Add(offSlice);
             }
 
-            // Backup always on, 24/7 per day.
             var fullDay = (startLocal: date, endLocal: date.AddDays(1));
             var dailyBackup = CreateSlice(plan, binding.CustomerId, "Backup", backup, null, date, fullDay, tz, fromUtc, toUtc);
             if (dailyBackup != null) slices.Add(dailyBackup);
@@ -186,22 +412,12 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
 
     private static bool IsHoliday(OnCallPlan plan, DateTime date)
     {
-        if (plan.Holidays.Any(h => h == DateOnly.FromDateTime(date)))
-        {
-            return true;
-        }
-
-        return false;
+        return plan.Holidays.Any(h => h == DateOnly.FromDateTime(date));
     }
 
     private static OnCallTeam ResolveTeam(Dictionary<string, OnCallTeam> map, string requestedId, OnCallTeam fallback)
     {
-        if (map.TryGetValue(requestedId, out var team))
-        {
-            return team;
-        }
-
-        return fallback;
+        return map.TryGetValue(requestedId, out var team) ? team : fallback;
     }
 
     private static List<(DateTime startLocal, DateTime endLocal)> BuildIntervals(DateTime date, IEnumerable<DailyWindow> windows)
@@ -214,7 +430,6 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
 
             if (end <= start)
             {
-                // Treat as overnight into next day
                 end = end.AddDays(1);
             }
 
@@ -285,7 +500,6 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
             return null;
         }
 
-        // Trim to requested window
         if (endUtc <= windowStartUtc || startUtc >= windowEndUtc)
         {
             return null;

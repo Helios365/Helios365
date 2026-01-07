@@ -70,3 +70,5 @@ infrastructure/*.parameters.*.json
 
 # Don't want to add specific tests
 *.http
+
+.claude/
