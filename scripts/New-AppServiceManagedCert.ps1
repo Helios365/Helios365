@@ -39,7 +39,7 @@ if (-not $ExistingCert) {
     try {
         New-AzWebAppCertificate `
             -ResourceGroupName $ResourceGroupName `
-            -AppServiceName $AppServiceName `
+            -WebAppName $AppServiceName `
             -Name $CertName `
             -HostName $HostName `
             -AddBinding `
@@ -52,7 +52,7 @@ if (-not $ExistingCert) {
             # Fallback without custom name/addbinding (bind separately)
             New-AzWebAppCertificate `
                 -ResourceGroupName $ResourceGroupName `
-                -AppServiceName $AppServiceName `
+                -WebAppName $AppServiceName `
                 -HostName $HostName `
                 -SslState SniEnabled `
                 -ErrorAction Stop | Out-Null
@@ -71,14 +71,14 @@ if (-not $Cert) {
 
 New-AzWebAppSSLBinding `
     -ResourceGroupName $ResourceGroupName `
-    -AppServiceName $AppServiceName `
+    -WebAppName $AppServiceName `
     -Name $HostName `
     -Thumbprint $Cert.Thumbprint `
     -SslState SniEnabled `
     | Out-Null
 
 [PSCustomObject]@{
-    AppServiceName  = $AppServiceName
+    WebAppName      = $AppServiceName
     ResourceGroup   = $ResourceGroupName
     HostName        = $HostName
     CertificateName = $CertName

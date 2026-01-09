@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Helios365.Core.Models;
 using Helios365.Core.Repositories;
+using Helios365.Core.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
 
@@ -16,15 +17,18 @@ public class ProfileService : IProfileService
 {
     private readonly AuthenticationStateProvider authStateProvider;
     private readonly IUserRepository userRepository;
+    private readonly IDirectoryService directoryService;
     private readonly ILogger<ProfileService> logger;
 
     public ProfileService(
         AuthenticationStateProvider authStateProvider,
         IUserRepository userRepository,
+        IDirectoryService directoryService,
         ILogger<ProfileService> logger)
     {
         this.authStateProvider = authStateProvider;
         this.userRepository = userRepository;
+        this.directoryService = directoryService;
         this.logger = logger;
     }
 
@@ -36,7 +40,27 @@ public class ProfileService : IProfileService
             return null;
         }
 
-        return await userRepository.GetAsync(userId, cancellationToken).ConfigureAwait(false);
+        var user = await userRepository.GetAsync(userId, cancellationToken).ConfigureAwait(false);
+        if (user != null)
+        {
+            return user;
+        }
+
+        // User not in repository yet - fetch from Entra to prefill form
+        var directoryUser = await directoryService.GetUserAsync(userId, cancellationToken).ConfigureAwait(false);
+        if (directoryUser == null)
+        {
+            return null;
+        }
+
+        return new User
+        {
+            Id = directoryUser.Id,
+            DisplayName = directoryUser.DisplayName,
+            UserPrincipalName = directoryUser.UserPrincipalName,
+            Mail = directoryUser.Mail,
+            MobilePhone = directoryUser.MobilePhone
+        };
     }
 
     public async Task<User> UpdateContactAsync(string mail, string mobilePhone, bool policiesAccepted, CancellationToken cancellationToken = default)

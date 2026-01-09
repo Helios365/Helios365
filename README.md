@@ -22,10 +22,10 @@ Deploy the complete Helios365 infrastructure to Azure in minutes:
 
 ``` powershell
 # Create App Registration
-./scripts/New-AppRegistration.ps1 -Hostname portal.<dns-zone-name> -AdminGroupId <group object id> -OperatorGroupId <group object id> -ReaderGroupId <group object id>
+./scripts/New-AppRegistration.ps1 -Hostname portal.<domain> -AdminGroupId <group object id> -OperatorGroupId <group object id> -ReaderGroupId <group object id>
 
 # Create App Registration Client Secret
-Set-AzKeyVaultSecret -VaultName <environment>-helios-xxxx-kv -Name "AzureAd--ClientSecret" -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
+Set-AzKeyVaultSecret -VaultName <prefix>-helios-xxxx-kv -Name "AzureAd--ClientSecret" -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
 
 ```
 
@@ -41,7 +41,7 @@ Set-AzKeyVaultSecret -VaultName <environment>-helios-xxxx-kv -Name "AzureAd--Cli
 
 ### Create managed certificate for web app
 ``` powershell
-.\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-web -HostName portal.helios.viedoc.com
+.\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-web -HostName portal.<domain>
 
 ```
 
@@ -54,11 +54,20 @@ Set-AzKeyVaultSecret -VaultName <environment>-helios-xxxx-kv -Name "AzureAd--Cli
 .\scripts\New-AcsEmailDomain.ps1 -ResourceGroupName <rg> -EmailServiceName <prefix>-helios-xxxx-email -CommunicationServiceName <prefix>-helios-xxxx-acs -DomainName <domain> -InitiateVerification
 ```
 
-### Deploy Web app
+### Generate SSL-cert for app service
+
+``` powershell
+.\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-web -HostName portal.<domain>
+```
+
+### Deploy Web app (manually)
 
 ```powershell
-dotnet publish -c Release -o ./publish
-
+dotnet publish -c Release ./src/Helios365.Web/Helios365.Web.csproj -o publish
+Compress-Archive -Path ./publish/* -DestinationPath ./deploy.zip -Force
+Publish-AzWebApp -ResourceGroupName <rg> -Name <prefix>-helios-xxxx-web -ArchivePath (Resolve-Path ./deploy.zip)
+Remove-Item ./publish -Recurse -Force
+Remove-Item ./deploy.zip -Force
 ```
 
 ## Workflow

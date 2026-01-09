@@ -20,6 +20,7 @@ public class DirectoryService : IDirectoryService
         "userPrincipalName",
         "mail",
         "mobilePhone",
+        "businessPhones",
         "accountEnabled"
     };
 
@@ -175,7 +176,6 @@ public class DirectoryService : IDirectoryService
         DisplayName = user.DisplayName ?? string.Empty,
         UserPrincipalName = user.UserPrincipalName ?? string.Empty,
         Mail = user.Mail,
-        MobilePhone = user.MobilePhone,
-        // Business phones intentionally not synced; rely on mobile for notifications.
+        MobilePhone = user.MobilePhone ?? user.BusinessPhones?.FirstOrDefault(),
     };
 }
