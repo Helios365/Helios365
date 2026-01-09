@@ -5,20 +5,14 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "9695468490150832512"
+      "templateHash": "1133578578760394500"
     }
   },
   "parameters": {
-    "environment": {
+    "prefix": {
       "type": "string",
-      "defaultValue": "dev",
-      "allowedValues": [
-        "dev",
-        "stage",
-        "prod"
-      ],
       "metadata": {
-        "description": "The environment to deploy (dev, staging, prod)"
+        "description": "Prefix for resource names (e.g., company name or project identifier)"
       }
     },
     "location": {
@@ -121,79 +115,31 @@
       "type": "array",
       "defaultValue": [],
       "metadata": {
-        "description": "Allowed IP addresses for Cosmos DB access"
+        "description": "IP addresses to allow access to Cosmos DB, Storage, and Key Vault (for local development/portal access)"
       }
     }
   },
   "variables": {
-    "copy": [
-      {
-        "name": "cosmosIpRules",
-        "count": "[length(parameters('allowedIpAddresses'))]",
-        "input": {
-          "ipAddressOrRange": "[parameters('allowedIpAddresses')[copyIndex('cosmosIpRules')]]"
-        }
-      }
-    ],
     "uniqueSuffix": "[substring(uniqueString(resourceGroup().id), 0, 4)]",
     "resourceNames": {
-      "cosmosDb": "[format('{0}-{1}-{2}-cosmos', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "storageAccount": "[toLower(format('{0}{1}{2}st', parameters('environment'), parameters('appName'), variables('uniqueSuffix')))]",
-      "functionApp": "[format('{0}-{1}-{2}-func', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "webApp": "[format('{0}-{1}-{2}-web', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "functionAppPlan": "[format('{0}-{1}-{2}-func-asp', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "webAppPlan": "[format('{0}-{1}-{2}-app-asp', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "keyVault": "[format('{0}-{1}-{2}-kv', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "applicationInsights": "[format('{0}-{1}-{2}-ai', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "logAnalytics": "[format('{0}-{1}-{2}-law', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "communicationService": "[format('{0}-{1}-{2}-acs', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]",
-      "emailService": "[format('{0}-{1}-{2}-email', parameters('environment'), parameters('appName'), variables('uniqueSuffix'))]"
+      "cosmosDb": "[format('{0}-{1}-{2}-cosmos', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "storageAccount": "[toLower(format('{0}{1}{2}st', parameters('prefix'), parameters('appName'), variables('uniqueSuffix')))]",
+      "functionApp": "[format('{0}-{1}-{2}-func', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "webApp": "[format('{0}-{1}-{2}-web', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "functionAppPlan": "[format('{0}-{1}-{2}-func-asp', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "webAppPlan": "[format('{0}-{1}-{2}-web-asp', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "keyVault": "[format('{0}-{1}-{2}-kv', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "applicationInsights": "[format('{0}-{1}-{2}-ai', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "logAnalytics": "[format('{0}-{1}-{2}-law', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "communicationService": "[format('{0}-{1}-{2}-acs', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "emailService": "[format('{0}-{1}-{2}-email', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "vnet": "[format('{0}-{1}-{2}-vnet', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]"
     },
-    "environmentConfig": {
-      "dev": {
-        "cosmosDbCapabilities": [
-          {
-            "name": "EnableServerless"
-          }
-        ],
-        "appServicePlanSku": {
-          "name": "Y1",
-          "tier": "Dynamic"
-        },
-        "isZoneRedundant": false,
-        "cosmosDbThroughput": null,
-        "storageAccountSku": "Standard_LRS"
-      },
-      "staging": {
-        "cosmosDbCapabilities": [],
-        "appServicePlanSku": {
-          "name": "EP1",
-          "tier": "ElasticPremium"
-        },
-        "isZoneRedundant": false,
-        "cosmosDbThroughput": 400,
-        "storageAccountSku": "Standard_LRS"
-      },
-      "prod": {
-        "cosmosDbCapabilities": [],
-        "appServicePlanSku": {
-          "name": "EP2",
-          "tier": "ElasticPremium"
-        },
-        "isZoneRedundant": true,
-        "cosmosDbThroughput": 800,
-        "storageAccountSku": "Standard_ZRS"
-      }
-    },
-    "currentConfig": "[variables('environmentConfig')[parameters('environment')]]",
     "commonTags": {
-      "Environment": "[parameters('environment')]",
       "Application": "[parameters('appName')]",
       "Deployed-By": "Bicep-Template"
     },
-    "dnsZoneEnabled": "[not(equals(parameters('dnsZoneName'), ''))]",
-    "customHostName": "[if(variables('dnsZoneEnabled'), format('{0}.{1}', parameters('dnsWebAppRecord'), parameters('dnsZoneName')), '')]",
-    "certificateName": "[format('{0}-{1}-managedcert', variables('resourceNames').webApp, parameters('dnsWebAppRecord'))]"
+    "dnsZoneEnabled": "[not(equals(parameters('dnsZoneName'), ''))]"
   },
   "resources": [
     {
@@ -206,7 +152,7 @@
         "sku": {
           "name": "PerGB2018"
         },
-        "retentionInDays": "[if(equals(parameters('environment'), 'prod'), 90, 30)]",
+        "retentionInDays": 90,
         "features": {
           "enableLogAccessUsingOnlyResourcePermissions": true
         }
@@ -236,7 +182,7 @@
       "location": "[parameters('location')]",
       "tags": "[variables('commonTags')]",
       "sku": {
-        "name": "[variables('currentConfig').storageAccountSku]"
+        "name": "Standard_ZRS"
       },
       "kind": "StorageV2",
       "properties": {
@@ -248,10 +194,18 @@
         "allowBlobPublicAccess": false,
         "allowSharedKeyAccess": true,
         "networkAcls": {
+          "copy": [
+            {
+              "name": "ipRules",
+              "count": "[length(parameters('allowedIpAddresses'))]",
+              "input": {
+                "value": "[parameters('allowedIpAddresses')[copyIndex('ipRules')]]"
+              }
+            }
+          ],
           "bypass": "AzureServices",
           "virtualNetworkRules": [],
-          "ipRules": [],
-          "defaultAction": "Allow"
+          "defaultAction": "Deny"
         },
         "supportsHttpsTrafficOnly": true,
         "encryption": {
@@ -272,6 +226,135 @@
       }
     },
     {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('resourceNames').vnet]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "app-integration",
+            "properties": {
+              "addressPrefix": "10.0.1.0/24",
+              "delegations": [
+                {
+                  "name": "Microsoft.Web.serverFarms",
+                  "properties": {
+                    "serviceName": "Microsoft.Web/serverFarms"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "private-endpoints",
+            "properties": {
+              "addressPrefix": "10.0.2.0/24",
+              "privateEndpointNetworkPolicies": "Disabled"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "privatelink.vaultcore.azure.net",
+      "location": "global",
+      "tags": "[variables('commonTags')]"
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "privatelink.documents.azure.com",
+      "location": "global",
+      "tags": "[variables('commonTags')]"
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "[format('privatelink.blob.{0}', environment().suffixes.storage)]",
+      "location": "global",
+      "tags": "[variables('commonTags')]"
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "[format('privatelink.file.{0}', environment().suffixes.storage)]",
+      "location": "global",
+      "tags": "[variables('commonTags')]"
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[format('{0}/{1}', 'privatelink.vaultcore.azure.net', format('{0}-link', variables('resourceNames').vnet))]",
+      "location": "global",
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[format('{0}/{1}', 'privatelink.documents.azure.com', format('{0}-link', variables('resourceNames').vnet))]",
+      "location": "global",
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.documents.azure.com')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[format('{0}/{1}', format('privatelink.blob.{0}', environment().suffixes.storage), format('{0}-link', variables('resourceNames').vnet))]",
+      "location": "global",
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[format('{0}/{1}', format('privatelink.file.{0}', environment().suffixes.storage), format('{0}-link', variables('resourceNames').vnet))]",
+      "location": "global",
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.file.{0}', environment().suffixes.storage))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+      ]
+    },
+    {
       "type": "Microsoft.DocumentDB/databaseAccounts",
       "apiVersion": "2024-05-15",
       "name": "[variables('resourceNames').cosmosDb]",
@@ -279,6 +362,16 @@
       "tags": "[variables('commonTags')]",
       "kind": "GlobalDocumentDB",
       "properties": {
+        "copy": [
+          {
+            "name": "ipRules",
+            "count": "[length(parameters('allowedIpAddresses'))]",
+            "input": {
+              "ipAddressOrRange": "[parameters('allowedIpAddresses')[copyIndex('ipRules')]]"
+            }
+          }
+        ],
+        "minimalTlsVersion": "Tls12",
         "databaseAccountOfferType": "Standard",
         "consistencyPolicy": {
           "defaultConsistencyLevel": "Session"
@@ -290,15 +383,23 @@
             "isZoneRedundant": false
           }
         ],
-        "capabilities": "[variables('currentConfig').cosmosDbCapabilities]",
-        "backupPolicy": "[if(equals(parameters('environment'), 'dev'), createObject('type', 'Periodic', 'periodicModeProperties', createObject('backupIntervalInMinutes', 1440, 'backupRetentionIntervalInHours', 168)), createObject('type', 'Continuous', 'continuousModeProperties', createObject('tier', 'Continuous30Days')))]",
-        "enableAutomaticFailover": "[equals(parameters('environment'), 'prod')]",
+        "capabilities": [],
+        "backupPolicy": {
+          "type": "Continuous",
+          "continuousModeProperties": {
+            "tier": "Continuous30Days"
+          }
+        },
+        "enableAutomaticFailover": true,
         "enableMultipleWriteLocations": false,
         "disableKeyBasedMetadataWriteAccess": true,
         "disableLocalAuth": false,
-        "ipRules": "[variables('cosmosIpRules')]",
         "networkAclBypass": "AzureServices",
-        "publicNetworkAccess": "Enabled"
+        "publicNetworkAccess": "Enabled",
+        "analyticalStorageConfiguration": {
+          "schemaType": "WellDefined"
+        },
+        "defaultIdentity": "FirstPartyIdentity"
       }
     },
     {
@@ -309,7 +410,9 @@
         "resource": {
           "id": "helios365"
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb)]"
@@ -342,9 +445,15 @@
               }
             ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -377,9 +486,15 @@
               }
             ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -412,9 +527,15 @@
               }
             ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -447,9 +568,15 @@
               }
             ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -482,9 +609,15 @@
               }
             ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -517,9 +650,15 @@
               }
             ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -540,11 +679,27 @@
           },
           "indexingPolicy": {
             "indexingMode": "consistent",
-            "automatic": true
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -565,11 +720,27 @@
           },
           "indexingPolicy": {
             "indexingMode": "consistent",
-            "automatic": true
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -590,11 +761,27 @@
           },
           "indexingPolicy": {
             "indexingMode": "consistent",
-            "automatic": true
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -615,11 +802,27 @@
           },
           "indexingPolicy": {
             "indexingMode": "consistent",
-            "automatic": true
+            "automatic": true,
+            "includedPaths": [
+              {
+                "path": "/*"
+              }
+            ],
+            "excludedPaths": [
+              {
+                "path": "/\"_etag\"/?"
+              }
+            ]
           },
-          "defaultTtl": -1
+          "defaultTtl": -1,
+          "conflictResolutionPolicy": {
+            "mode": "LastWriterWins",
+            "conflictResolutionPath": "/_ts"
+          }
         },
-        "options": "[if(not(equals(variables('currentConfig').cosmosDbThroughput, null())), createObject('throughput', variables('currentConfig').cosmosDbThroughput), createObject())]"
+        "options": {
+          "throughput": 800
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('resourceNames').cosmosDb, 'helios365')]"
@@ -642,11 +845,19 @@
         "enabledForDiskEncryption": false,
         "enableRbacAuthorization": true,
         "enableSoftDelete": true,
-        "softDeleteRetentionInDays": "[if(equals(parameters('environment'), 'prod'), 90, 7)]",
+        "softDeleteRetentionInDays": 90,
         "networkAcls": {
+          "copy": [
+            {
+              "name": "ipRules",
+              "count": "[length(parameters('allowedIpAddresses'))]",
+              "input": {
+                "value": "[parameters('allowedIpAddresses')[copyIndex('ipRules')]]"
+              }
+            }
+          ],
           "bypass": "AzureServices",
-          "defaultAction": "Allow",
-          "ipRules": [],
+          "defaultAction": "Deny",
           "virtualNetworkRules": []
         },
         "publicNetworkAccess": "Enabled"
@@ -686,10 +897,28 @@
       "name": "[variables('resourceNames').functionAppPlan]",
       "location": "[parameters('location')]",
       "tags": "[variables('commonTags')]",
-      "sku": "[variables('currentConfig').appServicePlanSku]",
-      "kind": "functionapp",
+      "sku": {
+        "name": "EP2",
+        "tier": "ElasticPremium"
+      },
+      "kind": "linux",
       "properties": {
-        "reserved": false
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('resourceNames').webAppPlan]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
+      "sku": {
+        "name": "P1v3",
+        "tier": "PremiumV3"
+      },
+      "kind": "linux",
+      "properties": {
+        "reserved": true
       }
     },
     {
@@ -698,19 +927,21 @@
       "name": "[variables('resourceNames').functionApp]",
       "location": "[parameters('location')]",
       "tags": "[variables('commonTags')]",
-      "kind": "functionapp",
+      "kind": "functionapp,linux",
       "identity": {
         "type": "SystemAssigned"
       },
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').functionAppPlan)]",
         "httpsOnly": true,
+        "virtualNetworkSubnetId": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet), '2023-05-01').subnets[0].id]",
         "siteConfig": {
+          "linuxFxVersion": "DOTNET-ISOLATED|8.0",
           "ftpsState": "Disabled",
           "minTlsVersion": "1.2",
           "scmMinTlsVersion": "1.2",
           "use32BitWorkerProcess": false,
-          "netFrameworkVersion": "v8.0",
+          "vnetRouteAllEnabled": true,
           "appSettings": [
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -731,6 +962,10 @@
             {
               "name": "WEBSITE_CONTENTSHARE",
               "value": "[toLower(variables('resourceNames').functionApp)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTOVERVNET",
+              "value": "1"
             },
             {
               "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
@@ -786,38 +1021,28 @@
             },
             {
               "name": "ASPNETCORE_ENVIRONMENT",
-              "value": "[if(equals(parameters('environment'), 'dev'), 'Development', 'Production')]"
+              "value": "Production"
             },
             {
               "name": "AZURE_FUNCTIONS_ENVIRONMENT",
-              "value": "[if(equals(parameters('environment'), 'dev'), 'Development', 'Production')]"
+              "value": "Production"
             }
           ]
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Insights/components', variables('resourceNames').applicationInsights)]",
-        "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').functionAppPlan)]",
         "[resourceId('Microsoft.Communication/communicationServices', variables('resourceNames').communicationService)]",
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb)]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-pe', variables('resourceNames').cosmosDb), 'default')]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').functionAppPlan)]",
         "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
-        "[resourceId('Microsoft.Storage/storageAccounts', variables('resourceNames').storageAccount)]"
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-pe', variables('resourceNames').keyVault), 'default')]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('resourceNames').storageAccount)]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-blob-pe', variables('resourceNames').storageAccount), 'default')]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-file-pe', variables('resourceNames').storageAccount), 'default')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
       ]
-    },
-    {
-      "type": "Microsoft.Web/serverfarms",
-      "apiVersion": "2023-01-01",
-      "name": "[variables('resourceNames').webAppPlan]",
-      "location": "[parameters('location')]",
-      "tags": "[variables('commonTags')]",
-      "sku": {
-        "name": "B1",
-        "tier": "Basic"
-      },
-      "kind": "linux",
-      "properties": {
-        "reserved": true
-      }
     },
     {
       "type": "Microsoft.Web/sites",
@@ -832,16 +1057,18 @@
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').webAppPlan)]",
         "httpsOnly": true,
+        "virtualNetworkSubnetId": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet), '2023-05-01').subnets[0].id]",
         "siteConfig": {
           "linuxFxVersion": "DOTNETCORE|8.0",
           "ftpsState": "Disabled",
           "minTlsVersion": "1.2",
           "scmMinTlsVersion": "1.2",
-          "use32BitWorkerProcess": "[if(equals(parameters('environment'), 'dev'), true(), false())]",
+          "use32BitWorkerProcess": false,
+          "vnetRouteAllEnabled": true,
           "appSettings": [
             {
               "name": "ASPNETCORE_ENVIRONMENT",
-              "value": "[if(equals(parameters('environment'), 'dev'), 'Development', 'Production')]"
+              "value": "Production"
             },
             {
               "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
@@ -933,11 +1160,11 @@
             },
             {
               "name": "Logging__LogLevel__Default",
-              "value": "[if(equals(parameters('environment'), 'dev'), 'Debug', 'Information')]"
+              "value": "Information"
             },
             {
               "name": "Logging__LogLevel__Microsoft.AspNetCore",
-              "value": "[if(equals(parameters('environment'), 'dev'), 'Warning', 'Warning')]"
+              "value": "Warning"
             },
             {
               "name": "DirectoryService__Groups__Admin",
@@ -958,7 +1185,12 @@
         "[resourceId('Microsoft.Insights/components', variables('resourceNames').applicationInsights)]",
         "[resourceId('Microsoft.Communication/communicationServices', variables('resourceNames').communicationService)]",
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb)]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-pe', variables('resourceNames').cosmosDb), 'default')]",
         "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-pe', variables('resourceNames').keyVault), 'default')]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-blob-pe', variables('resourceNames').storageAccount), 'default')]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-file-pe', variables('resourceNames').storageAccount), 'default')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]",
         "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').webAppPlan)]"
       ]
     },
@@ -999,36 +1231,187 @@
       ]
     },
     {
-      "condition": "[variables('dnsZoneEnabled')]",
-      "type": "Microsoft.Web/certificates",
-      "apiVersion": "2023-01-01",
-      "name": "[format('{0}-{1}-managedcert', variables('resourceNames').webApp, parameters('dnsWebAppRecord'))]",
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-pe', variables('resourceNames').keyVault)]",
       "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
       "properties": {
-        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').webAppPlan)]",
-        "canonicalName": "[variables('customHostName')]"
+        "subnet": {
+          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet), '2023-05-01').subnets[1].id]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "[format('{0}-plsc', variables('resourceNames').keyVault)]",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
+              "groupIds": [
+                "vault"
+              ]
+            }
+          }
+        ]
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('resourceNames').webApp)]",
-        "[resourceId('Microsoft.Network/dnsZones/CNAME', parameters('dnsZoneName'), parameters('dnsWebAppRecord'))]",
-        "[resourceId('Microsoft.Web/sites/hostNameBindings', variables('resourceNames').webApp, variables('customHostName'))]",
-        "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').webAppPlan)]",
-        "[resourceId('Microsoft.Network/dnsZones/TXT', parameters('dnsZoneName'), format('asuid.{0}', parameters('dnsWebAppRecord')))]"
+        "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
       ]
     },
     {
-      "condition": "[variables('dnsZoneEnabled')]",
-      "type": "Microsoft.Web/sites/hostNameBindings",
-      "apiVersion": "2023-01-01",
-      "name": "[format('{0}/{1}', variables('resourceNames').webApp, variables('customHostName'))]",
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-pe', variables('resourceNames').cosmosDb)]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
       "properties": {
-        "hostNameType": "Verified",
-        "customHostNameDnsRecordType": "CName"
+        "subnet": {
+          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet), '2023-05-01').subnets[1].id]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "[format('{0}-plsc', variables('resourceNames').cosmosDb)]",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb)]",
+              "groupIds": [
+                "Sql"
+              ]
+            }
+          }
+        ]
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('resourceNames').webApp)]",
-        "[resourceId('Microsoft.Network/dnsZones/CNAME', parameters('dnsZoneName'), parameters('dnsWebAppRecord'))]",
-        "[resourceId('Microsoft.Network/dnsZones/TXT', parameters('dnsZoneName'), format('asuid.{0}', parameters('dnsWebAppRecord')))]"
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb)]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-blob-pe', variables('resourceNames').storageAccount)]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
+      "properties": {
+        "subnet": {
+          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet), '2023-05-01').subnets[1].id]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "[format('{0}-blob-plsc', variables('resourceNames').storageAccount)]",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('resourceNames').storageAccount)]",
+              "groupIds": [
+                "blob"
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('resourceNames').storageAccount)]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-file-pe', variables('resourceNames').storageAccount)]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
+      "properties": {
+        "subnet": {
+          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet), '2023-05-01').subnets[1].id]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "[format('{0}-file-plsc', variables('resourceNames').storageAccount)]",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('resourceNames').storageAccount)]",
+              "groupIds": [
+                "file"
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('resourceNames').storageAccount)]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', format('{0}-pe', variables('resourceNames').keyVault), 'default')]",
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "privatelink-vaultcore-azure-net",
+            "properties": {
+              "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]",
+        "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-pe', variables('resourceNames').keyVault))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', format('{0}-pe', variables('resourceNames').cosmosDb), 'default')]",
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "privatelink-documents-azure-com",
+            "properties": {
+              "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.documents.azure.com')]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.documents.azure.com')]",
+        "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-pe', variables('resourceNames').cosmosDb))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', format('{0}-blob-pe', variables('resourceNames').storageAccount), 'default')]",
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "privatelink-blob-core-windows-net",
+            "properties": {
+              "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]",
+        "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-blob-pe', variables('resourceNames').storageAccount))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', format('{0}-file-pe', variables('resourceNames').storageAccount), 'default')]",
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "privatelink-file-core-windows-net",
+            "properties": {
+              "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.file.{0}', environment().suffixes.storage))]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.file.{0}', environment().suffixes.storage))]",
+        "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-file-pe', variables('resourceNames').storageAccount))]"
       ]
     },
     {
@@ -1087,76 +1470,6 @@
         "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
         "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), '4633458b-17de-408a-b874-0445c86b69e6'))]",
         "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '4633458b-17de-408a-b874-0445c86b69e6'))]"
-      ]
-    },
-    {
-      "condition": "[variables('dnsZoneEnabled')]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "webAppHostnameBindingSsl",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "webAppName": {
-            "value": "[variables('resourceNames').webApp]"
-          },
-          "hostName": {
-            "value": "[variables('customHostName')]"
-          },
-          "certificateName": {
-            "value": "[variables('certificateName')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "1105764150606171005"
-            }
-          },
-          "parameters": {
-            "webAppName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the web app to bind"
-              }
-            },
-            "hostName": {
-              "type": "string",
-              "metadata": {
-                "description": "Custom hostname to bind (e.g., portal.contoso.com)"
-              }
-            },
-            "certificateName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the managed certificate to use"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Web/sites/hostNameBindings",
-              "apiVersion": "2023-01-01",
-              "name": "[format('{0}/{1}', parameters('webAppName'), parameters('hostName'))]",
-              "properties": {
-                "hostNameType": "Verified",
-                "customHostNameDnsRecordType": "CName",
-                "sslState": "SniEnabled",
-                "thumbprint": "[reference(resourceId('Microsoft.Web/certificates', parameters('certificateName')), '2023-01-01').thumbprint]"
-              }
-            }
-          ]
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('resourceNames').webApp)]"
       ]
     }
   ],

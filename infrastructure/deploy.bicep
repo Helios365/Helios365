@@ -1,8 +1,7 @@
 targetScope = 'resourceGroup'
 
-@description('The environment to deploy (dev, staging, prod)')
-@allowed(['dev', 'stage', 'prod'])
-param environment string = 'dev'
+@description('Prefix for resource names (e.g., company name or project identifier)')
+param prefix string
 
 @description('Azure region for all resources')
 param location string = resourceGroup().location
@@ -44,59 +43,27 @@ param directoryServiceGroups object = {
   reader: ''
 }
 
-@description('Allowed IP addresses for Cosmos DB access')
+@description('IP addresses to allow access to Cosmos DB, Storage, and Key Vault (for local development/portal access)')
 param allowedIpAddresses array = []
 
 // Variables
 var uniqueSuffix = substring(uniqueString(resourceGroup().id), 0, 4)
 var resourceNames = {
-  cosmosDb: '${environment}-${appName}-${uniqueSuffix}-cosmos'
-  storageAccount: toLower('${environment}${appName}${uniqueSuffix}st')
-  functionApp: '${environment}-${appName}-${uniqueSuffix}-func'
-  webApp: '${environment}-${appName}-${uniqueSuffix}-web'
-  functionAppPlan: '${environment}-${appName}-${uniqueSuffix}-func-asp'
-  webAppPlan: '${environment}-${appName}-${uniqueSuffix}-app-asp'
-  keyVault: '${environment}-${appName}-${uniqueSuffix}-kv'
-  applicationInsights: '${environment}-${appName}-${uniqueSuffix}-ai'
-  logAnalytics: '${environment}-${appName}-${uniqueSuffix}-law'
-  communicationService: '${environment}-${appName}-${uniqueSuffix}-acs'
-  emailService: '${environment}-${appName}-${uniqueSuffix}-email'
+  cosmosDb: '${prefix}-${appName}-${uniqueSuffix}-cosmos'
+  storageAccount: toLower('${prefix}${appName}${uniqueSuffix}st')
+  functionApp: '${prefix}-${appName}-${uniqueSuffix}-func'
+  webApp: '${prefix}-${appName}-${uniqueSuffix}-web'
+  functionAppPlan: '${prefix}-${appName}-${uniqueSuffix}-func-asp'
+  webAppPlan: '${prefix}-${appName}-${uniqueSuffix}-web-asp'
+  keyVault: '${prefix}-${appName}-${uniqueSuffix}-kv'
+  applicationInsights: '${prefix}-${appName}-${uniqueSuffix}-ai'
+  logAnalytics: '${prefix}-${appName}-${uniqueSuffix}-law'
+  communicationService: '${prefix}-${appName}-${uniqueSuffix}-acs'
+  emailService: '${prefix}-${appName}-${uniqueSuffix}-email'
+  vnet: '${prefix}-${appName}-${uniqueSuffix}-vnet'
 }
-
-var cosmosIpRules = [for ip in allowedIpAddresses: {
-  ipAddressOrRange: ip
-}]
-
-var environmentConfig = {
-  dev: {
-    cosmosDbCapabilities: [
-      { name: 'EnableServerless' }
-    ]
-    appServicePlanSku: { name: 'Y1', tier: 'Dynamic' }
-    isZoneRedundant: false
-    cosmosDbThroughput: null
-    storageAccountSku: 'Standard_LRS'
-  }
-  staging: {
-    cosmosDbCapabilities: []
-    appServicePlanSku: { name: 'EP1', tier: 'ElasticPremium' }
-    isZoneRedundant: false
-    cosmosDbThroughput: 400
-    storageAccountSku: 'Standard_LRS'
-  }
-  prod: {
-    cosmosDbCapabilities: []
-    appServicePlanSku: { name: 'EP2', tier: 'ElasticPremium' }
-    isZoneRedundant: true
-    cosmosDbThroughput: 800
-    storageAccountSku: 'Standard_ZRS'
-  }
-}
-
-var currentConfig = environmentConfig[environment]
 
 var commonTags = {
-  Environment: environment
   Application: appName
   'Deployed-By': 'Bicep-Template'
 }
@@ -110,7 +77,7 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   tags: commonTags
   properties: {
     sku: { name: 'PerGB2018' }
-    retentionInDays: environment == 'prod' ? 90 : 30
+    retentionInDays: 90
     features: {
       enableLogAccessUsingOnlyResourcePermissions: true
     }
@@ -136,7 +103,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: resourceNames.storageAccount
   location: location
   tags: commonTags
-  sku: { name: currentConfig.storageAccountSku }
+  sku: { name: 'Standard_ZRS' }
   kind: 'StorageV2'
   properties: {
     dnsEndpointType: 'Standard'
@@ -149,8 +116,8 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
     networkAcls: {
       bypass: 'AzureServices'
       virtualNetworkRules: []
-      ipRules: []
-      defaultAction: 'Allow'
+      ipRules: [for ip in allowedIpAddresses: { value: ip }]
+      defaultAction: 'Deny'
     }
     supportsHttpsTrafficOnly: true
     encryption: {
@@ -162,6 +129,115 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
       keySource: 'Microsoft.Storage'
     }
     accessTier: 'Hot'
+  }
+}
+
+// Virtual Network
+resource vnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
+  name: resourceNames.vnet
+  location: location
+  tags: commonTags
+  properties: {
+    addressSpace: {
+      addressPrefixes: ['10.0.0.0/16']
+    }
+    subnets: [
+      {
+        name: 'app-integration'
+        properties: {
+          addressPrefix: '10.0.1.0/24'
+          delegations: [
+            {
+              name: 'Microsoft.Web.serverFarms'
+              properties: {
+                serviceName: 'Microsoft.Web/serverFarms'
+              }
+            }
+          ]
+        }
+      }
+      {
+        name: 'private-endpoints'
+        properties: {
+          addressPrefix: '10.0.2.0/24'
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+    ]
+  }
+}
+
+// Private DNS Zones
+resource keyVaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.vaultcore.azure.net'
+  location: 'global'
+  tags: commonTags
+}
+
+resource cosmosDbPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.documents.azure.com'
+  location: 'global'
+  tags: commonTags
+}
+
+resource storageBlobPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.blob.${az.environment().suffixes.storage}'
+  location: 'global'
+  tags: commonTags
+}
+
+resource storageFilePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.file.${az.environment().suffixes.storage}'
+  location: 'global'
+  tags: commonTags
+}
+
+// VNet Links for Private DNS Zones
+resource keyVaultDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: keyVaultPrivateDnsZone
+  name: '${resourceNames.vnet}-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+resource cosmosDbDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: cosmosDbPrivateDnsZone
+  name: '${resourceNames.vnet}-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+resource storageBlobDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: storageBlobPrivateDnsZone
+  name: '${resourceNames.vnet}-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+resource storageFileDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: storageFilePrivateDnsZone
+  name: '${resourceNames.vnet}-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
   }
 }
 
@@ -182,23 +258,16 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
         isZoneRedundant: false // Explicitly disable zone redundancy for all environments initially
       }
     ]
-    capabilities: currentConfig.cosmosDbCapabilities
-    //enableFreeTier: environment == 'dev'
-    backupPolicy: environment == 'dev' ? {
-      type: 'Periodic'
-      periodicModeProperties: {
-        backupIntervalInMinutes: 1440 // 24 hours
-        backupRetentionIntervalInHours: 168 // 7 days
-      }
-    } : {
+    capabilities: []
+    backupPolicy: {
       type: 'Continuous'
       continuousModeProperties: { tier: 'Continuous30Days' }
     }
-    enableAutomaticFailover: environment == 'prod'
+    enableAutomaticFailover: true
     enableMultipleWriteLocations: false
     disableKeyBasedMetadataWriteAccess: true
     disableLocalAuth: false
-    ipRules: cosmosIpRules
+    ipRules: [for ip in allowedIpAddresses: { ipAddressOrRange: ip }]
     networkAclBypass: 'AzureServices'
     publicNetworkAccess: 'Enabled'
     analyticalStorageConfiguration: {
@@ -215,7 +284,7 @@ resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024
   properties: {
     
     resource: { id: 'helios365' }
-    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    options: { throughput: 800 }
   }
 }
 
@@ -239,7 +308,7 @@ resource customersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
         conflictResolutionPath: '/_ts'
       }
     }
-    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    options: { throughput: 800 }
   }
 }
 
@@ -262,7 +331,7 @@ resource resourcesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
         conflictResolutionPath: '/_ts'
       }
     }
-    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    options: { throughput: 800 }
   }
 }
 
@@ -285,7 +354,7 @@ resource alertsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
         conflictResolutionPath: '/_ts'
       }
     }
-    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    options: { throughput: 800 }
   }
 }
 
@@ -308,7 +377,7 @@ resource servicePrincipalsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDa
         conflictResolutionPath: '/_ts'
       }
     }
-    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    options: { throughput: 800 }
   }
 }
 
@@ -331,7 +400,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         conflictResolutionPath: '/_ts'
       }
     }
-    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    options: { throughput: 800 }
   }
 }
 
@@ -355,7 +424,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         conflictResolutionPath: '/_ts'
       }
     }
-    options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+    options: { throughput: 800 }
   }
 }
 
@@ -383,7 +452,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
           conflictResolutionPath: '/_ts'
         }
       }
-      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+      options: { throughput: 800 }
     }
   }
 
@@ -411,7 +480,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
           conflictResolutionPath: '/_ts'
         }
       }
-      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+      options: { throughput: 800 }
     }
   }
 
@@ -439,7 +508,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
           conflictResolutionPath: '/_ts'
         }
       }
-      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+      options: { throughput: 800 }
     }
   }
 
@@ -467,7 +536,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
           conflictResolutionPath: '/_ts'
         }
       }
-      options: currentConfig.cosmosDbThroughput != null ? { throughput: currentConfig.cosmosDbThroughput } : {}
+      options: { throughput: 800 }
     }
   }
 
@@ -484,7 +553,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enabledForDiskEncryption: false
     enableRbacAuthorization: true
     enableSoftDelete: true
-    softDeleteRetentionInDays: environment == 'prod' ? 90 : 7
+    softDeleteRetentionInDays: 90
     // Remove enablePurgeProtection to avoid conflicts - it defaults based on enableSoftDelete
     networkAcls: {
       bypass: 'AzureServices'
@@ -524,15 +593,27 @@ resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = if (dnsZoneEnabled) {
   tags: commonTags
 }
 
-// App Service Plan
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
+// App Service Plan for Function App (Elastic Premium)
+resource functionAppPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: resourceNames.functionAppPlan
   location: location
   tags: commonTags
-  sku: currentConfig.appServicePlanSku
-  kind: 'functionapp'
+  sku: { name: 'EP2', tier: 'ElasticPremium' }
+  kind: 'linux'
   properties: {
-    reserved: false
+    reserved: true
+  }
+}
+
+// App Service Plan for Web App
+resource webAppPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
+  name: resourceNames.webAppPlan
+  location: location
+  tags: commonTags
+  sku: { name: 'P1v3', tier: 'PremiumV3' }
+  kind: 'linux'
+  properties: {
+    reserved: true
   }
 }
 
@@ -541,23 +622,32 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   name: resourceNames.functionApp
   location: location
   tags: commonTags
-  kind: 'functionapp'
+  kind: 'functionapp,linux'
   identity: { type: 'SystemAssigned' }
+  dependsOn: [
+    storageBlobPrivateDnsZoneGroup
+    storageFilePrivateDnsZoneGroup
+    keyVaultPrivateDnsZoneGroup
+    cosmosDbPrivateDnsZoneGroup
+  ]
   properties: {
-    serverFarmId: appServicePlan.id
+    serverFarmId: functionAppPlan.id
     httpsOnly: true
+    virtualNetworkSubnetId: vnet.properties.subnets[0].id
     siteConfig: {
+      linuxFxVersion: 'DOTNET-ISOLATED|8.0'
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       scmMinTlsVersion: '1.2'
       use32BitWorkerProcess: false
-      netFrameworkVersion: 'v8.0'
+      vnetRouteAllEnabled: true
       appSettings: [
         { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' }
         { name: 'FUNCTIONS_WORKER_RUNTIME', value: 'dotnet-isolated' }
         { name: 'AzureWebJobsStorage', value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${az.environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}' }
         { name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING', value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${az.environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}' }
         { name: 'WEBSITE_CONTENTSHARE', value: toLower(resourceNames.functionApp) }
+        { name: 'WEBSITE_CONTENTOVERVNET', value: '1' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
         { name: 'APPINSIGHTS_INSTRUMENTATIONKEY', value: applicationInsights.properties.InstrumentationKey }
         { name: 'CosmosDbConnectionString', value: 'AccountEndpoint=${cosmosDb.properties.documentEndpoint};AccountKey=${cosmosDb.listKeys().primaryMasterKey};' }
@@ -571,22 +661,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'CommunicationServices__ConnectionString', value: communicationService.listKeys().primaryConnectionString }
         { name: 'CommunicationServices__EmailSender', value: emailSender }
         { name: 'CommunicationServices__SmsSender', value: smsSender }
-        { name: 'ASPNETCORE_ENVIRONMENT', value: environment == 'dev' ? 'Development' : 'Production' }
-        { name: 'AZURE_FUNCTIONS_ENVIRONMENT', value: environment == 'dev' ? 'Development' : 'Production' }
+        { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
+        { name: 'AZURE_FUNCTIONS_ENVIRONMENT', value: 'Production' }
       ]
     }
-  }
-}
-
-// App Service Plan for Web App (separate from Functions)
-resource webAppServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
-  name: resourceNames.webAppPlan
-  location: location
-  tags: commonTags
-  sku: { name: 'B1', tier: 'Basic' }
-  kind: 'linux'
-  properties: {
-    reserved: true // Linux
   }
 }
 
@@ -597,17 +675,25 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
   tags: commonTags
   kind: 'app,linux'
   identity: { type: 'SystemAssigned' }
+  dependsOn: [
+    storageBlobPrivateDnsZoneGroup
+    storageFilePrivateDnsZoneGroup
+    keyVaultPrivateDnsZoneGroup
+    cosmosDbPrivateDnsZoneGroup
+  ]
   properties: {
-    serverFarmId: webAppServicePlan.id
+    serverFarmId: webAppPlan.id
     httpsOnly: true
+    virtualNetworkSubnetId: vnet.properties.subnets[0].id
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|8.0'
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       scmMinTlsVersion: '1.2'
-      use32BitWorkerProcess: environment == 'dev' ? true : false
+      use32BitWorkerProcess: false
+      vnetRouteAllEnabled: true
       appSettings: [
-        { name: 'ASPNETCORE_ENVIRONMENT', value: environment == 'dev' ? 'Development' : 'Production' }
+        { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
         { name: 'ApplicationInsights__InstrumentationKey', value: applicationInsights.properties.InstrumentationKey }
         // Azure AD Configuration (override appsettings.json)
@@ -635,8 +721,8 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'CommunicationServices__EmailSender', value: emailSender }
         { name: 'CommunicationServices__SmsSender', value: smsSender }
         // Logging Configuration
-        { name: 'Logging__LogLevel__Default', value: environment == 'dev' ? 'Debug' : 'Information' }
-        { name: 'Logging__LogLevel__Microsoft.AspNetCore', value: environment == 'dev' ? 'Warning' : 'Warning' }
+        { name: 'Logging__LogLevel__Default', value: 'Information' }
+        { name: 'Logging__LogLevel__Microsoft.AspNetCore', value: 'Warning' }
         // Directory Service Groups (for Graph lookups)
         { name: 'DirectoryService__Groups__Admin', value: directoryServiceGroups.admin }
         { name: 'DirectoryService__Groups__Operator', value: directoryServiceGroups.operator }
@@ -672,6 +758,149 @@ resource webAppTxt 'Microsoft.Network/dnsZones/TXT@2018-05-01' = if (dnsZoneEnab
     ]
   }
 }
+
+// Private Endpoints
+resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = {
+  name: '${resourceNames.keyVault}-pe'
+  location: location
+  tags: commonTags
+  properties: {
+    subnet: {
+      id: vnet.properties.subnets[1].id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${resourceNames.keyVault}-plsc'
+        properties: {
+          privateLinkServiceId: keyVault.id
+          groupIds: ['vault']
+        }
+      }
+    ]
+  }
+}
+
+resource cosmosDbPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = {
+  name: '${resourceNames.cosmosDb}-pe'
+  location: location
+  tags: commonTags
+  properties: {
+    subnet: {
+      id: vnet.properties.subnets[1].id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${resourceNames.cosmosDb}-plsc'
+        properties: {
+          privateLinkServiceId: cosmosDb.id
+          groupIds: ['Sql']
+        }
+      }
+    ]
+  }
+}
+
+resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = {
+  name: '${resourceNames.storageAccount}-blob-pe'
+  location: location
+  tags: commonTags
+  properties: {
+    subnet: {
+      id: vnet.properties.subnets[1].id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${resourceNames.storageAccount}-blob-plsc'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: ['blob']
+        }
+      }
+    ]
+  }
+}
+
+resource storageFilePrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = {
+  name: '${resourceNames.storageAccount}-file-pe'
+  location: location
+  tags: commonTags
+  properties: {
+    subnet: {
+      id: vnet.properties.subnets[1].id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${resourceNames.storageAccount}-file-plsc'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: ['file']
+        }
+      }
+    ]
+  }
+}
+
+// Private DNS Zone Groups
+resource keyVaultPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = {
+  parent: keyVaultPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-vaultcore-azure-net'
+        properties: {
+          privateDnsZoneId: keyVaultPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource cosmosDbPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = {
+  parent: cosmosDbPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-documents-azure-com'
+        properties: {
+          privateDnsZoneId: cosmosDbPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = {
+  parent: storageBlobPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-blob-core-windows-net'
+        properties: {
+          privateDnsZoneId: storageBlobPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource storageFilePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = {
+  parent: storageFilePrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-file-core-windows-net'
+        properties: {
+          privateDnsZoneId: storageFilePrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
 // Role Assignment - Key Vault Secrets User for Function App
 resource keyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, functionApp.id, '4633458b-17de-408a-b874-0445c86b69e6')

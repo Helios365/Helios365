@@ -1,12 +1,18 @@
 param(
     [string]$AppName = "HeliosAppRegistration",
-    [string[]]$RedirectUris = @("https://localhost:7098/signin-oidc"),
-    [string]$LogoutUrl = "https://localhost:7098/signout-oidc",
+    [Parameter(Mandatory = $true)]
+    [string]$Hostname,
     [ValidateSet("AzureADMyOrg", "AzureADMultipleOrgs", "AzureADandPersonalMicrosoftAccount")]
     [string]$SignInAudience = "AzureADMyOrg",
     [Guid]$AdminGroupId,
     [Guid]$OperatorGroupId,
     [Guid]$ReaderGroupId
+)
+
+# Build redirect URIs for both localhost and the provided hostname
+$RedirectUris = @(
+    "https://localhost:7098/signin-oidc",
+    "https://$Hostname/signin-oidc"
 )
 
 Connect-MgGraph -Scopes @("Application.ReadWrite.All", "AppRoleAssignment.ReadWrite.All")
@@ -44,7 +50,7 @@ $App = New-MgApplication `
   -AppRoles $appRoles `
   -Web @{
       redirectUris = $RedirectUris
-      logoutUrl    = $LogoutUrl
+      logoutUrl    = "https://$Hostname/signout-oidc"
     }
 
 $SP  = New-MgServicePrincipal -AppId $App.AppId
@@ -70,14 +76,16 @@ New-MgGroupAppRoleAssignment -GroupId $operatorGroup -PrincipalId $operatorGroup
 New-MgGroupAppRoleAssignment -GroupId $readerGroup -PrincipalId $readerGroup -ResourceId $SP.Id -AppRoleId $appRoleLookup.Reader.Id | Out-Null
 
 [PSCustomObject]@{
-  AppDisplayName = $AppName
-  TenantId       = (Get-MgContext).TenantId
-  ClientId       = $App.AppId
-  ObjectId       = $App.Id
+  AppDisplayName     = $AppName
+  TenantId           = (Get-MgContext).TenantId
+  ClientId           = $App.AppId
+  ObjectId           = $App.Id
   ServicePrincipalId = $SP.Id
-  ClientSecret   = $ClientSecret
-  AppRoles       = $appRoles | Select-Object DisplayName, Value, Id
-  GroupAssignments = @(
+  ClientSecret       = $ClientSecret
+  RedirectUris       = $RedirectUris
+  LogoutUrl          = "https://$Hostname/signout-oidc"
+  AppRoles           = $appRoles | Select-Object DisplayName, Value, Id
+  GroupAssignments   = @(
     [PSCustomObject]@{ Role = "Helios.Admin";    GroupId = $adminGroup }
     [PSCustomObject]@{ Role = "Helios.Operator"; GroupId = $operatorGroup }
     [PSCustomObject]@{ Role = "Helios.Reader";   GroupId = $readerGroup }

@@ -66,9 +66,11 @@ nunit-*.xml
 
 # Infrastructure parameter files (may contain secrets)
 infrastructure/*.parameters.*.json
+infrastructure/*.parameters.json
 .vs/
 
 # Don't want to add specific tests
 *.http
 
 .claude/
+publish*

@@ -96,7 +96,7 @@ if (-not $EmailService) {
     throw "Email Service '$EmailServiceName' not found in Resource Group '$ResourceGroupName'."
 }
 
-$Domain = Get-AzEmailServiceDomain -ResourceGroupName $ResourceGroupName -EmailServiceName $EmailServiceName -Name $DomainName
+$Domain = Get-AzEmailServiceDomain -ResourceGroupName $ResourceGroupName -EmailServiceName $EmailServiceName -Name $DomainName -ErrorAction SilentlyContinue
 
 if (-not $Domain) {
     $Domain = New-AzEmailServiceDomain `

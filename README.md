@@ -7,7 +7,7 @@
 Deploy the complete Helios365 infrastructure to Azure in minutes:
 
 ### Deploy Infrastructure
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2FHelios365%2Frefs%2Fheads%2Fmain%2Finfrastructure%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhelios365%2FHelios365%2Frefs%2Fheads%2Fmain%2Finfrastructure%2Fdeploy.json)
 
 **What gets deployed:**
 - ✅ Azure Functions (Processor) - Serverless alert processing
@@ -22,7 +22,7 @@ Deploy the complete Helios365 infrastructure to Azure in minutes:
 
 ``` powershell
 # Create App Registration
-./scripts/New-AppRegistration.ps1
+./scripts/New-AppRegistration.ps1 -Hostname portal.<dns-zone-name> -AdminGroupId <group object id> -OperatorGroupId <group object id> -ReaderGroupId <group object id>
 
 # Create App Registration Client Secret
 Set-AzKeyVaultSecret -VaultName <environment>-helios-xxxx-kv -Name "AzureAd--ClientSecret" -SecretValue (ConvertTo-SecureString -String "****" -AsPlainText)
@@ -34,23 +34,31 @@ Set-AzKeyVaultSecret -VaultName <environment>-helios-xxxx-kv -Name "AzureAd--Cli
 ``` powershell
 
 # Grant Web App Microsoft Graph permissions needed for reading Entra groups and users
-./scripts/Grant-AppServiceGraphPermissions.ps1 -ResourceGroupName <rg> -AppServiceName <environment>-helios-xxxx-web
+./scripts/Grant-AppServiceGraphPermissions.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-web
 
 ```
 
+
 ### Create managed certificate for web app
 ``` powershell
-.\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <environment>-helios-xxxx-web -HostName portal.helios.viedoc.com
+.\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-web -HostName portal.helios.viedoc.com
 
 ```
 
 ### Validate Domain in ACS
 
 ``` powershell
-.\scripts\New-AcsEmailDomain.ps1 -ResourceGroupName <rg> -EmailServiceName <environment>-helios-xxxx-email -DomainName <domain>
+.\scripts\New-AcsEmailDomain.ps1 -ResourceGroupName <rg> -EmailServiceName <prefix>-helios-xxxx-email -CommunicationServiceName <prefix>-helios-xxxx-acs -DomainName <domain>
 
 # wait until DNS is replicated
-.\scripts\New-AcsEmailDomain.ps1 -ResourceGroupName <rg> -EmailServiceName <environment>-helios-xxxx-email -DomainName <domain> -InitiateVerification
+.\scripts\New-AcsEmailDomain.ps1 -ResourceGroupName <rg> -EmailServiceName <prefix>-helios-xxxx-email -CommunicationServiceName <prefix>-helios-xxxx-acs -DomainName <domain> -InitiateVerification
+```
+
+### Deploy Web app
+
+```powershell
+dotnet publish -c Release -o ./publish
+
 ```
 
 ## Workflow
