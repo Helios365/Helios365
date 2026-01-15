@@ -101,7 +101,7 @@ public static class ServiceCollectionExtensions
             return new SmsClient(communicationOptions.ConnectionString);
         });
 
-        services.AddScoped<ICommunicationService, CommunicationService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
         services.AddScoped<IWebTestService, WebTestService>();
         services.AddScoped<IMetricsClient, MetricsClient>();

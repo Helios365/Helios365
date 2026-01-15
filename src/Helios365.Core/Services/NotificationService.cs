@@ -8,15 +8,15 @@ using Microsoft.Extensions.Options;
 
 namespace Helios365.Core.Services;
 
-public interface ICommunicationService
+public interface INotificationService
 {
-    Task<CommunicationSendResult> SendEmailAsync(
+    Task<NotificationSendResult> SendEmailAsync(
         IEnumerable<string> recipients,
         string subject,
         string body,
         CancellationToken cancellationToken = default);
 
-    Task<CommunicationSendResult> SendSmsAsync(
+    Task<NotificationSendResult> SendSmsAsync(
         IEnumerable<string> recipients,
         string message,
         CancellationToken cancellationToken = default);
@@ -25,18 +25,18 @@ public interface ICommunicationService
 /// <summary>
 /// Sends plain-text emails and SMS messages via Azure Communication Services.
 /// </summary>
-public class CommunicationService : ICommunicationService
+public class NotificationService : INotificationService
 {
     private readonly EmailClient emailClient;
     private readonly SmsClient smsClient;
     private readonly CommunicationServiceOptions options;
-    private readonly ILogger<CommunicationService> logger;
+    private readonly ILogger<NotificationService> logger;
 
-    public CommunicationService(
+    public NotificationService(
         EmailClient emailClient,
         SmsClient smsClient,
         IOptions<CommunicationServiceOptions> options,
-        ILogger<CommunicationService> logger)
+        ILogger<NotificationService> logger)
     {
         this.emailClient = emailClient;
         this.smsClient = smsClient;
@@ -44,7 +44,7 @@ public class CommunicationService : ICommunicationService
         this.options = options.Value;
     }
 
-    public async Task<CommunicationSendResult> SendEmailAsync(
+    public async Task<NotificationSendResult> SendEmailAsync(
         IEnumerable<string> recipients,
         string subject,
         string body,
@@ -91,16 +91,16 @@ public class CommunicationService : ICommunicationService
                 string.Join(", ", recipientList),
                 status);
 
-            return CommunicationSendResult.Success(recipientList, Array.Empty<string>());
+            return NotificationSendResult.Success(recipientList, Array.Empty<string>());
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to send email via Communication Services to {Recipients}", string.Join(", ", recipientList));
-            return CommunicationSendResult.Failure(recipientList, ex.Message);
+            return NotificationSendResult.Failure(recipientList, ex.Message);
         }
     }
 
-    public async Task<CommunicationSendResult> SendSmsAsync(
+    public async Task<NotificationSendResult> SendSmsAsync(
         IEnumerable<string> recipients,
         string message,
         CancellationToken cancellationToken = default)
@@ -165,12 +165,12 @@ public class CommunicationService : ICommunicationService
                 string.Join(", ", recipientList),
                 string.Join(", ", messageIds));
 
-            return CommunicationSendResult.Success(recipientList, messageIds);
+            return NotificationSendResult.Success(recipientList, messageIds);
         }
 
         var errorMessage = $"Failed to send SMS to {string.Join(", ", failedRecipients)}.";
 
-        return CommunicationSendResult.Failure(recipientList, errorMessage, failedRecipients, messageIds);
+        return NotificationSendResult.Failure(recipientList, errorMessage, failedRecipients, messageIds);
     }
 
     private void EnsureEmailConfigured()

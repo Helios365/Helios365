@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace Helios365.Core.Contracts;
 
-public sealed class CommunicationSendResult
+public sealed class NotificationSendResult
 {
     public bool Succeeded { get; init; }
 
@@ -14,7 +14,7 @@ public sealed class CommunicationSendResult
 
     public string? Error { get; init; }
 
-    public static CommunicationSendResult Success(IEnumerable<string> recipients, IEnumerable<string> messageIds) =>
+    public static NotificationSendResult Success(IEnumerable<string> recipients, IEnumerable<string> messageIds) =>
         new()
         {
             Succeeded = true,
@@ -22,7 +22,7 @@ public sealed class CommunicationSendResult
             MessageIds = Normalize(messageIds)
         };
 
-    public static CommunicationSendResult Failure(
+    public static NotificationSendResult Failure(
         IEnumerable<string> recipients,
         string error,
         IEnumerable<string>? failedRecipients = null,

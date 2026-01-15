@@ -181,7 +181,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IResourceService, ResourceService>();
         services.AddScoped<IResourceSyncService, ResourceSyncService>();
         services.AddScoped<IAlertService, AlertService>();
-        services.AddScoped<ICommunicationService, CommunicationService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
         return services;
     }
