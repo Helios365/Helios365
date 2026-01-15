@@ -566,6 +566,8 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
 }
 
 // Azure Communication Services
+// Note: Dynamic Alpha Sender ID must be enabled manually in Azure Portal
+// (Communication Services → SMS → Try Sending SMS → Enable Dynamic Alpha Sender ID)
 resource communicationService 'Microsoft.Communication/CommunicationServices@2023-04-01' = {
   name: resourceNames.communicationService
   location: 'global'
@@ -901,23 +903,23 @@ resource storageFilePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/priv
   }
 }
 
-// Role Assignment - Key Vault Secrets User for Function App
+// Role Assignment - Key Vault Secrets Officer for Function App
 resource keyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, functionApp.id, '4633458b-17de-408a-b874-0445c86b69e6')
+  name: guid(keyVault.id, functionApp.id, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
   scope: keyVault
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
     principalId: functionApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-// Role Assignment - Key Vault Secrets User for Web App
+// Role Assignment - Key Vault Secrets Officer for Web App
 resource webAppKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, webApp.id, '4633458b-17de-408a-b874-0445c86b69e6')
+  name: guid(keyVault.id, webApp.id, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
   scope: keyVault
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
     principalId: webApp.identity.principalId
     principalType: 'ServicePrincipal'
   }

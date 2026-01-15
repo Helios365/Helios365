@@ -6,8 +6,7 @@ public enum AzureCloudEnvironment
 {
     AzurePublicCloud,
     AzureChinaCloud,
-    AzureUSGovernment,
-    AzureGermanyCloud
+    AzureUSGovernment
 }
 
 public class ServicePrincipal

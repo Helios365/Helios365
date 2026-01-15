@@ -60,6 +60,9 @@ Set-AzKeyVaultSecret -VaultName <prefix>-helios-xxxx-kv -Name "AzureAd--ClientSe
 .\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-web -HostName portal.<domain>
 ```
 
+### Enable SMS sending
+Before being able to send SMS, Dynamic Alpha Sender Id (string as sender id) need to be enabled. And this can only be done from Azure Portal under "Telephony and SMS -> Alphanumberic Sender ID -> Enable Alphanumeric Sender ID".
+
 ### Deploy Web app (manually)
 
 ```powershell

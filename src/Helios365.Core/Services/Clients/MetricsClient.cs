@@ -58,7 +58,12 @@ public class MetricsClient : IMetricsClient
         try
         {
             var credential = await _credentialProvider.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
-            var client = new MetricsQueryClient(credential);
+            var endpoint = GetMetricsEndpoint(servicePrincipal.CloudEnvironment);
+            var clientOptions = new MetricsQueryClientOptions
+            {
+                Audience = GetMetricsAudience(servicePrincipal.CloudEnvironment)
+            };
+            var client = new MetricsQueryClient(endpoint, credential, clientOptions);
 
             var options = new MetricsQueryOptions();
             options.TimeRange = duration ?? TimeSpan.FromHours(3);
@@ -93,6 +98,22 @@ public class MetricsClient : IMetricsClient
             };
         }
     }
+
+    private static Uri GetMetricsEndpoint(AzureCloudEnvironment cloudEnvironment) =>
+        cloudEnvironment switch
+        {
+            AzureCloudEnvironment.AzureChinaCloud => new Uri("https://management.chinacloudapi.cn"),
+            AzureCloudEnvironment.AzureUSGovernment => new Uri("https://management.usgovcloudapi.net"),
+            _ => new Uri("https://management.azure.com")
+        };
+
+    private static MetricsQueryAudience GetMetricsAudience(AzureCloudEnvironment cloudEnvironment) =>
+        cloudEnvironment switch
+        {
+            AzureCloudEnvironment.AzureChinaCloud => MetricsQueryAudience.AzureChina,
+            AzureCloudEnvironment.AzureUSGovernment => MetricsQueryAudience.AzureGovernment,
+            _ => MetricsQueryAudience.AzurePublicCloud
+        };
 
     private static IReadOnlyList<MetricSeries> MapSeries(MetricsQueryResult response)
     {

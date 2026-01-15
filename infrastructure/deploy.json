@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "1133578578760394500"
+      "templateHash": "10467353475046860895"
     }
   },
   "parameters": {
@@ -874,6 +874,17 @@
       }
     },
     {
+      "type": "Microsoft.Communication/CommunicationServices/smsServices",
+      "apiVersion": "2024-09-01-preview",
+      "name": "[format('{0}/{1}', variables('resourceNames').communicationService, 'current')]",
+      "properties": {
+        "dynamicAlphaSenderIdEnabled": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Communication/communicationServices', variables('resourceNames').communicationService)]"
+      ]
+    },
+    {
       "type": "Microsoft.Communication/emailServices",
       "apiVersion": "2023-03-31",
       "name": "[variables('resourceNames').emailService]",
@@ -1418,9 +1429,9 @@
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[format('Microsoft.KeyVault/vaults/{0}', variables('resourceNames').keyVault)]",
-      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), '4633458b-17de-408a-b874-0445c86b69e6')]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
       "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
         "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), '2023-01-01', 'full').identity.principalId]",
         "principalType": "ServicePrincipal"
       },
@@ -1433,9 +1444,9 @@
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[format('Microsoft.KeyVault/vaults/{0}', variables('resourceNames').keyVault)]",
-      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '4633458b-17de-408a-b874-0445c86b69e6')]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
       "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
         "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '2023-01-01', 'full').identity.principalId]",
         "principalType": "ServicePrincipal"
       },
@@ -1454,8 +1465,8 @@
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb)]",
         "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
-        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), '4633458b-17de-408a-b874-0445c86b69e6'))]",
-        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '4633458b-17de-408a-b874-0445c86b69e6'))]"
+        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'))]",
+        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'))]"
       ]
     },
     {
@@ -1468,8 +1479,8 @@
       "dependsOn": [
         "[resourceId('Microsoft.Communication/communicationServices', variables('resourceNames').communicationService)]",
         "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
-        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), '4633458b-17de-408a-b874-0445c86b69e6'))]",
-        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), '4633458b-17de-408a-b874-0445c86b69e6'))]"
+        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').functionApp), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'))]",
+        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault), resourceId('Microsoft.Web/sites', variables('resourceNames').webApp), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'))]"
       ]
     }
   ],

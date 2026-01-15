@@ -31,9 +31,22 @@ public class CredentialProvider : ICredentialProvider
         }
 
         var secret = await _secretRepository.GetServicePrincipalSecretAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
-        _logger.LogDebug("Created credential for service principal {ServicePrincipalId}", servicePrincipal.Id);
-        return new ClientSecretCredential(servicePrincipal.TenantId, servicePrincipal.ClientId, secret);
+        var options = new ClientSecretCredentialOptions
+        {
+            AuthorityHost = ToAuthorityHost(servicePrincipal.CloudEnvironment)
+        };
+
+        _logger.LogDebug("Created credential for service principal {ServicePrincipalId} with authority {AuthorityHost}", servicePrincipal.Id, options.AuthorityHost);
+        return new ClientSecretCredential(servicePrincipal.TenantId, servicePrincipal.ClientId, secret, options);
     }
+
+    private static Uri ToAuthorityHost(AzureCloudEnvironment cloudEnvironment) =>
+        cloudEnvironment switch
+        {
+            AzureCloudEnvironment.AzureChinaCloud => AzureAuthorityHosts.AzureChina,
+            AzureCloudEnvironment.AzureUSGovernment => AzureAuthorityHosts.AzureGovernment,
+            _ => AzureAuthorityHosts.AzurePublicCloud
+        };
 }
 
 public interface IArmClientFactory
@@ -73,7 +86,6 @@ public class ArmClientFactory : IArmClientFactory
         cloudEnvironment switch
         {
             AzureCloudEnvironment.AzureChinaCloud => ArmEnvironment.AzureChina,
-            AzureCloudEnvironment.AzureGermanyCloud => ArmEnvironment.AzureGermany,
             AzureCloudEnvironment.AzureUSGovernment => ArmEnvironment.AzureGovernment,
             _ => ArmEnvironment.AzurePublicCloud
         };
