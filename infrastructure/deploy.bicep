@@ -694,6 +694,8 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
       scmMinTlsVersion: '1.2'
       use32BitWorkerProcess: false
       vnetRouteAllEnabled: true
+      alwaysOn: true
+      webSocketsEnabled: true
       appSettings: [
         { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
