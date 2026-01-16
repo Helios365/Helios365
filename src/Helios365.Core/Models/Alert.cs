@@ -5,12 +5,8 @@ namespace Helios365.Core.Models;
 public enum AlertStatus
 {
     Received,
-    Routing,
-    Checking,
-    Healthy,
-    Remediating,
-    Rechecking,
     Escalated,
+    Acknowledged,
     Resolved,
     Failed
 }
@@ -65,6 +61,12 @@ public class Alert
     [JsonProperty("escalatedAt")]
     public DateTime? EscalatedAt { get; set; }
 
+    [JsonProperty("escalationAttempts")]
+    public int EscalationAttempts { get; set; } = 0;
+
+    [JsonProperty("currentEscalationTarget")]
+    public string? CurrentEscalationTarget { get; set; }
+
     [JsonProperty("metadata")]
     public Dictionary<string, string> Metadata { get; set; } = new();
 
@@ -76,7 +78,7 @@ public class Alert
         Status = status;
         UpdatedAt = DateTime.UtcNow;
 
-        if (status is AlertStatus.Resolved or AlertStatus.Healthy)
+        if (status is AlertStatus.Resolved)
         {
             ResolvedAt = DateTime.UtcNow;
         }
@@ -89,7 +91,7 @@ public class Alert
 
     public bool IsActive()
     {
-        return Status is not (AlertStatus.Resolved or AlertStatus.Healthy or AlertStatus.Failed);
+        return Status is not (AlertStatus.Resolved or AlertStatus.Acknowledged or AlertStatus.Failed);
     }
 }
 

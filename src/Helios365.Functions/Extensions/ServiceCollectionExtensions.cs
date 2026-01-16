@@ -106,6 +106,66 @@ public static class ServiceCollectionExtensions
             return new WebTestRepository(cosmosClient, databaseName, containerName, logger);
         });
 
+        services.AddScoped<IUserRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<UserRepository>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+
+            var databaseName = configuration["CosmosDbDatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDbUsersContainer"] ?? "users";
+
+            return new UserRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<IOnCallPlanRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<OnCallPlanRepository>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+
+            var databaseName = configuration["CosmosDbDatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDbOnCallPlansContainer"] ?? "onCallPlans";
+
+            return new OnCallPlanRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<IOnCallTeamRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<OnCallTeamRepository>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+
+            var databaseName = configuration["CosmosDbDatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDbOnCallTeamsContainer"] ?? "onCallTeams";
+
+            return new OnCallTeamRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<ICustomerPlanBindingRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<CustomerPlanBindingRepository>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+
+            var databaseName = configuration["CosmosDbDatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDbPlanBindingsContainer"] ?? "planBindings";
+
+            return new CustomerPlanBindingRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
+        services.AddScoped<IScheduleSliceRepository>(sp =>
+        {
+            var cosmosClient = sp.GetRequiredService<CosmosClient>();
+            var logger = sp.GetRequiredService<ILogger<ScheduleSliceRepository>>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
+
+            var databaseName = configuration["CosmosDbDatabaseName"] ?? "helios365";
+            var containerName = configuration["CosmosDbScheduleSlicesContainer"] ?? "scheduleSlices";
+
+            return new ScheduleSliceRepository(cosmosClient, databaseName, containerName, logger);
+        });
+
         return services;
     }
 
@@ -160,7 +220,7 @@ public static class ServiceCollectionExtensions
             Timeout = TimeSpan.FromSeconds(60)
         });
 
-        services.AddSingleton<IWebTestService, WebTestService>();
+        services.AddScoped<IWebTestService, WebTestService>();
         services.AddSingleton<IMetricsClient, MetricsClient>();
 
         services.AddSingleton<ISecretRepository>(sp =>
@@ -182,6 +242,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IResourceSyncService, ResourceSyncService>();
         services.AddScoped<IAlertService, AlertService>();
         services.AddScoped<INotificationService, NotificationService>();
+
+        services.AddScoped<IOnCallScheduleGenerator, OnCallScheduleGenerator>();
+        services.AddScoped<IOnCallScheduleService, OnCallScheduleService>();
 
         return services;
     }

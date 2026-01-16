@@ -126,7 +126,7 @@ else
             CriticalOpenCount = activeAlerts.Count(a => a.Severity == AlertSeverity.Critical);
             EscalatedCount = activeAlerts.Count(a => a.Status == AlertStatus.Escalated);
             ResolvedTodayCount = alerts.Count(a =>
-                (a.Status == AlertStatus.Resolved || a.Status == AlertStatus.Healthy) &&
+                a.Status == AlertStatus.Resolved &&
                 a.ResolvedAt.HasValue &&
                 a.ResolvedAt.Value.Date == now.Date);
         }

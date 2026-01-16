@@ -380,8 +380,8 @@ else
     private Color StatusColor(AlertStatus status) => status switch
     {
         AlertStatus.Escalated => Color.Error,
-        AlertStatus.Remediating or AlertStatus.Routing or AlertStatus.Rechecking => Color.Warning,
-        AlertStatus.Resolved or AlertStatus.Healthy => Color.Success,
+        AlertStatus.Acknowledged => Color.Warning,
+        AlertStatus.Resolved => Color.Success,
         AlertStatus.Failed => Color.Error,
         _ => Color.Primary
     };

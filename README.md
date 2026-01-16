@@ -66,7 +66,8 @@ Before being able to send SMS, Dynamic Alpha Sender Id (string as sender id) nee
 ### Deploy Web app (manually)
 
 ```powershell
-dotnet publish -c Release ./src/Helios365.Web/Helios365.Web.csproj -o publish
+dotnet clean ./src/Helios365.Web/Helios365.Web.csproj
+dotnet publish -c Release ./src/Helios365.Web/Helios365.Web.csproj -o publish --no-cache
 Compress-Archive -Path ./publish/* -DestinationPath ./deploy.zip -Force
 Publish-AzWebApp -ResourceGroupName <rg> -Name <prefix>-helios-xxxx-web -ArchivePath (Resolve-Path ./deploy.zip)
 Remove-Item ./publish -Recurse -Force
