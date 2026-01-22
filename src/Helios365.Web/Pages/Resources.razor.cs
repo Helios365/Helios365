@@ -117,18 +117,6 @@ public partial class Resources : ComponentBase
 
     private Task ReloadAsync() => LoadResourcesAsync();
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender && table is not null && currentPage > 0)
-        {
-            var tableType = table.GetType();
-            var goToPage = tableType.GetMethod("GoToPage") ?? tableType.GetMethod("NavigateToPage");
-            goToPage?.Invoke(table, new object[] { currentPage });
-        }
-
-        return base.OnAfterRenderAsync(firstRender);
-    }
-
     private async Task SyncResourcesAsync()
     {
         syncing = true;

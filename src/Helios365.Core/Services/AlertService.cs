@@ -101,10 +101,21 @@ public class AlertService : IAlertService
             Title = essentials.AlertRule ?? essentials.Description ?? "Azure monitor alert",
             Description = essentials.Description,
             Severity = MapSeverity(essentials.Severity),
-            Status = AlertStatus.Received,
+            Status = AlertStatus.Pending,
             CreatedAt = essentials.FiredDateTime?.ToUniversalTime() ?? DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            Metadata = BuildMetadata(essentials, alertData.AlertContext)
+            Metadata = BuildMetadata(essentials, alertData.AlertContext),
+            Changes = new List<AlertChange>
+            {
+                new AlertChange
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    User = "system",
+                    Comment = "Alert received from Azure Monitor",
+                    NewStatus = AlertStatus.Pending,
+                    CreatedAt = DateTime.UtcNow
+                }
+            }
         };
 
         await _alertRepository.CreateAsync(alert, cancellationToken);

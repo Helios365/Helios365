@@ -40,31 +40,28 @@ public class AlertOrchestrator
                 alert.MarkStatus(AlertStatus.Escalated);
                 alert.Changes.Add(new AlertChange
                 {
+                    Id = context.NewGuid().ToString(),
                     User = "system",
                     Comment = "No on-call users configured - unable to send notifications",
-                    PreviousStatus = AlertStatus.Received,
-                    NewStatus = AlertStatus.Escalated
+                    PreviousStatus = AlertStatus.Pending,
+                    NewStatus = AlertStatus.Escalated,
+                    CreatedAt = context.CurrentUtcDateTime
                 });
                 await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
                 return;
             }
 
-            // Step 2: Mark as escalated
-            alert.MarkStatus(AlertStatus.Escalated);
-            alert = await context.CallActivityAsync<Alert>(
-                nameof(UpdateAlertActivity), alert);
-
-            // Step 3: Get escalation policy (use defaults if not found)
+            // Step 2: Get escalation policy (use defaults if not found)
             var policy = onCallResult.EscalationPolicy ?? new EscalationPolicyInfo(
                 TimeSpan.FromMinutes(5),
                 3,
                 TimeSpan.FromMinutes(5));
 
             logger.LogInformation(
-                "Starting escalation for alert {AlertId} - Primary users: {PrimaryCount}, Backup users: {BackupCount}",
+                "Starting notification for alert {AlertId} - Primary users: {PrimaryCount}, Backup users: {BackupCount}",
                 alert.Id, onCallResult.PrimaryUsers.Count, onCallResult.BackupUsers.Count);
 
-            // Step 4: Start escalation sub-orchestration
+            // Step 3: Start escalation sub-orchestration (alert stays Pending until escalated to backup)
             await context.CallSubOrchestratorAsync(
                 nameof(EscalationOrchestrator),
                 new EscalationOrchestratorInput(
@@ -83,10 +80,12 @@ public class AlertOrchestrator
             alert.MarkStatus(AlertStatus.Failed);
             alert.Changes.Add(new AlertChange
             {
+                Id = context.NewGuid().ToString(),
                 User = "system",
                 Comment = $"Orchestration failed: {ex.Message}",
                 PreviousStatus = alert.Status,
-                NewStatus = AlertStatus.Failed
+                NewStatus = AlertStatus.Failed,
+                CreatedAt = context.CurrentUtcDateTime
             });
             await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
         }

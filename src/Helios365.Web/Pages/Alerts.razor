@@ -129,6 +129,7 @@ else
                   RowStyle="cursor: pointer;"
                   T="AlertViewModel"
                   RowsPerPage="@pageSize"
+                  CurrentPage="@currentPage"
                   ServerData="LoadPageAsync"
                   @ref="table">
             <HeaderContent>
@@ -199,18 +200,6 @@ else
     {
         LoadStateFromQuery();
         await LoadDataAsync();
-    }
-
-    protected override Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender && table is not null && currentPage > 0)
-        {
-            var tableType = table.GetType();
-            var goToPage = tableType.GetMethod("GoToPage") ?? tableType.GetMethod("NavigateToPage");
-            goToPage?.Invoke(table, new object[] { currentPage });
-        }
-
-        return base.OnAfterRenderAsync(firstRender);
     }
 
     private IEnumerable<AlertViewModel> FilteredAlerts => alertViews
@@ -335,7 +324,7 @@ else
     private Color StatusColor(AlertStatus status) => status switch
     {
         AlertStatus.Escalated => Color.Error,
-        AlertStatus.Acknowledged => Color.Warning,
+        AlertStatus.Accepted => Color.Warning,
         AlertStatus.Resolved => Color.Success,
         AlertStatus.Failed => Color.Error,
         _ => Color.Primary
@@ -438,6 +427,10 @@ else
         if (!string.IsNullOrWhiteSpace(search))
         {
             parameters["search"] = search;
+        }
+        if (!string.IsNullOrWhiteSpace(selectedStatus) && selectedStatus != "unsolved")
+        {
+            parameters["status"] = selectedStatus;
         }
         if (!string.IsNullOrWhiteSpace(selectedSeverity))
         {

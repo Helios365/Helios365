@@ -34,10 +34,6 @@ else
         <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
         <MudGrid>
             <MudItem xs="12" md="6">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">ID</MudText>
-                <MudText>@alert.Id</MudText>
-            </MudItem>
-            <MudItem xs="12" md="6">
                 <MudText Color="Color.Secondary" Typo="Typo.caption">Type</MudText>
                 <MudText>@alert.AlertType</MudText>
             </MudItem>
@@ -94,100 +90,57 @@ else
         <MudText>@(string.IsNullOrWhiteSpace(alert.Description) ? "No description provided." : alert.Description)</MudText>
     </MudPaper>
 
-    <MudPaper Class="pa-4 mb-3">
-        <MudText Typo="Typo.h6" Class="mb-3">Update alert</MudText>
-        <MudGrid>
-            <MudItem xs="12" md="3">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">Severity</MudText>
-                <MudSelect T="AlertSeverity"
-                           Value="@selectedSeverity"
-                           ValueChanged="OnSeveritySelected"
-                           Dense="true"
-                           FullWidth="false"
-                           Class="d-inline-block w-auto">
-                    @foreach (var severity in severityOptions)
-                    {
-                        <MudSelectItem Value="@severity">@severity</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" md="3">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">Status</MudText>
-                <MudSelect T="AlertStatus"
-                           Value="@selectedStatus"
-                           ValueChanged="OnStatusSelected"
-                           Dense="true"
-                           FullWidth="false"
-                           Class="d-inline-block w-auto">
-                    @foreach (var status in statusOptions)
-                    {
-                        <MudSelectItem Value="@status">@status</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-        </MudGrid>
-        <div class="mt-3">
-            <MudTextField T="string"
-                          Label="Comment (required)"
-                          Value="@changeComment"
-                          ValueChanged="OnChangeCommentChanged"
-                          Lines="3"
-                          FullWidth="true"
-                          Required="true"
-                          Placeholder="Describe the change and reason" />
-        </div>
-        <div class="d-flex justify-content-end mt-3">
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       Disabled="@(isUpdatingAlert || alert is null || string.IsNullOrWhiteSpace(changeComment))"
-                       OnClick="UpdateAlertAsync"
-                       StartIcon="@Icons.Material.Filled.Save">
-                @if (isUpdatingAlert)
-                {
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
-                }
-                Save update
-            </MudButton>
-        </div>
-    </MudPaper>
-
-    @if (ChangeHistory.Any())
+    @if (alert.IsActive())
     {
         <MudPaper Class="pa-4 mb-3">
-            <MudText Typo="Typo.h6" Class="mb-3">Change history</MudText>
-            <MudTable Items="ChangeHistory" Dense="true" Hover="true" Elevation="0">
-                <HeaderContent>
-                    <MudTh>When</MudTh>
-                    <MudTh>User</MudTh>
-                    <MudTh>Status</MudTh>
-                    <MudTh>Severity</MudTh>
-                    <MudTh>Comment</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd>@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
-                    <MudTd>@context.User</MudTd>
-                    <MudTd>
-                        @if (context.PreviousStatus is not null)
-                        {
-                            <span class="text-muted text-decoration-line-through me-1">@context.PreviousStatus</span>
-                        }
-                        @(context.NewStatus?.ToString() ?? "-")
-                    </MudTd>
-                    <MudTd>
-                        @if (context.PreviousSeverity is not null)
-                        {
-                            <span class="text-muted text-decoration-line-through me-1">@context.PreviousSeverity</span>
-                        }
-                        @(context.NewSeverity?.ToString() ?? "-")
-                    </MudTd>
-                    <MudTd>@context.Comment</MudTd>
-                </RowTemplate>
-                <NoRecordsContent>
-                    <div class="text-muted">No changes yet.</div>
-                </NoRecordsContent>
-            </MudTable>
+            <MudText Typo="Typo.h6" Class="mb-3">Actions</MudText>
+            <div class="d-flex gap-3 flex-wrap">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Warning"
+                           Disabled="@isUpdatingAlert"
+                           OnClick="AcceptAlertAsync"
+                           StartIcon="@Icons.Material.Filled.CheckCircle">
+                    Accept
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Success"
+                           Disabled="@isUpdatingAlert"
+                           OnClick="ResolveAlertAsync"
+                           StartIcon="@Icons.Material.Filled.Done">
+                    Resolve
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           Disabled="@isUpdatingAlert"
+                           OnClick="EscalateAlertAsync"
+                           StartIcon="@Icons.Material.Filled.NotificationImportant">
+                    Escalate to backup
+                </MudButton>
+            </div>
         </MudPaper>
     }
+
+    <MudPaper Class="pa-4 mb-3">
+        <MudText Typo="Typo.h6" Class="mb-3">Timeline</MudText>
+        @if (Timeline.Any())
+        {
+            <MudTimeline TimelinePosition="TimelinePosition.Start">
+                @foreach (var entry in Timeline)
+                {
+                    <MudTimelineItem Color="@GetTimelineColor(entry)" Size="Size.Small">
+                        <ItemContent>
+                            <MudText Typo="Typo.body2">@FormatTimelineMessage(entry)</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@entry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudText>
+                        </ItemContent>
+                    </MudTimelineItem>
+                }
+            </MudTimeline>
+        }
+        else
+        {
+            <MudText Color="Color.Secondary">No events yet.</MudText>
+        }
+    </MudPaper>
 
 }
 
@@ -202,17 +155,9 @@ else
     private bool loading = true;
     private bool hasLoaded;
     private bool isUpdatingAlert;
-    private AlertStatus selectedStatus;
-    private AlertSeverity selectedSeverity;
-    private string changeComment = string.Empty;
     private string currentUser = "unknown";
-    private readonly AlertStatus[] statusOptions = Enum.GetValues<AlertStatus>();
-    private readonly AlertSeverity[] severityOptions = Enum.GetValues<AlertSeverity>();
 
-    private IEnumerable<KeyValuePair<string, string>> MetadataEntries =>
-        alert?.Metadata?.OrderBy(kvp => kvp.Key) ?? Enumerable.Empty<KeyValuePair<string, string>>();
-
-    private IEnumerable<AlertChange> ChangeHistory =>
+    private IEnumerable<AlertChange> Timeline =>
         (alert?.Changes ?? Enumerable.Empty<AlertChange>()).OrderByDescending(c => c.CreatedAt);
 
     protected override async Task OnInitializedAsync()
@@ -238,8 +183,6 @@ else
             {
                 return;
             }
-            selectedStatus = alert.Status;
-            selectedSeverity = alert.Severity;
 
             var customer = await CustomerRepository.GetAsync(alert.CustomerId);
             customerName = customer?.Name ?? alert.CustomerId;
@@ -277,27 +220,9 @@ else
         }
     }
 
-    private Task OnStatusSelected(AlertStatus status)
+    private async Task AcceptAlertAsync()
     {
-        selectedStatus = status;
-        return Task.CompletedTask;
-    }
-
-    private Task OnSeveritySelected(AlertSeverity severity)
-    {
-        selectedSeverity = severity;
-        return Task.CompletedTask;
-    }
-
-    private Task OnChangeCommentChanged(string value)
-    {
-        changeComment = value ?? string.Empty;
-        return Task.CompletedTask;
-    }
-
-    private async Task UpdateAlertAsync()
-    {
-        if (alert is null || isUpdatingAlert || string.IsNullOrWhiteSpace(changeComment))
+        if (alert is null || isUpdatingAlert)
         {
             return;
         }
@@ -305,43 +230,97 @@ else
         isUpdatingAlert = true;
         try
         {
-            var statusChanged = selectedStatus != alert.Status;
-            var severityChanged = selectedSeverity != alert.Severity;
-            var previousStatus = alert.Status;
-            var previousSeverity = alert.Severity;
-
-            if (statusChanged)
-            {
-                alert.MarkStatus(selectedStatus);
-            }
-
-            if (severityChanged)
-            {
-                alert.Severity = selectedSeverity;
-            }
-
-            alert.UpdatedAt = DateTime.UtcNow;
+            alert.MarkStatus(AlertStatus.Accepted);
             alert.Changes ??= new();
             alert.Changes.Add(new AlertChange
             {
                 Id = Guid.NewGuid().ToString(),
                 User = currentUser,
-                Comment = changeComment.Trim(),
-                NewStatus = statusChanged ? selectedStatus : null,
-                NewSeverity = severityChanged ? selectedSeverity : null,
-                PreviousStatus = statusChanged ? previousStatus : null,
-                PreviousSeverity = severityChanged ? previousSeverity : null,
+                Comment = $"{currentUser} accepted this alert",
+                NewStatus = AlertStatus.Accepted,
                 CreatedAt = DateTime.UtcNow
             });
 
             alert = await AlertRepository.UpdateAsync(alert.Id, alert);
-            Snackbar.Add("Alert updated", Severity.Success);
-            changeComment = string.Empty;
+            Snackbar.Add("Alert accepted", Severity.Success);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to update status for alert {AlertId}", alert?.Id ?? Id);
-            Snackbar.Add($"Failed to update alert: {ex.Message}", Severity.Error);
+            Logger.LogError(ex, "Failed to accept alert {AlertId}", alert?.Id ?? Id);
+            Snackbar.Add($"Failed to accept alert: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isUpdatingAlert = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ResolveAlertAsync()
+    {
+        if (alert is null || isUpdatingAlert)
+        {
+            return;
+        }
+
+        isUpdatingAlert = true;
+        try
+        {
+            alert.MarkStatus(AlertStatus.Resolved);
+            alert.Changes ??= new();
+            alert.Changes.Add(new AlertChange
+            {
+                Id = Guid.NewGuid().ToString(),
+                User = currentUser,
+                Comment = $"{currentUser} resolved this alert",
+                NewStatus = AlertStatus.Resolved,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            alert = await AlertRepository.UpdateAsync(alert.Id, alert);
+            Snackbar.Add("Alert resolved", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to resolve alert {AlertId}", alert?.Id ?? Id);
+            Snackbar.Add($"Failed to resolve alert: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isUpdatingAlert = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task EscalateAlertAsync()
+    {
+        if (alert is null || isUpdatingAlert)
+        {
+            return;
+        }
+
+        isUpdatingAlert = true;
+        try
+        {
+            alert.MarkStatus(AlertStatus.Escalated);
+            alert.EscalationAttempts++;
+            alert.Changes ??= new();
+            alert.Changes.Add(new AlertChange
+            {
+                Id = Guid.NewGuid().ToString(),
+                User = currentUser,
+                Comment = $"{currentUser} escalated this alert to backup",
+                NewStatus = AlertStatus.Escalated,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            alert = await AlertRepository.UpdateAsync(alert.Id, alert);
+            Snackbar.Add("Alert escalated to backup", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to escalate alert {AlertId}", alert?.Id ?? Id);
+            Snackbar.Add($"Failed to escalate alert: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -367,21 +346,29 @@ else
         }
     }
 
-    private Color SeverityColor(AlertSeverity severity) => severity switch
+    private string FormatTimelineMessage(AlertChange entry)
     {
-        AlertSeverity.Critical => Color.Error,
-        AlertSeverity.High => Color.Error,
-        AlertSeverity.Medium => Color.Warning,
-        AlertSeverity.Low => Color.Info,
-        AlertSeverity.Info => Color.Default,
-        _ => Color.Default
-    };
+        if (!string.IsNullOrWhiteSpace(entry.Comment))
+        {
+            return entry.Comment;
+        }
 
-    private Color StatusColor(AlertStatus status) => status switch
+        return entry.NewStatus switch
+        {
+            AlertStatus.Accepted => $"{entry.User} accepted this alert",
+            AlertStatus.Resolved => $"{entry.User} resolved this alert",
+            AlertStatus.Escalated => $"{entry.User} escalated this alert",
+            AlertStatus.Pending => "Alert pending",
+            AlertStatus.Failed => "Alert processing failed",
+            _ => $"Status changed to {entry.NewStatus}"
+        };
+    }
+
+    private Color GetTimelineColor(AlertChange entry) => entry.NewStatus switch
     {
-        AlertStatus.Escalated => Color.Error,
-        AlertStatus.Acknowledged => Color.Warning,
+        AlertStatus.Accepted => Color.Warning,
         AlertStatus.Resolved => Color.Success,
+        AlertStatus.Escalated => Color.Error,
         AlertStatus.Failed => Color.Error,
         _ => Color.Primary
     };

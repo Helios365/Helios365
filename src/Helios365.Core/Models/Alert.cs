@@ -4,9 +4,9 @@ namespace Helios365.Core.Models;
 
 public enum AlertStatus
 {
-    Received,
+    Pending,
     Escalated,
-    Acknowledged,
+    Accepted,
     Resolved,
     Failed
 }
@@ -38,7 +38,7 @@ public class Alert
     public string AlertType { get; set; } = string.Empty;
 
     [JsonProperty("status")]
-    public AlertStatus Status { get; set; } = AlertStatus.Received;
+    public AlertStatus Status { get; set; } = AlertStatus.Pending;
 
     [JsonProperty("severity")]
     public AlertSeverity Severity { get; set; } = AlertSeverity.Medium;
@@ -91,7 +91,7 @@ public class Alert
 
     public bool IsActive()
     {
-        return Status is not (AlertStatus.Resolved or AlertStatus.Acknowledged or AlertStatus.Failed);
+        return Status is not (AlertStatus.Resolved or AlertStatus.Accepted or AlertStatus.Failed);
     }
 }
 

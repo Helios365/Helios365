@@ -2,13 +2,25 @@
 @attribute [Authorize(Policy = "ReaderOrAbove")]
 @using Helios365.Core.Models
 @using Helios365.Core.Repositories
+@using Helios365.Core.Services
 @inject IAlertRepository AlertRepository
+@inject ICustomerRepository CustomerRepository
+@inject IUserRepository UserRepository
+@inject IOnCallScheduleService OnCallScheduleService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
 @inject ILogger<Index> Logger
 
 <PageTitle>Helios365 Dashboard</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-2">Dashboard</MudText>
-<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Quick status overview with deep links into Alerts.</MudText>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <MudText Typo="Typo.h4" Class="mb-1">Dashboard</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Welcome back, @currentUserName</MudText>
+    </div>
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Primary" OnClick="ReloadAsync" Disabled="@isLoading" />
+</div>
 
 @if (isLoading)
 {
@@ -19,96 +31,203 @@
 }
 else
 {
-    <div class="d-flex flex-wrap gap-3 align-items-center mb-4">
-        @if (CriticalOpenCount == 0)
-        {
-            <MudChip T="string" Color="Color.Success" Variant="Variant.Filled">All clear</MudChip>
-        }
-        else
-        {
-            <MudChip T="string" Color="Color.Error" Variant="Variant.Filled">@CriticalOpenCount critical open</MudChip>
-        }
-    </div>
-
     <MudGrid>
-        <MudItem xs="12" sm="6" xl="3">
-            <MudCard Elevation="1" Class="h-100 cursor-pointer" @onclick="@(() => NavigateToAlerts("unsolved"))">
-                <MudCardContent>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">Active alerts</MudText>
-                        <MudIcon Icon="@Icons.Material.Filled.Notifications" Color="Color.Primary" />
-                    </div>
-                    <MudText Typo="Typo.h3" Color="Color.Primary">@ActiveAlertsCount</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">View open alerts</MudText>
-                </MudCardContent>
-            </MudCard>
+        <!-- Current Coverage -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4 h-100">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.SupportAgent" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6">Current Coverage</MudText>
+                </div>
+                @if (!customerCoverages.Any())
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">No coverage configured</MudText>
+                }
+                else
+                {
+                    @foreach (var coverage in customerCoverages)
+                    {
+                        <div class="@(customerCoverages.IndexOf(coverage) > 0 ? "mt-3 pt-3 border-top" : "")">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">@coverage.CustomerName</MudText>
+
+                            @if (coverage.PrimaryUsers.Any())
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">PRIMARY (@coverage.PrimaryRole)</MudText>
+                                @foreach (var user in coverage.PrimaryUsers)
+                                {
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <MudAvatar Size="Size.Small" Color="Color.Primary">
+                                            @(user.FirstOrDefault())
+                                        </MudAvatar>
+                                        <MudText Typo="Typo.body2">@user</MudText>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">No primary coverage</MudText>
+                            }
+
+                            @if (coverage.BackupUsers.Any())
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1 mt-2">BACKUP</MudText>
+                                @foreach (var user in coverage.BackupUsers)
+                                {
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <MudAvatar Size="Size.Small" Color="Color.Secondary">
+                                            @(user.FirstOrDefault())
+                                        </MudAvatar>
+                                        <MudText Typo="Typo.body2">@user</MudText>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                }
+            </MudPaper>
         </MudItem>
-        <MudItem xs="12" sm="6" xl="3">
-            <MudCard Elevation="1" Class="h-100 cursor-pointer" @onclick="@(() => NavigateToAlerts("unsolved", "Critical"))">
-                <MudCardContent>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">Critical open</MudText>
-                        <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" />
+
+        <!-- Pending Alerts -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <MudText Typo="Typo.h6">Pending Alerts</MudText>
+                    @if (pendingAlerts.Any())
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning">@pendingAlerts.Count</MudChip>
+                    }
+                </div>
+                @if (pendingAlerts.Any())
+                {
+                    <div class="d-flex flex-column gap-2">
+                        @foreach (var alert in pendingAlerts.Take(5))
+                        {
+                            <MudPaper Elevation="0" Class="pa-3 mud-background-gray rounded">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div class="flex-grow-1" style="cursor: pointer;" @onclick="() => NavigateToAlert(alert.Id)">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <MudChip T="string" Size="Size.Small" Color="@SeverityColor(alert.Severity)" Variant="Variant.Filled">
+                                                @alert.Severity
+                                            </MudChip>
+                                            <MudText Typo="Typo.body2" Class="fw-semibold">@TruncateText(alert.Title, 40)</MudText>
+                                        </div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @alert.CreatedAt.ToLocalTime().ToString("HH:mm") - @GetResourceName(alert)
+                                        </MudText>
+                                    </div>
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Warning"
+                                               Size="Size.Small"
+                                               Disabled="@isAccepting"
+                                               OnClick="() => AcceptAlertAsync(alert)">
+                                        Accept
+                                    </MudButton>
+                                </div>
+                            </MudPaper>
+                        }
+                        @if (pendingAlerts.Count > 5)
+                        {
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => NavigateToAlerts("Pending"))">
+                                View all @pendingAlerts.Count pending alerts
+                            </MudButton>
+                        }
                     </div>
-                    <MudText Typo="Typo.h3" Color="Color.Error">@CriticalOpenCount</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Filter critical in Alerts</MudText>
-                </MudCardContent>
-            </MudCard>
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+                        <MudText Color="Color.Secondary" Class="mt-2">No pending alerts</MudText>
+                    </div>
+                }
+            </MudPaper>
         </MudItem>
-        <MudItem xs="12" sm="6" xl="3">
-            <MudCard Elevation="1" Class="h-100 cursor-pointer" @onclick="@(() => NavigateToAlerts("Escalated"))">
-                <MudCardContent>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">Escalated</MudText>
-                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Warning" />
+
+        <!-- Accepted Alerts -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <MudText Typo="Typo.h6">Accepted Alerts</MudText>
+                    @if (acceptedAlerts.Any())
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info">@acceptedAlerts.Count</MudChip>
+                    }
+                </div>
+                @if (acceptedAlerts.Any())
+                {
+                    <div class="d-flex flex-column gap-2">
+                        @foreach (var alert in acceptedAlerts.Take(5))
+                        {
+                            <MudPaper Elevation="0" Class="pa-3 mud-background-gray rounded" Style="cursor: pointer;" @onclick="() => NavigateToAlert(alert.Id)">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <MudChip T="string" Size="Size.Small" Color="@SeverityColor(alert.Severity)" Variant="Variant.Filled">
+                                                @alert.Severity
+                                            </MudChip>
+                                            <MudText Typo="Typo.body2" Class="fw-semibold">@TruncateText(alert.Title, 40)</MudText>
+                                        </div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @GetAcceptedBy(alert) @GetAcceptedTime(alert) - @GetResourceName(alert)
+                                        </MudText>
+                                    </div>
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Success"
+                                               Size="Size.Small"
+                                               Disabled="@isAccepting"
+                                               OnClick="() => ResolveAlertAsync(alert)">
+                                        Resolve
+                                    </MudButton>
+                                </div>
+                            </MudPaper>
+                        }
+                        @if (acceptedAlerts.Count > 5)
+                        {
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => NavigateToAlerts("Accepted"))">
+                                View all @acceptedAlerts.Count accepted alerts
+                            </MudButton>
+                        }
                     </div>
-                    <MudText Typo="Typo.h3" Color="Color.Warning">@EscalatedCount</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Go to escalated</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="6" xl="3">
-            <MudCard Elevation="1" Class="h-100 cursor-pointer" @onclick="@(() => NavigateToAlerts("Resolved"))">
-                <MudCardContent>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">Resolved today</MudText>
-                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Inbox" Color="Color.Secondary" Size="Size.Large" />
+                        <MudText Color="Color.Secondary" Class="mt-2">No accepted alerts</MudText>
                     </div>
-                    <MudText Typo="Typo.h3" Color="Color.Success">@ResolvedTodayCount</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Includes healthy</MudText>
-                </MudCardContent>
-            </MudCard>
+                }
+            </MudPaper>
         </MudItem>
     </MudGrid>
 }
 
 @code {
-    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
-
     private bool isLoading = true;
-    private bool isRefreshing;
-    private DateTime lastUpdatedUtc = DateTime.UtcNow;
+    private bool isAccepting;
+    private string currentUserName = "User";
 
-    private int ActiveAlertsCount { get; set; }
-    private int CriticalOpenCount { get; set; }
-    private int EscalatedCount { get; set; }
-    private int ResolvedTodayCount { get; set; }
+    private List<Alert> pendingAlerts = new();
+    private List<Alert> acceptedAlerts = new();
+    private List<CustomerCoverageInfo> customerCoverages = new();
+    private Dictionary<string, string> resourceNames = new();
 
     protected override async Task OnInitializedAsync()
     {
+        await SetCurrentUserAsync();
         await LoadDashboardAsync();
     }
 
-    private async Task Reload()
+    private async Task SetCurrentUserAsync()
     {
-        if (isRefreshing)
+        try
         {
-            return;
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            currentUserName = state.User?.Identity?.Name ?? "User";
         }
-
-        isRefreshing = true;
-        await LoadDashboardAsync();
-        isRefreshing = false;
+        catch
+        {
+            currentUserName = "User";
+        }
     }
 
     private async Task LoadDashboardAsync()
@@ -116,23 +235,31 @@ else
         isLoading = true;
         try
         {
-            var now = DateTime.UtcNow;
             var alerts = (await AlertRepository.ListAsync(limit: 400)).ToList();
 
-            lastUpdatedUtc = now;
+            // Get pending alerts
+            pendingAlerts = alerts
+                .Where(a => a.Status == AlertStatus.Pending)
+                .OrderByDescending(a => a.Severity)
+                .ThenByDescending(a => a.CreatedAt)
+                .ToList();
 
-            var activeAlerts = alerts.Where(a => a.IsActive()).ToList();
-            ActiveAlertsCount = activeAlerts.Count;
-            CriticalOpenCount = activeAlerts.Count(a => a.Severity == AlertSeverity.Critical);
-            EscalatedCount = activeAlerts.Count(a => a.Status == AlertStatus.Escalated);
-            ResolvedTodayCount = alerts.Count(a =>
-                a.Status == AlertStatus.Resolved &&
-                a.ResolvedAt.HasValue &&
-                a.ResolvedAt.Value.Date == now.Date);
+            // Get all accepted alerts
+            acceptedAlerts = alerts
+                .Where(a => a.Status == AlertStatus.Accepted)
+                .OrderByDescending(a => a.UpdatedAt)
+                .ToList();
+
+            // Build resource names lookup
+            await LoadResourceNamesAsync(alerts);
+
+            // Load on-call coverage
+            await LoadOnCallCoverageAsync();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading dashboard data");
+            Snackbar.Add("Failed to load dashboard", Severity.Error);
         }
         finally
         {
@@ -141,13 +268,212 @@ else
         }
     }
 
-    private void NavigateToAlerts(string status, string? severity = null)
+    private async Task LoadResourceNamesAsync(List<Alert> alerts)
     {
-        var url = $"/alerts?status={status}";
-        if (!string.IsNullOrEmpty(severity))
+        var customerIds = alerts.Select(a => a.CustomerId).Distinct().ToList();
+        foreach (var customerId in customerIds)
         {
-            url += $"&severity={severity}";
+            try
+            {
+                var resources = await AlertRepository.ListAsync(limit: 200);
+                // Build simple resource name from resource ID
+                foreach (var alert in alerts.Where(a => a.CustomerId == customerId))
+                {
+                    if (!string.IsNullOrWhiteSpace(alert.ResourceId) && !resourceNames.ContainsKey(alert.ResourceId))
+                    {
+                        var lastSlash = alert.ResourceId.LastIndexOf('/');
+                        resourceNames[alert.ResourceId] = lastSlash >= 0 && lastSlash < alert.ResourceId.Length - 1
+                            ? alert.ResourceId[(lastSlash + 1)..]
+                            : alert.ResourceId;
+                    }
+                }
+            }
+            catch { }
         }
-        NavigationManager.NavigateTo(url);
     }
+
+    private async Task LoadOnCallCoverageAsync()
+    {
+        customerCoverages.Clear();
+        try
+        {
+            var customers = await CustomerRepository.ListAsync(limit: 50);
+            foreach (var customer in customers)
+            {
+                var coverage = await OnCallScheduleService.GetCurrentCoverageAsync(customer.Id, DateTime.UtcNow);
+
+                if (coverage.PrimarySlice == null && coverage.BackupSlice == null)
+                {
+                    continue;
+                }
+
+                var primaryRole = "Primary";
+                var primaryUsers = new List<string>();
+                var backupUsers = new List<string>();
+
+                if (coverage.PrimarySlice != null)
+                {
+                    primaryRole = coverage.PrimarySlice.Role switch
+                    {
+                        "OnHours" => "On-Hours",
+                        "OffHours" => "Off-Hours",
+                        _ => coverage.PrimarySlice.Role
+                    };
+
+                    foreach (var memberId in coverage.PrimarySlice.MemberIds)
+                    {
+                        var user = await UserRepository.GetAsync(memberId);
+                        var name = user?.DisplayName ?? user?.Mail ?? memberId;
+                        primaryUsers.Add(name);
+                    }
+                }
+
+                if (coverage.BackupSlice != null)
+                {
+                    foreach (var memberId in coverage.BackupSlice.MemberIds)
+                    {
+                        var user = await UserRepository.GetAsync(memberId);
+                        var name = user?.DisplayName ?? user?.Mail ?? memberId;
+                        backupUsers.Add(name);
+                    }
+                }
+
+                customerCoverages.Add(new CustomerCoverageInfo(
+                    customer.Name ?? customer.Id,
+                    primaryRole,
+                    primaryUsers,
+                    backupUsers));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load on-call coverage");
+        }
+    }
+
+    private async Task AcceptAlertAsync(Alert alert)
+    {
+        if (isAccepting) return;
+        isAccepting = true;
+
+        try
+        {
+            alert.MarkStatus(AlertStatus.Accepted);
+            alert.Changes ??= new();
+            alert.Changes.Add(new AlertChange
+            {
+                Id = Guid.NewGuid().ToString(),
+                User = currentUserName,
+                Comment = $"{currentUserName} accepted this alert",
+                NewStatus = AlertStatus.Accepted,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await AlertRepository.UpdateAsync(alert.Id, alert);
+            Snackbar.Add("Alert accepted", Severity.Success);
+
+            // Move from pending to accepted
+            pendingAlerts.Remove(alert);
+            acceptedAlerts.Insert(0, alert);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to accept alert {AlertId}", alert.Id);
+            Snackbar.Add("Failed to accept alert", Severity.Error);
+        }
+        finally
+        {
+            isAccepting = false;
+        }
+    }
+
+    private async Task ResolveAlertAsync(Alert alert)
+    {
+        if (isAccepting) return;
+        isAccepting = true;
+
+        try
+        {
+            alert.MarkStatus(AlertStatus.Resolved);
+            alert.Changes ??= new();
+            alert.Changes.Add(new AlertChange
+            {
+                Id = Guid.NewGuid().ToString(),
+                User = currentUserName,
+                Comment = $"{currentUserName} resolved this alert",
+                NewStatus = AlertStatus.Resolved,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await AlertRepository.UpdateAsync(alert.Id, alert);
+            Snackbar.Add("Alert resolved", Severity.Success);
+
+            acceptedAlerts.Remove(alert);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to resolve alert {AlertId}", alert.Id);
+            Snackbar.Add("Failed to resolve alert", Severity.Error);
+        }
+        finally
+        {
+            isAccepting = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private string GetResourceName(Alert alert)
+    {
+        if (string.IsNullOrWhiteSpace(alert.ResourceId)) return "Unknown resource";
+        return resourceNames.TryGetValue(alert.ResourceId, out var name) ? name : alert.ResourceId;
+    }
+
+    private string GetAcceptedTime(Alert alert)
+    {
+        var acceptChange = alert.Changes?.FirstOrDefault(c => c.NewStatus == AlertStatus.Accepted);
+        if (acceptChange != null)
+        {
+            return acceptChange.CreatedAt.ToLocalTime().ToString("HH:mm");
+        }
+        return alert.UpdatedAt.ToLocalTime().ToString("HH:mm");
+    }
+
+    private string GetAcceptedBy(Alert alert)
+    {
+        var acceptChange = alert.Changes?.FirstOrDefault(c => c.NewStatus == AlertStatus.Accepted);
+        return acceptChange?.User ?? "Unknown";
+    }
+
+    private static string TruncateText(string? text, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "(no title)";
+        return text.Length <= maxLength ? text : text[..maxLength] + "...";
+    }
+
+    private void NavigateToAlerts(string status)
+    {
+        NavigationManager.NavigateTo($"/alerts?status={status}");
+    }
+
+    private void NavigateToAlert(string alertId)
+    {
+        NavigationManager.NavigateTo($"/alerts/{alertId}");
+    }
+
+    private static Color SeverityColor(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Critical => Color.Error,
+        AlertSeverity.High => Color.Error,
+        AlertSeverity.Medium => Color.Warning,
+        AlertSeverity.Low => Color.Info,
+        _ => Color.Default
+    };
+
+    private record CustomerCoverageInfo(string CustomerName, string PrimaryRole, List<string> PrimaryUsers, List<string> BackupUsers);
 }
