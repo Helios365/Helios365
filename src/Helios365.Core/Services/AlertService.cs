@@ -10,6 +10,12 @@ namespace Helios365.Core.Services;
 public interface IAlertService
 {
     Task<AlertProcessingResult> IngestAzureMonitorAlertAsync(Customer customer, string payload, CancellationToken cancellationToken = default);
+    Task<Alert?> GetAlertAsync(string alertId, CancellationToken cancellationToken = default);
+    Task<Alert> AddTimelineEntryAsync(string alertId, string message, AlertStatus? newStatus = null, CancellationToken cancellationToken = default);
+    Task<Alert> UpdateEscalationStateAsync(string alertId, int attempt, string targetUserId, CancellationToken cancellationToken = default);
+    Task<Alert> RecordNotificationResultAsync(string alertId, string userName, bool emailSent, bool smsSent, string? errorMessage = null, bool isBackup = false, CancellationToken cancellationToken = default);
+    Task<Alert> MarkEscalatedAsync(string alertId, string reason, CancellationToken cancellationToken = default);
+    Task<Alert> MarkFailedAsync(string alertId, string reason, CancellationToken cancellationToken = default);
 }
 
 public class AlertService : IAlertService
@@ -132,6 +138,124 @@ public class AlertService : IAlertService
         }
 
         return AlertProcessingResult.Created(alert, "Azure alert received and processing started");
+    }
+
+    public async Task<Alert?> GetAlertAsync(string alertId, CancellationToken cancellationToken = default)
+    {
+        return await _alertRepository.GetAsync(alertId, cancellationToken);
+    }
+
+    public async Task<Alert> AddTimelineEntryAsync(string alertId, string message, AlertStatus? newStatus = null, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        var previousStatus = alert.Status;
+        if (newStatus.HasValue)
+        {
+            alert.MarkStatus(newStatus.Value);
+        }
+
+        alert.Changes ??= new List<AlertChange>();
+        alert.Changes.Add(new AlertChange
+        {
+            Id = Guid.NewGuid().ToString(),
+            User = "system",
+            Comment = message,
+            PreviousStatus = newStatus.HasValue ? previousStatus : null,
+            NewStatus = newStatus,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        return alert;
+    }
+
+    public async Task<Alert> UpdateEscalationStateAsync(string alertId, int attempt, string targetUserId, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        alert.EscalationAttempts = attempt;
+        alert.CurrentEscalationTarget = targetUserId;
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        return alert;
+    }
+
+    public async Task<Alert> RecordNotificationResultAsync(string alertId, string userName, bool emailSent, bool smsSent, string? errorMessage = null, bool isBackup = false, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        var channels = new List<string>();
+        if (emailSent) channels.Add("email");
+        if (smsSent) channels.Add("SMS");
+
+        var backupLabel = isBackup ? " (backup)" : "";
+        var message = channels.Count > 0
+            ? $"Notification sent to {userName}{backupLabel} via {string.Join(" and ", channels)}"
+            : $"Failed to notify {userName}{backupLabel}: {errorMessage ?? "unknown error"}";
+
+        alert.Changes ??= new List<AlertChange>();
+        alert.Changes.Add(new AlertChange
+        {
+            Id = Guid.NewGuid().ToString(),
+            User = "system",
+            Comment = message,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        return alert;
+    }
+
+    public async Task<Alert> MarkEscalatedAsync(string alertId, string reason, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        var previousStatus = alert.Status;
+        alert.MarkStatus(AlertStatus.Escalated);
+
+        alert.Changes ??= new List<AlertChange>();
+        alert.Changes.Add(new AlertChange
+        {
+            Id = Guid.NewGuid().ToString(),
+            User = "system",
+            Comment = reason,
+            PreviousStatus = previousStatus,
+            NewStatus = AlertStatus.Escalated,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        _logger.LogInformation("Alert {AlertId} marked as escalated: {Reason}", alertId, reason);
+        return alert;
+    }
+
+    public async Task<Alert> MarkFailedAsync(string alertId, string reason, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        var previousStatus = alert.Status;
+        alert.MarkStatus(AlertStatus.Failed);
+
+        alert.Changes ??= new List<AlertChange>();
+        alert.Changes.Add(new AlertChange
+        {
+            Id = Guid.NewGuid().ToString(),
+            User = "system",
+            Comment = reason,
+            PreviousStatus = previousStatus,
+            NewStatus = AlertStatus.Failed,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        _logger.LogError("Alert {AlertId} marked as failed: {Reason}", alertId, reason);
+        return alert;
     }
 
     private static bool IsResolved(string? monitorCondition) =>

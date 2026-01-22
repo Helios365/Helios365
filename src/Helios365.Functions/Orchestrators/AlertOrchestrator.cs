@@ -34,20 +34,12 @@ public class AlertOrchestrator
             if (onCallResult.PrimaryUsers.Count == 0 && onCallResult.BackupUsers.Count == 0)
             {
                 logger.LogWarning(
-                    "No on-call users found for customer {CustomerId}. Alert {AlertId} marked as escalated but no notifications sent.",
+                    "No on-call users found for customer {CustomerId}. Alert {AlertId} marked as escalated.",
                     alert.CustomerId, alert.Id);
 
-                alert.MarkStatus(AlertStatus.Escalated);
-                alert.Changes.Add(new AlertChange
-                {
-                    Id = context.NewGuid().ToString(),
-                    User = "system",
-                    Comment = "No on-call users configured - unable to send notifications",
-                    PreviousStatus = AlertStatus.Pending,
-                    NewStatus = AlertStatus.Escalated,
-                    CreatedAt = context.CurrentUtcDateTime
-                });
-                await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
+                await context.CallActivityAsync<Alert>(
+                    nameof(AlertServiceActivities.MarkEscalatedActivity),
+                    new MarkEscalatedInput(alert.Id, "No on-call users configured - unable to send notifications"));
                 return;
             }
 
@@ -58,10 +50,10 @@ public class AlertOrchestrator
                 TimeSpan.FromMinutes(5));
 
             logger.LogInformation(
-                "Starting notification for alert {AlertId} - Primary users: {PrimaryCount}, Backup users: {BackupCount}",
+                "Starting notification for alert {AlertId} - Primary: {PrimaryCount}, Backup: {BackupCount}",
                 alert.Id, onCallResult.PrimaryUsers.Count, onCallResult.BackupUsers.Count);
 
-            // Step 3: Start escalation sub-orchestration (alert stays Pending until escalated to backup)
+            // Step 3: Start escalation sub-orchestration
             await context.CallSubOrchestratorAsync(
                 nameof(EscalationOrchestrator),
                 new EscalationOrchestratorInput(
@@ -70,24 +62,15 @@ public class AlertOrchestrator
                     onCallResult.BackupUsers.ToList(),
                     policy));
 
-            logger.LogInformation(
-                "Escalation orchestration completed for alert {AlertId}",
-                alert.Id);
+            logger.LogInformation("Notification orchestration completed for alert {AlertId}", alert.Id);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error in orchestration for alert {AlertId}", alert.Id);
-            alert.MarkStatus(AlertStatus.Failed);
-            alert.Changes.Add(new AlertChange
-            {
-                Id = context.NewGuid().ToString(),
-                User = "system",
-                Comment = $"Orchestration failed: {ex.Message}",
-                PreviousStatus = alert.Status,
-                NewStatus = AlertStatus.Failed,
-                CreatedAt = context.CurrentUtcDateTime
-            });
-            await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
+
+            await context.CallActivityAsync<Alert>(
+                nameof(AlertServiceActivities.MarkFailedActivity),
+                new MarkFailedInput(alert.Id, $"Orchestration failed: {ex.Message}"));
         }
     }
 }

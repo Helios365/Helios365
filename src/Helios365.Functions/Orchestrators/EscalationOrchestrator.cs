@@ -28,253 +28,144 @@ public class EscalationOrchestrator
             return;
         }
 
-        var alert = input.Alert;
+        var alertId = input.Alert.Id;
         var policy = input.Policy;
-        var primaryUsers = input.PrimaryUsers;
-        var backupUsers = input.BackupUsers;
 
-        if (primaryUsers.Count == 0 && backupUsers.Count == 0)
+        if (input.PrimaryUsers.Count == 0 && input.BackupUsers.Count == 0)
         {
-            logger.LogWarning(
-                "No on-call users available for alert {AlertId}",
-                alert.Id);
+            logger.LogWarning("No on-call users available for alert {AlertId}", alertId);
             return;
         }
 
         logger.LogInformation(
-            "Starting notifications for alert {AlertId} - Primary: {PrimaryCount}, Backup: {BackupCount}, AckTimeout={AckTimeout}",
-            alert.Id, primaryUsers.Count, backupUsers.Count, policy.AckTimeout);
+            "Starting notifications for alert {AlertId} - Primary: {PrimaryCount}, Backup: {BackupCount}",
+            alertId, input.PrimaryUsers.Count, input.BackupUsers.Count);
 
         int attempt = 0;
 
-        // First, notify primary users
-        foreach (var currentUser in primaryUsers)
+        // Notify primary users
+        foreach (var user in input.PrimaryUsers)
         {
+            if (await IsAlertHandledAsync(context, alertId, logger))
+                return;
+
             attempt++;
-
-            // Check if alert is still active before notifying
-            var currentAlert = await context.CallActivityAsync<Alert?>(
-                nameof(GetAlertActivity), alert.Id);
-
-            if (currentAlert == null)
-            {
-                logger.LogWarning("Alert {AlertId} no longer exists. Stopping.", alert.Id);
-                return;
-            }
-
-            if (currentAlert.Status == AlertStatus.Resolved ||
-                currentAlert.Status == AlertStatus.Accepted)
-            {
-                logger.LogInformation(
-                    "Alert {AlertId} is no longer active (status: {Status}). Stopping.",
-                    alert.Id, currentAlert.Status);
-                return;
-            }
-
-            alert = currentAlert;
-
-            logger.LogInformation(
-                "Notifying primary user {UserName} ({UserId}) for alert {AlertId}",
-                currentUser.DisplayName, currentUser.UserId, alert.Id);
-
-            alert.EscalationAttempts = attempt;
-            alert.CurrentEscalationTarget = currentUser.UserId;
-            alert = await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
-
-            var notifyResult = await NotifyUserAsync(context, alert, currentUser);
-
-            // Add timeline entry for notification attempt
-            var channels = new List<string>();
-            if (notifyResult.EmailSent) channels.Add("email");
-            if (notifyResult.SmsSent) channels.Add("SMS");
-
-            if (channels.Count > 0)
-            {
-                alert.Changes.Add(new AlertChange
-                {
-                    Id = context.NewGuid().ToString(),
-                    User = "system",
-                    Comment = $"Notification sent to {currentUser.DisplayName} via {string.Join(" and ", channels)}",
-                    CreatedAt = context.CurrentUtcDateTime
-                });
-            }
-            else
-            {
-                alert.Changes.Add(new AlertChange
-                {
-                    Id = context.NewGuid().ToString(),
-                    User = "system",
-                    Comment = $"Failed to notify {currentUser.DisplayName}: {notifyResult.ErrorMessage}",
-                    CreatedAt = context.CurrentUtcDateTime
-                });
-            }
-
-            alert = await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
-
-            if (!notifyResult.EmailSent && !notifyResult.SmsSent)
-            {
-                logger.LogWarning(
-                    "Failed to send notification for alert {AlertId} to {UserName}: {Error}",
-                    alert.Id, currentUser.DisplayName, notifyResult.ErrorMessage);
-                continue;
-            }
-
-            // Wait for acknowledgment
-            logger.LogInformation(
-                "Waiting {Timeout} for response from {UserName} for alert {AlertId}",
-                policy.AckTimeout, currentUser.DisplayName, alert.Id);
-
-            var deadline = context.CurrentUtcDateTime.Add(policy.AckTimeout);
-            await context.CreateTimer(deadline, CancellationToken.None);
+            await NotifyUserAsync(context, alertId, user, attempt, isBackup: false, policy.AckTimeout, logger);
         }
 
-        // Check if alert was accepted during primary notifications
-        var alertAfterPrimary = await context.CallActivityAsync<Alert?>(nameof(GetAlertActivity), alert.Id);
-        if (alertAfterPrimary == null ||
-            alertAfterPrimary.Status == AlertStatus.Resolved ||
-            alertAfterPrimary.Status == AlertStatus.Accepted)
+        // Check if alert was handled by primary
+        if (await IsAlertHandledAsync(context, alertId, logger))
         {
-            logger.LogInformation("Alert {AlertId} handled by primary. No escalation needed.", alert.Id);
+            logger.LogInformation("Alert {AlertId} handled by primary. No escalation needed.", alertId);
             return;
         }
 
-        alert = alertAfterPrimary;
-
-        // Escalate to backup users
-        if (backupUsers.Count > 0)
+        // Escalate to backup
+        if (input.BackupUsers.Count > 0)
         {
-            logger.LogInformation(
-                "Primary users did not respond. Escalating alert {AlertId} to backup users.",
-                alert.Id);
+            logger.LogInformation("Primary users did not respond. Escalating alert {AlertId} to backup.", alertId);
 
-            // Mark as Escalated when moving to backup
-            alert.MarkStatus(AlertStatus.Escalated);
-            alert.Changes.Add(new AlertChange
-            {
-                Id = context.NewGuid().ToString(),
-                User = "system",
-                Comment = "Primary on-call did not respond. Escalating to backup.",
-                PreviousStatus = AlertStatus.Pending,
-                NewStatus = AlertStatus.Escalated,
-                CreatedAt = context.CurrentUtcDateTime
-            });
-            alert = await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
+            await context.CallActivityAsync<Alert>(
+                nameof(AlertServiceActivities.MarkEscalatedActivity),
+                new MarkEscalatedInput(alertId, "Primary on-call did not respond. Escalating to backup."));
 
-            foreach (var currentUser in backupUsers)
+            foreach (var user in input.BackupUsers)
             {
+                if (await IsAlertHandledAsync(context, alertId, logger))
+                    return;
+
                 attempt++;
-
-                var currentAlert = await context.CallActivityAsync<Alert?>(
-                    nameof(GetAlertActivity), alert.Id);
-
-                if (currentAlert == null)
-                {
-                    logger.LogWarning("Alert {AlertId} no longer exists. Stopping.", alert.Id);
-                    return;
-                }
-
-                if (currentAlert.Status == AlertStatus.Resolved ||
-                    currentAlert.Status == AlertStatus.Accepted)
-                {
-                    logger.LogInformation(
-                        "Alert {AlertId} is no longer active (status: {Status}). Stopping.",
-                        alert.Id, currentAlert.Status);
-                    return;
-                }
-
-                alert = currentAlert;
-
-                logger.LogInformation(
-                    "Notifying backup user {UserName} ({UserId}) for alert {AlertId}",
-                    currentUser.DisplayName, currentUser.UserId, alert.Id);
-
-                alert.EscalationAttempts = attempt;
-                alert.CurrentEscalationTarget = currentUser.UserId;
-                alert = await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
-
-                var notifyResult = await NotifyUserAsync(context, alert, currentUser);
-
-                // Add timeline entry for notification attempt
-                var channels = new List<string>();
-                if (notifyResult.EmailSent) channels.Add("email");
-                if (notifyResult.SmsSent) channels.Add("SMS");
-
-                if (channels.Count > 0)
-                {
-                    alert.Changes.Add(new AlertChange
-                    {
-                        Id = context.NewGuid().ToString(),
-                        User = "system",
-                        Comment = $"Notification sent to {currentUser.DisplayName} (backup) via {string.Join(" and ", channels)}",
-                        CreatedAt = context.CurrentUtcDateTime
-                    });
-                }
-                else
-                {
-                    alert.Changes.Add(new AlertChange
-                    {
-                        Id = context.NewGuid().ToString(),
-                        User = "system",
-                        Comment = $"Failed to notify {currentUser.DisplayName} (backup): {notifyResult.ErrorMessage}",
-                        CreatedAt = context.CurrentUtcDateTime
-                    });
-                }
-
-                alert = await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), alert);
-
-                if (!notifyResult.EmailSent && !notifyResult.SmsSent)
-                {
-                    logger.LogWarning(
-                        "Failed to send notification for alert {AlertId} to {UserName}: {Error}",
-                        alert.Id, currentUser.DisplayName, notifyResult.ErrorMessage);
-                    continue;
-                }
-
-                // Wait for acknowledgment
-                var deadline = context.CurrentUtcDateTime.Add(policy.AckTimeout);
-                await context.CreateTimer(deadline, CancellationToken.None);
+                await NotifyUserAsync(context, alertId, user, attempt, isBackup: true, policy.AckTimeout, logger);
             }
         }
 
         // All notifications exhausted
-        logger.LogWarning("All notification attempts exhausted for alert {AlertId}", alert.Id);
-
-        var finalAlert = await context.CallActivityAsync<Alert?>(nameof(GetAlertActivity), alert.Id);
-        if (finalAlert != null &&
-            finalAlert.Status != AlertStatus.Resolved &&
-            finalAlert.Status != AlertStatus.Accepted)
+        if (!await IsAlertHandledAsync(context, alertId, logger))
         {
-            finalAlert.Changes.Add(new AlertChange
-            {
-                Id = context.NewGuid().ToString(),
-                User = "system",
-                Comment = $"All {attempt} notification attempts completed without response",
-                PreviousStatus = finalAlert.Status,
-                NewStatus = finalAlert.Status,
-                CreatedAt = context.CurrentUtcDateTime
-            });
-            await context.CallActivityAsync<Alert>(nameof(UpdateAlertActivity), finalAlert);
+            logger.LogWarning("All {Attempts} notification attempts exhausted for alert {AlertId}", attempt, alertId);
+
+            await context.CallActivityAsync<Alert>(
+                nameof(AlertServiceActivities.AddTimelineEntryActivity),
+                new AddTimelineEntryInput(alertId, $"All {attempt} notification attempts completed without response"));
         }
     }
 
-    private static async Task<SendNotificationResult> NotifyUserAsync(
+    private static async Task<bool> IsAlertHandledAsync(
         TaskOrchestrationContext context,
-        Alert alert,
-        OnCallUserInfo user)
+        string alertId,
+        ILogger logger)
     {
-        var notifyInput = new SendNotificationInput(
-            alert.Id,
-            alert.CustomerId,
-            user.UserId,
-            user.DisplayName,
-            user.Email,
-            user.Phone,
-            alert.Title ?? "Alert",
-            alert.Description,
-            alert.Severity.ToString(),
-            alert.ResourceId);
+        var alert = await context.CallActivityAsync<Alert?>(nameof(GetAlertActivity), alertId);
 
-        return await context.CallActivityAsync<SendNotificationResult>(
-            nameof(SendNotificationActivity), notifyInput);
+        if (alert == null)
+        {
+            logger.LogWarning("Alert {AlertId} no longer exists. Stopping.", alertId);
+            return true;
+        }
+
+        if (alert.Status == AlertStatus.Resolved || alert.Status == AlertStatus.Accepted)
+        {
+            logger.LogInformation("Alert {AlertId} is {Status}. Stopping.", alertId, alert.Status);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static async Task NotifyUserAsync(
+        TaskOrchestrationContext context,
+        string alertId,
+        OnCallUserInfo user,
+        int attempt,
+        bool isBackup,
+        TimeSpan ackTimeout,
+        ILogger logger)
+    {
+        var label = isBackup ? "backup" : "primary";
+        logger.LogInformation(
+            "Notifying {Label} user {UserName} for alert {AlertId}",
+            label, user.DisplayName, alertId);
+
+        // Update escalation state
+        await context.CallActivityAsync<Alert>(
+            nameof(AlertServiceActivities.UpdateEscalationStateActivity),
+            new UpdateEscalationStateInput(alertId, attempt, user.UserId));
+
+        // Get fresh alert for notification
+        var alert = await context.CallActivityAsync<Alert?>(nameof(GetAlertActivity), alertId);
+        if (alert == null) return;
+
+        // Send notification
+        var notifyResult = await context.CallActivityAsync<SendNotificationResult>(
+            nameof(SendNotificationActivity),
+            new SendNotificationInput(
+                alertId,
+                alert.CustomerId,
+                user.UserId,
+                user.DisplayName,
+                user.Email,
+                user.Phone,
+                alert.Title ?? "Alert",
+                alert.Description,
+                alert.Severity.ToString(),
+                alert.ResourceId));
+
+        // Record result in timeline
+        await context.CallActivityAsync<Alert>(
+            nameof(AlertServiceActivities.RecordNotificationResultActivity),
+            new RecordNotificationResultInput(
+                alertId,
+                user.DisplayName,
+                notifyResult.EmailSent,
+                notifyResult.SmsSent,
+                notifyResult.ErrorMessage,
+                isBackup));
+
+        // Wait for acknowledgment if notification was sent
+        if (notifyResult.EmailSent || notifyResult.SmsSent)
+        {
+            var deadline = context.CurrentUtcDateTime.Add(ackTimeout);
+            await context.CreateTimer(deadline, CancellationToken.None);
+        }
     }
 }
