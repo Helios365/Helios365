@@ -79,7 +79,16 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor()
+builder.Services.AddServerSideBlazor(options =>
+    {
+        options.DetailedErrors = builder.Environment.IsDevelopment();
+        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(10);
+    })
+    .AddHubOptions(options =>
+    {
+        options.ClientTimeoutInterval = TimeSpan.FromMinutes(2);
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    })
     .AddMicrosoftIdentityConsentHandler();
 
 // Add Cosmos DB and Helios365 Core services

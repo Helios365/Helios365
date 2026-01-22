@@ -134,10 +134,10 @@ else
             <HeaderContent>
                 <MudTh>Severity</MudTh>
                 <MudTh>Title</MudTh>
-                <MudTh>Customer</MudTh>
+                <MudTh>Description</MudTh>
                 <MudTh>Resource</MudTh>
                 <MudTh>Status</MudTh>
-                <MudTh align="right">Updated</MudTh>
+                <MudTh>Updated</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd>
@@ -149,14 +149,10 @@ else
                     </MudChip>
                 </MudTd>
                 <MudTd>
-                    <div class="fw-semibold">@(!string.IsNullOrWhiteSpace(context.Alert.Title) ? context.Alert.Title : "(no title)")</div>
-                    <div class="text-muted small">@context.Alert.Description</div>
+                    <span class="fw-semibold">@(!string.IsNullOrWhiteSpace(context.Alert.Title) ? context.Alert.Title : "(no title)")</span>
                 </MudTd>
-                <MudTd>@context.CustomerName</MudTd>
-                <MudTd>
-                    <div>@context.ResourceName</div>
-                    <div class="text-muted small">@context.Alert.ResourceType</div>
-                </MudTd>
+                <MudTd>@context.Alert.Description</MudTd>
+                <MudTd>@context.ResourceName</MudTd>
                 <MudTd>
                     <MudChip T="string"
                              Color="@StatusColor(context.Alert.Status)"
@@ -165,10 +161,7 @@ else
                         @context.Alert.Status
                     </MudChip>
                 </MudTd>
-                <MudTd align="right">
-                    <div>@context.Alert.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
-                    <div class="text-muted small">Created @context.Alert.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
-                </MudTd>
+                <MudTd>@context.Alert.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
             </RowTemplate>
             <NoRecordsContent>
                 <div class="text-center text-muted py-4">No alerts match the current filters.</div>
@@ -275,7 +268,7 @@ else
                     var resourceKey = $"{alert.CustomerId}|{Normalizers.NormalizeResourceId(alert.ResourceId)}";
                     var resourceName = resourceLookup.TryGetValue(resourceKey, out var rName)
                         ? rName
-                        : (!string.IsNullOrWhiteSpace(alert.ResourceId) ? alert.ResourceId : "(resource unknown)");
+                        : (!string.IsNullOrWhiteSpace(alert.ResourceId) ? ExtractResourceName(alert.ResourceId) : "(resource unknown)");
 
                     return new AlertViewModel(alert, customerName, resourceName);
                 })
@@ -463,6 +456,24 @@ else
         {
             NavigationManager.NavigateTo(newUri, replace: true);
         }
+    }
+
+    private static string ExtractResourceName(string resourceId)
+    {
+        if (string.IsNullOrWhiteSpace(resourceId))
+        {
+            return "(resource unknown)";
+        }
+
+        // Azure resource IDs are formatted as: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
+        // Extract the last segment as the resource name
+        var lastSlash = resourceId.LastIndexOf('/');
+        if (lastSlash >= 0 && lastSlash < resourceId.Length - 1)
+        {
+            return resourceId[(lastSlash + 1)..];
+        }
+
+        return resourceId;
     }
 
     private sealed record AlertViewModel(Alert Alert, string CustomerName, string ResourceName);

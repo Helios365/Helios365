@@ -2,8 +2,9 @@
 
 /* CSS Variables for consistent theming */
 :root {
-    --primary-color: #667eea;
-    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --primary-color: #0a7b3e;
+    --primary-light: #53ce5d;
+    --primary-gradient: linear-gradient(135deg, #0a7b3e 0%, #53ce5d 100%);
     --secondary-color: #6c757d;
     --success-color: #198754;
     --danger-color: #dc3545;
@@ -11,12 +12,12 @@
     --info-color: #0dcaf0;
     --light-color: #f8f9fa;
     --dark-color: #212529;
-    
+
     --bg-light: #f5f7fa;
     --border-radius: 0.5rem;
     --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     --box-shadow-hover: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    
+
     --transition-fast: 0.15s ease-in-out;
     --transition-normal: 0.3s ease-in-out;
 }
@@ -40,7 +41,7 @@ a, .btn-link {
 }
 
 a:hover {
-    color: #5a6fd8;
+    color: #53ce5d;
 }
 
 .btn-primary {
@@ -53,12 +54,12 @@ a:hover {
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    background: linear-gradient(135deg, #53ce5d 0%, #0a7b3e 100%);
     transform: translateY(-1px);
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem rgba(2, 85, 34, 0.25);
 }
 
 .content {
@@ -85,7 +86,7 @@ a:hover {
 }
 
 .header-gradient {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #0a7b3e 0%, #4ca554 100%);
 }
 
 .header-gradient .navbar-brand {
@@ -172,7 +173,7 @@ a:hover {
 
 /* ===== TABLES ===== */
 .table {
-    --bs-table-hover-bg: rgba(102, 126, 234, 0.05);
+    --bs-table-hover-bg: rgba(2, 85, 34, 0.05);
 }
 
 .table th {

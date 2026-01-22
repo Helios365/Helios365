@@ -574,6 +574,7 @@ resource communicationService 'Microsoft.Communication/CommunicationServices@202
   tags: commonTags
   properties: {
     dataLocation: dataLocation
+    linkedDomains: dnsZoneEnabled ? [emailDomain.id] : []
   }
 }
 
@@ -585,6 +586,29 @@ resource emailService 'Microsoft.Communication/emailServices@2023-03-31' = {
   tags: commonTags
   properties: {
     dataLocation: dataLocation
+  }
+}
+
+// Custom Email Domain (optional)
+// Note: DNS records (SPF, DKIM, DMARC) must be configured manually for domain verification
+resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-03-31' = if (dnsZoneEnabled) {
+  parent: emailService
+  name: dnsZoneName
+  location: 'global'
+  tags: commonTags
+  properties: {
+    domainManagement: 'CustomerManaged'
+    userEngagementTracking: 'Disabled'
+  }
+}
+
+// Email sender username (MailFrom address)
+resource emailSenderUsername 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-03-31' = if (dnsZoneEnabled) {
+  parent: emailDomain
+  name: split(emailSender, '@')[0] // Extract username from email address (e.g., 'alerts' from 'alerts@domain.com')
+  properties: {
+    username: split(emailSender, '@')[0]
+    displayName: 'Helios365 Alerts'
   }
 }
 
