@@ -13,7 +13,8 @@ public record SendNotificationInput(
     string AlertTitle,
     string? AlertDescription,
     string AlertSeverity,
-    string ResourceId);
+    string ResourceId,
+    string? AlertUrl = null);
 
 /// <summary>
 /// Result from SendNotification activity.

@@ -189,6 +189,9 @@ public static class ServiceCollectionExtensions
             options.SmsSender = configuration["CommunicationServices:SmsSender"]
                 ?? configuration["FromSms"]
                 ?? string.Empty;
+            options.PortalBaseUrl = configuration["CommunicationServices:PortalBaseUrl"]
+                ?? configuration["PortalBaseUrl"]
+                ?? string.Empty;
         });
 
         services.AddSingleton<EmailClient>(sp =>
@@ -242,6 +245,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IResourceSyncService, ResourceSyncService>();
         services.AddScoped<IAlertService, AlertService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddSingleton<IEmailTemplateService, EmailTemplateService>();
 
         services.AddScoped<IOnCallScheduleGenerator, OnCallScheduleGenerator>();
         services.AddScoped<IOnCallScheduleService, OnCallScheduleService>();

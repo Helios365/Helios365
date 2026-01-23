@@ -19,6 +19,7 @@
     "CommunicationServices:ConnectionString": "YOUR_ACS_CONNECTION_STRING",
     "CommunicationServices:EmailSender": "alerts@helios365.io",
     "CommunicationServices:SmsSender": "+15555555555",
+    "CommunicationServices:PortalBaseUrl": "https://localhost:7098",
     "ASPNETCORE_ENVIRONMENT": "Development",
     "AZURE_FUNCTIONS_ENVIRONMENT": "Development",
     "AzureWebJobsDisableHomepage": "true",

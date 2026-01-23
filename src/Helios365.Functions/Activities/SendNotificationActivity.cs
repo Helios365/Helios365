@@ -1,20 +1,28 @@
 using Helios365.Core.Contracts;
 using Helios365.Core.Services;
+using Helios365.Core.Templates.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Helios365.Functions.Activities;
 
 public class SendNotificationActivity
 {
     private readonly INotificationService _notificationService;
+    private readonly IEmailTemplateService _emailTemplateService;
+    private readonly CommunicationServiceOptions _options;
     private readonly ILogger<SendNotificationActivity> _logger;
 
     public SendNotificationActivity(
         INotificationService notificationService,
+        IEmailTemplateService emailTemplateService,
+        IOptions<CommunicationServiceOptions> options,
         ILogger<SendNotificationActivity> logger)
     {
         _notificationService = notificationService;
+        _emailTemplateService = emailTemplateService;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -30,19 +38,40 @@ public class SendNotificationActivity
         bool smsSent = false;
         string? errorMessage = null;
 
-        var emailBody = BuildEmailBody(input);
-        var smsMessage = BuildSmsMessage(input);
+        // Construct alert URL if not provided
+        var alertUrl = input.AlertUrl;
+        if (string.IsNullOrWhiteSpace(alertUrl) && !string.IsNullOrWhiteSpace(_options.PortalBaseUrl))
+        {
+            alertUrl = $"{_options.PortalBaseUrl.TrimEnd('/')}/alerts/{input.AlertId}";
+        }
+
+        var smsMessage = BuildSmsMessage(input, alertUrl);
 
         // Send Email
         if (!string.IsNullOrWhiteSpace(input.UserEmail))
         {
             try
             {
-                var emailSubject = $"[Helios365] {input.AlertSeverity}: {input.AlertTitle}";
-                var emailResult = await _notificationService.SendEmailAsync(
+                var emailModel = new AlertEmailModel
+                {
+                    AlertId = input.AlertId,
+                    Title = input.AlertTitle,
+                    Description = input.AlertDescription,
+                    Severity = input.AlertSeverity,
+                    ResourceId = input.ResourceId,
+                    RecipientName = input.UserDisplayName,
+                    CustomerId = input.CustomerId,
+                    Timestamp = DateTime.UtcNow,
+                    PortalUrl = alertUrl
+                };
+
+                var emailTemplate = await _emailTemplateService.RenderAlertNotificationAsync(emailModel);
+
+                var emailResult = await _notificationService.SendHtmlEmailAsync(
                     new[] { input.UserEmail },
-                    emailSubject,
-                    emailBody);
+                    emailTemplate.Subject,
+                    emailTemplate.HtmlBody,
+                    emailTemplate.PlainTextBody);
 
                 emailSent = emailResult.Succeeded;
                 if (!emailResult.Succeeded)
@@ -100,33 +129,35 @@ public class SendNotificationActivity
         return new SendNotificationResult(emailSent, smsSent, errorMessage);
     }
 
-    private static string BuildEmailBody(SendNotificationInput input)
+    private static string BuildSmsMessage(SendNotificationInput input, string? alertUrl)
     {
-        return $"""
-            Alert Notification
+        // SMS messages can be longer than 160 chars (carriers will split into multiple segments)
+        // but we still want to keep it reasonably concise
+        const int maxTitleLength = 60;
+        const int maxDescriptionLength = 100;
 
-            Title: {input.AlertTitle}
-            Severity: {input.AlertSeverity}
-            Resource: {input.ResourceId}
-
-            Description:
-            {input.AlertDescription ?? "No description provided"}
-
-            You are receiving this notification because you are on-call.
-            Please review this alert in the Helios365 portal.
-
-            --
-            Helios365 Alert System
-            """;
-    }
-
-    private static string BuildSmsMessage(SendNotificationInput input)
-    {
-        // SMS has character limits, keep it concise
-        var truncatedTitle = input.AlertTitle.Length > 50
-            ? input.AlertTitle[..47] + "..."
+        var title = input.AlertTitle.Length > maxTitleLength
+            ? input.AlertTitle[..(maxTitleLength - 3)] + "..."
             : input.AlertTitle;
 
-        return $"[Helios365] {input.AlertSeverity}: {truncatedTitle}";
+        var description = string.IsNullOrWhiteSpace(input.AlertDescription)
+            ? null
+            : input.AlertDescription.Length > maxDescriptionLength
+                ? input.AlertDescription[..(maxDescriptionLength - 3)] + "..."
+                : input.AlertDescription;
+
+        var message = $"[Helios365] {input.AlertSeverity}: {title}";
+
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            message += $"\n{description}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(alertUrl))
+        {
+            message += $"\n{alertUrl}";
+        }
+
+        return message;
     }
 }
