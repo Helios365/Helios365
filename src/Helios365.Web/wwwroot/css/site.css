@@ -221,15 +221,31 @@ a:hover {
 }
 
 /* ===== RESPONSIVE UTILITIES ===== */
+
+/* Ensure navigation is visible at all breakpoints */
+@media (max-width: 991.98px) {
+    /* Force mobile menu toggle to be visible below lg breakpoint */
+    .header-gradient .d-flex.d-lg-none {
+        display: flex !important;
+    }
+}
+
+@media (min-width: 992px) {
+    /* Force desktop nav to be visible at lg breakpoint and above */
+    .header-gradient .d-none.d-lg-flex {
+        display: flex !important;
+    }
+}
+
 @media (max-width: 768px) {
     .content-area {
         padding: 1rem 0;
     }
-    
+
     .display-4 {
         font-size: 2rem;
     }
-    
+
     .stat-card .display-4 {
         font-size: 1.75rem;
     }

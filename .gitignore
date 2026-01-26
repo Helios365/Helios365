@@ -73,5 +73,4 @@ infrastructure/*.parameters.json
 *.http
 
 .claude/
-publish*
 deploy*
