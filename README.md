@@ -39,9 +39,10 @@ Set-AzKeyVaultSecret -VaultName <prefix>-helios-xxxx-kv -Name "AzureAd--ClientSe
 ```
 
 
-### Create managed certificate for web app
+### Create managed certificate for web app and function
 ``` powershell
 .\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-web -HostName portal.<domain>
+.\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-func -HostName api.<domain>
 
 ```
 
@@ -52,12 +53,6 @@ Set-AzKeyVaultSecret -VaultName <prefix>-helios-xxxx-kv -Name "AzureAd--ClientSe
 
 # wait until DNS is replicated
 .\scripts\New-AcsEmailDomain.ps1 -ResourceGroupName <rg> -EmailServiceName <prefix>-helios-xxxx-email -CommunicationServiceName <prefix>-helios-xxxx-acs -DomainName <domain> -InitiateVerification
-```
-
-### Generate SSL-cert for app service
-
-``` powershell
-.\scripts\New-AppServiceManagedCert.ps1 -ResourceGroupName <rg> -AppServiceName <prefix>-helios-xxxx-web -HostName portal.<domain>
 ```
 
 ### Enable SMS sending

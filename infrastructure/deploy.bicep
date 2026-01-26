@@ -27,6 +27,9 @@ param dnsZoneName string = ''
 @description('Hostname prefix for the web app CNAME within the DNS zone (e.g., portal -> portal.helios.example.com)')
 param dnsWebAppRecord string = 'portal'
 
+@description('Hostname prefix for the function app CNAME within the DNS zone (e.g., api -> api.helios.example.com)')
+param dnsFunctionAppRecord string = 'api'
+
 @description('Azure AD Domain for authentication')
 param azureAdDomain string = ''
 
@@ -299,7 +302,7 @@ resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024
   properties: {
     
     resource: { id: 'helios365' }
-    options: { throughput: 800 }
+    options: { throughput: 400 }
   }
 }
 
@@ -323,7 +326,6 @@ resource customersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
         conflictResolutionPath: '/_ts'
       }
     }
-    options: { throughput: 800 }
   }
 }
 
@@ -346,7 +348,6 @@ resource resourcesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
         conflictResolutionPath: '/_ts'
       }
     }
-    options: { throughput: 800 }
   }
 }
 
@@ -369,7 +370,6 @@ resource alertsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
         conflictResolutionPath: '/_ts'
       }
     }
-    options: { throughput: 800 }
   }
 }
 
@@ -392,7 +392,6 @@ resource servicePrincipalsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDa
         conflictResolutionPath: '/_ts'
       }
     }
-    options: { throughput: 800 }
   }
 }
 
@@ -415,7 +414,6 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         conflictResolutionPath: '/_ts'
       }
     }
-    options: { throughput: 800 }
   }
 }
 
@@ -439,7 +437,6 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
         conflictResolutionPath: '/_ts'
       }
     }
-    options: { throughput: 800 }
   }
 }
 
@@ -467,7 +464,6 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
           conflictResolutionPath: '/_ts'
         }
       }
-      options: { throughput: 800 }
     }
   }
 
@@ -495,7 +491,6 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
           conflictResolutionPath: '/_ts'
         }
       }
-      options: { throughput: 800 }
     }
   }
 
@@ -523,7 +518,6 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
           conflictResolutionPath: '/_ts'
         }
       }
-      options: { throughput: 800 }
     }
   }
 
@@ -551,7 +545,6 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
           conflictResolutionPath: '/_ts'
         }
       }
-      options: { throughput: 800 }
     }
   }
 
@@ -802,6 +795,33 @@ resource webAppTxt 'Microsoft.Network/dnsZones/TXT@2018-05-01' = if (dnsZoneEnab
   }
 }
 
+// CNAME for function app (optional DNS)
+resource functionAppCname 'Microsoft.Network/dnsZones/CNAME@2018-05-01' = if (dnsZoneEnabled) {
+  name: dnsFunctionAppRecord
+  parent: dnsZone
+  properties: {
+    TTL: 300
+    CNAMERecord: {
+      cname: functionApp.properties.defaultHostName
+    }
+  }
+}
+
+resource functionAppTxt 'Microsoft.Network/dnsZones/TXT@2018-05-01' = if (dnsZoneEnabled) {
+  name: 'asuid.${dnsFunctionAppRecord}'
+  parent: dnsZone
+  properties: {
+    TTL: 3600
+    TXTRecords: [
+      {
+        value: [
+          functionApp.properties.customDomainVerificationId
+        ]
+      }
+    ]
+  }
+}
+
 // Private Endpoints
 resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = {
   name: '${resourceNames.keyVault}-pe'
@@ -1011,3 +1031,7 @@ output resourceGroupName string = resourceGroup().name
 output cosmosDbSecretName string = cosmosDbConnectionStringSecret.name
 output communicationServicesSecretName string = communicationServicesConnectionStringSecret.name
 output subscriptionId string = subscription().subscriptionId
+
+// Custom Domain Information (when DNS zone is enabled)
+output webAppCustomHostName string = dnsZoneEnabled ? '${dnsWebAppRecord}.${dnsZoneName}' : ''
+output functionAppCustomHostName string = dnsZoneEnabled ? '${dnsFunctionAppRecord}.${dnsZoneName}' : ''
