@@ -97,6 +97,10 @@ builder.Services.AddRepositories(builder.Configuration);
 builder.Services.AddMudServices();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 
+// Function App client
+builder.Services.Configure<FunctionAppOptions>(builder.Configuration.GetSection("FunctionApp"));
+builder.Services.AddHttpClient<IFunctionAppService, FunctionAppService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

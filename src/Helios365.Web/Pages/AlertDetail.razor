@@ -2,6 +2,7 @@
 @inject IAlertRepository AlertRepository
 @inject ICustomerRepository CustomerRepository
 @inject IResourceRepository ResourceRepository
+@inject IFunctionAppService FunctionAppService
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthStateProvider
@@ -66,32 +67,45 @@ else
         </MudButton>
     </MudPaper>
 
-    @if (alert.Status is not (AlertStatus.Resolved or AlertStatus.Failed))
+    @if (alert.Status != AlertStatus.Failed)
     {
         <MudPaper Class="pa-4 mb-3">
             <MudText Typo="Typo.h6" Class="mb-3">Actions</MudText>
             <div class="d-flex gap-3 flex-wrap">
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Warning"
-                           Disabled="@(isUpdatingAlert || alert.Status == AlertStatus.Accepted)"
-                           OnClick="AcceptAlertAsync"
-                           StartIcon="@Icons.Material.Filled.CheckCircle">
-                    Accept
-                </MudButton>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Success"
-                           Disabled="@isUpdatingAlert"
-                           OnClick="ResolveAlertAsync"
-                           StartIcon="@Icons.Material.Filled.Done">
-                    Resolve
-                </MudButton>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Error"
-                           Disabled="@isUpdatingAlert"
-                           OnClick="EscalateAlertAsync"
-                           StartIcon="@Icons.Material.Filled.NotificationImportant">
-                    Escalate to backup
-                </MudButton>
+                @if (alert.Status == AlertStatus.Resolved)
+                {
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Disabled="@isUpdatingAlert"
+                               OnClick="ReopenAlertAsync"
+                               StartIcon="@Icons.Material.Filled.Refresh">
+                        Reopen
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Warning"
+                               Disabled="@(isUpdatingAlert || alert.Status == AlertStatus.Accepted)"
+                               OnClick="AcceptAlertAsync"
+                               StartIcon="@Icons.Material.Filled.CheckCircle">
+                        Accept
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Success"
+                               Disabled="@isUpdatingAlert"
+                               OnClick="ResolveAlertAsync"
+                               StartIcon="@Icons.Material.Filled.Done">
+                        Resolve
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Error"
+                               Disabled="@isUpdatingAlert"
+                               OnClick="EscalateAlertAsync"
+                               StartIcon="@Icons.Material.Filled.NotificationImportant">
+                        Escalate to backup
+                    </MudButton>
+                }
             </div>
         </MudPaper>
     }
@@ -268,6 +282,44 @@ else
         }
     }
 
+    private async Task ReopenAlertAsync()
+    {
+        if (alert is null || isUpdatingAlert)
+        {
+            return;
+        }
+
+        isUpdatingAlert = true;
+        try
+        {
+            alert.MarkStatus(AlertStatus.Pending);
+            alert.ResolvedAt = null;
+            alert.Changes ??= new();
+            alert.Changes.Add(new AlertChange
+            {
+                Id = Guid.NewGuid().ToString(),
+                User = currentUser,
+                Comment = $"{currentUser} reopened this alert",
+                NewStatus = AlertStatus.Pending,
+                PreviousStatus = AlertStatus.Resolved,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            alert = await AlertRepository.UpdateAsync(alert.Id, alert);
+            Snackbar.Add("Alert reopened", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to reopen alert {AlertId}", alert?.Id ?? Id);
+            Snackbar.Add($"Failed to reopen alert: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isUpdatingAlert = false;
+            StateHasChanged();
+        }
+    }
+
     private async Task EscalateAlertAsync()
     {
         if (alert is null || isUpdatingAlert)
@@ -278,20 +330,17 @@ else
         isUpdatingAlert = true;
         try
         {
-            alert.MarkStatus(AlertStatus.Escalated);
-            alert.EscalationAttempts++;
-            alert.Changes ??= new();
-            alert.Changes.Add(new AlertChange
+            var success = await FunctionAppService.EscalateAlertAsync(alert.Id);
+            if (success)
             {
-                Id = Guid.NewGuid().ToString(),
-                User = currentUser,
-                Comment = $"{currentUser} escalated this alert to backup",
-                NewStatus = AlertStatus.Escalated,
-                CreatedAt = DateTime.UtcNow
-            });
-
-            alert = await AlertRepository.UpdateAsync(alert.Id, alert);
-            Snackbar.Add("Alert escalated to backup", Severity.Success);
+                // Reload alert to get updated state from the function
+                alert = await AlertRepository.GetAsync(alert.Id);
+                Snackbar.Add("Alert escalated to backup", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to escalate alert - check Function App configuration", Severity.Error);
+            }
         }
         catch (Exception ex)
         {

@@ -789,6 +789,9 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'DirectoryService__Groups__Admin', value: directoryServiceGroups.admin }
         { name: 'DirectoryService__Groups__Operator', value: directoryServiceGroups.operator }
         { name: 'DirectoryService__Groups__Reader', value: directoryServiceGroups.reader }
+        // Function App Configuration
+        { name: 'FunctionApp__BaseUrl', value: 'https://${functionApp.properties.defaultHostName}' }
+        { name: 'FunctionApp__HostKey', value: listkeys('${functionApp.id}/host/default', '2023-01-01').functionKeys.default }
         // Run from external package
         { name: 'WEBSITE_RUN_FROM_PACKAGE', value: 'https://infrastructurepackages.blob.core.windows.net/foss/helios-web-1.0.zip' }
       ]
