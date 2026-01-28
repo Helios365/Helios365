@@ -141,6 +141,7 @@ public class EscalationOrchestrator
             new SendNotificationInput(
                 alertId,
                 alert.CustomerId,
+                alert.CustomerName,
                 user.UserId,
                 user.DisplayName,
                 user.Email,
@@ -148,7 +149,10 @@ public class EscalationOrchestrator
                 alert.Title ?? "Alert",
                 alert.Description,
                 alert.Severity.ToString(),
-                alert.ResourceId));
+                alert.AlertType,
+                alert.ResourceId,
+                alert.ResourceName,
+                alert.SubscriptionName));
 
         // Record result in timeline
         await context.CallActivityAsync<Alert>(

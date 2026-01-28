@@ -101,8 +101,11 @@ public class AlertService : IAlertService
         {
             Id = Guid.NewGuid().ToString(),
             CustomerId = customer.Id,
+            CustomerName = customer.Name,
             ResourceId = normalizedResourceId,
+            ResourceName = ResolveResourceName(normalizedResourceId, resource),
             ResourceType = ResolveResourceType(normalizedResourceId, resource),
+            SubscriptionName = ResolveSubscriptionName(normalizedResourceId),
             AlertType = essentials.SignalType ?? "AzureMonitor",
             Title = essentials.AlertRule ?? essentials.Description ?? "Azure monitor alert",
             Description = essentials.Description,
@@ -289,6 +292,47 @@ public class AlertService : IAlertService
             if (!string.IsNullOrWhiteSpace(resourceType))
             {
                 return resourceType.ToLowerInvariant();
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore parse issues and fall back to unknown
+        }
+
+        return "unknown";
+    }
+
+    private static string ResolveResourceName(string resourceId, Resource? resource)
+    {
+        if (!string.IsNullOrWhiteSpace(resource?.Name))
+        {
+            return resource.Name;
+        }
+
+        try
+        {
+            var identifier = Azure.Core.ResourceIdentifier.Parse(resourceId);
+            if (!string.IsNullOrWhiteSpace(identifier.Name))
+            {
+                return identifier.Name;
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore parse issues and fall back to resource ID
+        }
+
+        return resourceId;
+    }
+
+    private static string ResolveSubscriptionName(string resourceId)
+    {
+        try
+        {
+            var identifier = Azure.Core.ResourceIdentifier.Parse(resourceId);
+            if (!string.IsNullOrWhiteSpace(identifier.SubscriptionId))
+            {
+                return identifier.SubscriptionId;
             }
         }
         catch (Exception)

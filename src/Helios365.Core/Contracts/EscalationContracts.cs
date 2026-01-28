@@ -6,6 +6,7 @@ namespace Helios365.Core.Contracts;
 public record SendNotificationInput(
     string AlertId,
     string CustomerId,
+    string CustomerName,
     string UserId,
     string UserDisplayName,
     string? UserEmail,
@@ -13,7 +14,10 @@ public record SendNotificationInput(
     string AlertTitle,
     string? AlertDescription,
     string AlertSeverity,
+    string AlertType,
     string ResourceId,
+    string ResourceName,
+    string SubscriptionName,
     string? AlertUrl = null);
 
 /// <summary>

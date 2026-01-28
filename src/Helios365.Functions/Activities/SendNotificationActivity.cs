@@ -60,9 +60,11 @@ public class SendNotificationActivity
                     Title = input.AlertTitle,
                     Description = input.AlertDescription,
                     Severity = input.AlertSeverity,
-                    ResourceId = input.ResourceId,
+                    AlertType = input.AlertType,
+                    ResourceName = input.ResourceName,
+                    CustomerName = input.CustomerName,
+                    SubscriptionName = input.SubscriptionName,
                     RecipientName = input.UserDisplayName,
-                    CustomerId = input.CustomerId,
                     Timestamp = DateTime.UtcNow,
                     PortalUrl = alertUrl
                 };

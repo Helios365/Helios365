@@ -31,8 +31,17 @@ public class Alert
     [JsonProperty("resourceId")]
     public string ResourceId { get; set; } = string.Empty;
 
+    [JsonProperty("resourceName")]
+    public string ResourceName { get; set; } = string.Empty;
+
     [JsonProperty("resourceType")]
     public string ResourceType { get; set; } = string.Empty;
+
+    [JsonProperty("subscriptionName")]
+    public string SubscriptionName { get; set; } = string.Empty;
+
+    [JsonProperty("customerName")]
+    public string CustomerName { get; set; } = string.Empty;
 
     [JsonProperty("alertType")]
     public string AlertType { get; set; } = string.Empty;
