@@ -13,8 +13,7 @@
 <MudPaper Class="pa-4 mb-4">
     <div class="d-flex justify-content-between align-items-center">
         <div>
-            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="BackToCustomers">Back to Customers</MudButton>
-            <h2 class="mt-2">@customer?.Name</h2>
+            <h2>@customer?.Name</h2>
         </div>
         @if (customer is not null)
         {
@@ -36,15 +35,6 @@
     }
 </MudPaper>
 
-@if (customer is not null)
-{
-    <MudExpansionPanels Dense="true" Class="mb-4">
-        <MudExpansionPanel Text="Technical details">
-            <MudText Class="mb-1"><strong>Customer ID:</strong> <code>@customer.Id</code></MudText>
-        </MudExpansionPanel>
-    </MudExpansionPanels>
-}
-
 <MudPaper Class="pa-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <MudText Typo="Typo.h5">Service Principals</MudText>
@@ -54,9 +44,7 @@
     <MudTable T="ServicePrincipal" Items="@servicePrincipals" Dense="true" Hover="true">
         <HeaderContent>
             <MudTh>Name</MudTh>
-            <MudTh>Id</MudTh>
             <MudTh>Tenant</MudTh>
-            <MudTh>ClientId</MudTh>
             <MudTh>Cloud</MudTh>
             <MudTh>Active</MudTh>
             <MudTh>Updated</MudTh>
@@ -64,9 +52,7 @@
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Id"><MudTooltip Text="@(context.Id ?? "-")"><code>@Short(context.Id)</code></MudTooltip></MudTd>
             <MudTd DataLabel="Tenant">@context.TenantId</MudTd>
-            <MudTd DataLabel="ClientId"><MudTooltip Text="@(context.ClientId ?? "-")"><code>@Short(context.ClientId)</code></MudTooltip></MudTd>
             <MudTd DataLabel="Cloud">@context.CloudEnvironment</MudTd>
             <MudTd DataLabel="Active">@(context.Active ? "Yes" : "No")</MudTd>
             <MudTd DataLabel="Updated">@context.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
