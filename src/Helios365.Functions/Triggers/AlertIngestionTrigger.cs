@@ -28,7 +28,7 @@ public class AlertIngestionTrigger
 
     [Function(nameof(AlertIngestion))]
     public async Task<HttpResponseData> AlertIngestion(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "alerts")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "alerts")] HttpRequestData req,
         [DurableClient] DurableTaskClient client)
     {
         _logger.LogInformation("Received alert ingestion request");

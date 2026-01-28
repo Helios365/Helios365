@@ -109,6 +109,13 @@ public class NotificationService : INotificationService
 
             return NotificationSendResult.Success(recipientList, Array.Empty<string>());
         }
+        catch (RequestFailedException ex)
+        {
+            logger.LogError(ex,
+                "Azure Communication Services email request failed to {Recipients}. Status: {Status}, ErrorCode: {ErrorCode}, Message: {Message}",
+                string.Join(", ", recipientList), ex.Status, ex.ErrorCode, ex.Message);
+            return NotificationSendResult.Failure(recipientList, ex.Message);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to send email via Communication Services to {Recipients}", string.Join(", ", recipientList));
@@ -167,6 +174,13 @@ public class NotificationService : INotificationService
 
             return NotificationSendResult.Success(recipientList, Array.Empty<string>());
         }
+        catch (RequestFailedException ex)
+        {
+            logger.LogError(ex,
+                "Azure Communication Services HTML email request failed to {Recipients}. Status: {Status}, ErrorCode: {ErrorCode}, Message: {Message}",
+                string.Join(", ", recipientList), ex.Status, ex.ErrorCode, ex.Message);
+            return NotificationSendResult.Failure(recipientList, ex.Message);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to send HTML email via Communication Services to {Recipients}", string.Join(", ", recipientList));
@@ -192,6 +206,11 @@ public class NotificationService : INotificationService
         }
 
         EnsureSmsConfigured();
+
+        logger.LogInformation(
+            "Attempting to send SMS to {RecipientCount} recipient(s) from sender {SmsSender}",
+            recipientList.Count,
+            MaskPhoneNumber(options.SmsSender));
 
         var messageIds = new List<string>();
         var failedRecipients = new List<string>();
@@ -225,6 +244,13 @@ public class NotificationService : INotificationService
                         sendResult.ErrorMessage ?? "Unknown error");
                 }
             }
+            catch (RequestFailedException ex)
+            {
+                failedRecipients.Add(recipient);
+                logger.LogError(ex,
+                    "Azure Communication Services SMS request failed to {Recipient}. Status: {Status}, ErrorCode: {ErrorCode}, Message: {Message}",
+                    recipient, ex.Status, ex.ErrorCode, ex.Message);
+            }
             catch (Exception ex)
             {
                 failedRecipients.Add(recipient);
@@ -251,6 +277,7 @@ public class NotificationService : INotificationService
     {
         if (string.IsNullOrWhiteSpace(options.EmailSender))
         {
+            logger.LogError("CommunicationServices:EmailSender is not configured. Email cannot be sent.");
             throw new InvalidOperationException("CommunicationServices:EmailSender is not configured.");
         }
     }
@@ -259,6 +286,7 @@ public class NotificationService : INotificationService
     {
         if (string.IsNullOrWhiteSpace(options.SmsSender))
         {
+            logger.LogError("CommunicationServices:SmsSender is not configured. SMS cannot be sent.");
             throw new InvalidOperationException("CommunicationServices:SmsSender is not configured.");
         }
     }
@@ -276,5 +304,16 @@ public class NotificationService : INotificationService
             .Select(r => r!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static string MaskPhoneNumber(string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber) || phoneNumber.Length < 6)
+        {
+            return phoneNumber ?? "(not set)";
+        }
+
+        // Show first 3 and last 2 characters, mask the rest
+        return $"{phoneNumber[..3]}***{phoneNumber[^2..]}";
     }
 }

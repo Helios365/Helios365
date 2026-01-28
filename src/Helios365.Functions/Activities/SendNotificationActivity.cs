@@ -45,7 +45,9 @@ public class SendNotificationActivity
             alertUrl = $"{_options.PortalBaseUrl.TrimEnd('/')}/alerts/{input.AlertId}";
         }
 
-        var smsMessage = BuildSmsMessage(input, alertUrl);
+        // Note: URLs are excluded from SMS until toll-free verification is complete
+        // Carriers silently drop SMS containing links from unverified numbers
+        var smsMessage = BuildSmsMessage(input, alertUrl: null);
 
         // Send Email
         if (!string.IsNullOrWhiteSpace(input.UserEmail))
@@ -122,9 +124,18 @@ public class SendNotificationActivity
             _logger.LogWarning("No phone number for user {UserId}", input.UserId);
         }
 
-        _logger.LogInformation(
-            "Notification result for alert {AlertId}: EmailSent={EmailSent}, SmsSent={SmsSent}",
-            input.AlertId, emailSent, smsSent);
+        if (errorMessage != null)
+        {
+            _logger.LogError(
+                "Notification FAILED for alert {AlertId}: EmailSent={EmailSent}, SmsSent={SmsSent}, Error={Error}",
+                input.AlertId, emailSent, smsSent, errorMessage);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Notification result for alert {AlertId}: EmailSent={EmailSent}, SmsSent={SmsSent}",
+                input.AlertId, emailSent, smsSent);
+        }
 
         return new SendNotificationResult(emailSent, smsSent, errorMessage);
     }

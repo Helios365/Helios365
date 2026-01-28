@@ -135,19 +135,10 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   }
 }
 
-// Storage Account File Service
+// Storage Account File Service (kept for potential future use)
 resource fileService 'Microsoft.Storage/storageAccounts/fileServices@2023-01-01' = {
   parent: storageAccount
   name: 'default'
-}
-
-// Function App Content Share
-resource functionContentShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-01-01' = {
-  parent: fileService
-  name: toLower(resourceNames.functionApp)
-  properties: {
-    shareQuota: 50
-  }
 }
 
 // Virtual Network
@@ -210,6 +201,18 @@ resource storageFilePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01
   tags: commonTags
 }
 
+resource storageTablePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.table.${az.environment().suffixes.storage}'
+  location: 'global'
+  tags: commonTags
+}
+
+resource storageQueuePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.queue.${az.environment().suffixes.storage}'
+  location: 'global'
+  tags: commonTags
+}
+
 // VNet Links for Private DNS Zones
 resource keyVaultDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
   parent: keyVaultPrivateDnsZone
@@ -249,6 +252,30 @@ resource storageBlobDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetwor
 
 resource storageFileDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
   parent: storageFilePrivateDnsZone
+  name: '${resourceNames.vnet}-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+resource storageTableDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: storageTablePrivateDnsZone
+  name: '${resourceNames.vnet}-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+resource storageQueueDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: storageQueuePrivateDnsZone
   name: '${resourceNames.vnet}-link'
   location: 'global'
   properties: {
@@ -660,10 +687,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   identity: { type: 'SystemAssigned' }
   dependsOn: [
     storageBlobPrivateDnsZoneGroup
-    storageFilePrivateDnsZoneGroup
+    storageTablePrivateDnsZoneGroup
+    storageQueuePrivateDnsZoneGroup
     keyVaultPrivateDnsZoneGroup
     cosmosDbPrivateDnsZoneGroup
-    functionContentShare
   ]
   properties: {
     serverFarmId: functionAppPlan.id
@@ -675,13 +702,11 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
       minTlsVersion: '1.2'
       scmMinTlsVersion: '1.2'
       use32BitWorkerProcess: false
-      vnetRouteAllEnabled: true
+      vnetRouteAllEnabled: false
       appSettings: [
         { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' }
         { name: 'FUNCTIONS_WORKER_RUNTIME', value: 'dotnet-isolated' }
         { name: 'AzureWebJobsStorage', value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${az.environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}' }
-        { name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING', value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${az.environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}' }
-        { name: 'WEBSITE_CONTENTSHARE', value: toLower(resourceNames.functionApp) }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
         { name: 'APPINSIGHTS_INSTRUMENTATIONKEY', value: applicationInsights.properties.InstrumentationKey }
         { name: 'CosmosDbConnectionString', value: 'AccountEndpoint=${cosmosDb.properties.documentEndpoint};AccountKey=${cosmosDb.listKeys().primaryMasterKey};' }
@@ -697,6 +722,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'CommunicationServices__SmsSender', value: smsSender }
         { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
         { name: 'AZURE_FUNCTIONS_ENVIRONMENT', value: 'Production' }
+        { name: 'WEBSITE_RUN_FROM_PACKAGE', value: 'https://infrastructurepackages.blob.core.windows.net/foss/helios-api-1.0.zip' }
       ]
     }
   }
@@ -763,6 +789,8 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'DirectoryService__Groups__Admin', value: directoryServiceGroups.admin }
         { name: 'DirectoryService__Groups__Operator', value: directoryServiceGroups.operator }
         { name: 'DirectoryService__Groups__Reader', value: directoryServiceGroups.reader }
+        // Run from external package
+        { name: 'WEBSITE_RUN_FROM_PACKAGE', value: 'https://infrastructurepackages.blob.core.windows.net/foss/helios-web-1.0.zip' }
       ]
     }
   }
@@ -903,6 +931,46 @@ resource storageFilePrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-
   }
 }
 
+resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = {
+  name: '${resourceNames.storageAccount}-table-pe'
+  location: location
+  tags: commonTags
+  properties: {
+    subnet: {
+      id: vnet.properties.subnets[1].id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${resourceNames.storageAccount}-table-plsc'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: ['table']
+        }
+      }
+    ]
+  }
+}
+
+resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-05-01' = {
+  name: '${resourceNames.storageAccount}-queue-pe'
+  location: location
+  tags: commonTags
+  properties: {
+    subnet: {
+      id: vnet.properties.subnets[1].id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${resourceNames.storageAccount}-queue-plsc'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: ['queue']
+        }
+      }
+    ]
+  }
+}
+
 // Private DNS Zone Groups
 resource keyVaultPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = {
   parent: keyVaultPrivateEndpoint
@@ -958,6 +1026,36 @@ resource storageFilePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/priv
         name: 'privatelink-file-core-windows-net'
         properties: {
           privateDnsZoneId: storageFilePrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = {
+  parent: storageTablePrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-table-core-windows-net'
+        properties: {
+          privateDnsZoneId: storageTablePrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-05-01' = {
+  parent: storageQueuePrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-queue-core-windows-net'
+        properties: {
+          privateDnsZoneId: storageQueuePrivateDnsZone.id
         }
       }
     ]
