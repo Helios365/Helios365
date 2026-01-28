@@ -23,10 +23,9 @@ else if (alert is null)
 else
 {
     <MudPaper Class="pa-4 mb-3">
-        <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-            <div class="d-flex flex-column gap-2">
-                <MudText Typo="Typo.h5" Class="mb-0">@(!string.IsNullOrWhiteSpace(alert.Title) ? alert.Title : "Alert")</MudText>
-            </div>
+        <div class="d-flex align-items-center gap-3">
+            <MudIcon Icon="@GetSeverityIcon(alert.Severity)" Color="@GetSeverityColor(alert.Severity)" Size="Size.Large" />
+            <MudText Typo="Typo.h5" Class="mb-0">@(!string.IsNullOrWhiteSpace(alert.Title) ? alert.Title : "Alert")</MudText>
         </div>
     </MudPaper>
 
@@ -34,30 +33,12 @@ else
         <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
         <MudGrid>
             <MudItem xs="12" md="6">
+                <MudText Color="Color.Secondary" Typo="Typo.caption">Customer</MudText>
+                <MudText>@customerName</MudText>
+            </MudItem>
+            <MudItem xs="12" md="6">
                 <MudText Color="Color.Secondary" Typo="Typo.caption">Type</MudText>
                 <MudText>@alert.AlertType</MudText>
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">Customer</MudText>
-                @if (!string.IsNullOrWhiteSpace(alert.CustomerId))
-                {
-                    <MudText><MudLink Href="@($"/customers/{alert.CustomerId}")">@customerName</MudLink></MudText>
-                }
-                else
-                {
-                    <MudText>@customerName</MudText>
-                }
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">Resource</MudText>
-                @if (!string.IsNullOrWhiteSpace(resourceDocumentId))
-                {
-                    <MudText><MudLink Href="@($"/resources/{resourceDocumentId}")">@resourceName</MudLink></MudText>
-                }
-                else
-                {
-                    <MudText>@resourceName</MudText>
-                }
             </MudItem>
             <MudItem xs="12" md="6">
                 <MudText Color="Color.Secondary" Typo="Typo.caption">Severity</MudText>
@@ -67,22 +48,6 @@ else
                 <MudText Color="Color.Secondary" Typo="Typo.caption">Status</MudText>
                 <MudText>@alert.Status</MudText>
             </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">Created</MudText>
-                <MudText>@alert.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudText>
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">Updated</MudText>
-                <MudText>@alert.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudText>
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">Escalated</MudText>
-                <MudText>@(alert.EscalatedAt.HasValue ? alert.EscalatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</MudText>
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText Color="Color.Secondary" Typo="Typo.caption">Resolved</MudText>
-                <MudText>@(alert.ResolvedAt.HasValue ? alert.ResolvedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</MudText>
-            </MudItem>
         </MudGrid>
         <MudDivider Class="my-3" />
 
@@ -90,14 +55,25 @@ else
         <MudText>@(string.IsNullOrWhiteSpace(alert.Description) ? "No description provided." : alert.Description)</MudText>
     </MudPaper>
 
-    @if (alert.IsActive())
+    <MudPaper Class="pa-4 mb-3">
+        <MudText Typo="Typo.h6" Class="mb-3">Related Resource</MudText>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(resourceDocumentId)"
+                   Href="@($"/resources/{resourceDocumentId}")"
+                   StartIcon="@Icons.Material.Filled.Memory">
+            @resourceName
+        </MudButton>
+    </MudPaper>
+
+    @if (alert.Status is not (AlertStatus.Resolved or AlertStatus.Failed))
     {
         <MudPaper Class="pa-4 mb-3">
             <MudText Typo="Typo.h6" Class="mb-3">Actions</MudText>
             <div class="d-flex gap-3 flex-wrap">
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Warning"
-                           Disabled="@isUpdatingAlert"
+                           Disabled="@(isUpdatingAlert || alert.Status == AlertStatus.Accepted)"
                            OnClick="AcceptAlertAsync"
                            StartIcon="@Icons.Material.Filled.CheckCircle">
                     Accept
@@ -371,5 +347,25 @@ else
         AlertStatus.Escalated => Color.Error,
         AlertStatus.Failed => Color.Error,
         _ => Color.Primary
+    };
+
+    private static string GetSeverityIcon(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Critical => Icons.Material.Filled.Error,
+        AlertSeverity.High => Icons.Material.Filled.Warning,
+        AlertSeverity.Medium => Icons.Material.Filled.Info,
+        AlertSeverity.Low => Icons.Material.Filled.Flag,
+        AlertSeverity.Info => Icons.Material.Outlined.Info,
+        _ => Icons.Material.Filled.Notifications
+    };
+
+    private static Color GetSeverityColor(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Critical => Color.Error,
+        AlertSeverity.High => Color.Warning,
+        AlertSeverity.Medium => Color.Info,
+        AlertSeverity.Low => Color.Success,
+        AlertSeverity.Info => Color.Default,
+        _ => Color.Default
     };
 }
