@@ -100,7 +100,7 @@ public class Alert
 
     public bool IsActive()
     {
-        return Status is not (AlertStatus.Resolved or AlertStatus.Accepted or AlertStatus.Failed);
+        return Status is not (AlertStatus.Resolved or AlertStatus.Failed);
     }
 }
 

@@ -41,6 +41,7 @@ public interface IScheduleSliceRepository
     Task UpsertAsync(ScheduleSlice slice, CancellationToken cancellationToken = default);
     Task UpsertManyAsync(IEnumerable<ScheduleSlice> slices, CancellationToken cancellationToken = default);
     Task<IEnumerable<ScheduleSlice>> ListAsync(string customerId, DateTime fromUtc, DateTime toUtc, int limit = 500, CancellationToken cancellationToken = default);
+    Task<ScheduleSlice?> GetLatestAsync(string customerId, CancellationToken cancellationToken = default);
     Task DeleteFutureAsync(string customerId, DateTime fromUtc, CancellationToken cancellationToken = default);
 }
 
@@ -339,6 +340,34 @@ public class ScheduleSliceRepository : IScheduleSliceRepository
         catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             return Array.Empty<ScheduleSlice>();
+        }
+    }
+
+    public async Task<ScheduleSlice?> GetLatestAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(customerId)) throw new ArgumentException("CustomerId is required", nameof(customerId));
+
+        try
+        {
+            var query = new QueryDefinition("SELECT TOP 1 * FROM c WHERE c.customerId = @customerId ORDER BY c.endUtc DESC")
+                .WithParameter("@customerId", customerId);
+
+            var iterator = container.GetItemQueryIterator<ScheduleSlice>(query, requestOptions: new QueryRequestOptions
+            {
+                PartitionKey = new PartitionKey(customerId)
+            });
+
+            if (iterator.HasMoreResults)
+            {
+                var response = await iterator.ReadNextAsync(cancellationToken);
+                return response.FirstOrDefault();
+            }
+
+            return null;
+        }
+        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
         }
     }
 

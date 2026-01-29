@@ -71,6 +71,7 @@ public interface IOnCallScheduleService
 
     // Schedule operations
     Task RegenerateAsync(string customerId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
+    Task ExtendAsync(string customerId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
     Task<CurrentCoverage> GetCurrentCoverageAsync(string customerId, DateTime utcNow, CancellationToken cancellationToken = default);
     Task<ScheduleQueryResult> GetScheduleAsync(string customerId, DateTime fromUtc, DateTime toUtc, int limit = 500, CancellationToken cancellationToken = default);
 
@@ -219,6 +220,22 @@ public class OnCallScheduleService : IOnCallScheduleService
 
         await _sliceRepository.DeleteFutureAsync(customerId, fromUtc, cancellationToken);
 
+        var slices = await _generator.GenerateAsync(plan, binding, onTeam, offTeam, backupTeam, fromUtc, toUtc, cancellationToken);
+        await _sliceRepository.UpsertManyAsync(slices, cancellationToken);
+    }
+
+    public async Task ExtendAsync(string customerId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+    {
+        var binding = await _bindingRepository.GetAsync(customerId, cancellationToken)
+            ?? throw new InvalidOperationException($"No binding for customer {customerId}");
+        var plan = await _planRepository.GetAsync(binding.PlanDefinitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Plan {binding.PlanDefinitionId} not found");
+
+        var onTeam = await GetRequiredTeamAsync(binding.OnHoursTeamId, cancellationToken);
+        var offTeam = await GetRequiredTeamAsync(binding.OffHoursTeamId, cancellationToken);
+        var backupTeam = await GetRequiredTeamAsync(binding.BackupTeamId, cancellationToken);
+
+        // Generate new slices without deleting existing ones
         var slices = await _generator.GenerateAsync(plan, binding, onTeam, offTeam, backupTeam, fromUtc, toUtc, cancellationToken);
         await _sliceRepository.UpsertManyAsync(slices, cancellationToken);
     }

@@ -329,7 +329,7 @@ resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024
   properties: {
     
     resource: { id: 'helios365' }
-    options: { throughput: 400 }
+    options: { autoscaleSettings: { maxThroughput: 1000 } }
   }
 }
 
@@ -720,6 +720,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'CommunicationServices__ConnectionString', value: communicationService.listKeys().primaryConnectionString }
         { name: 'CommunicationServices__EmailSender', value: emailSender }
         { name: 'CommunicationServices__SmsSender', value: smsSender }
+        { name: 'CommunicationServices__PortalBaseUrl', value: dnsZoneEnabled ? 'https://${dnsWebAppRecord}.${dnsZoneName}' : 'https://${resourceNames.webApp}.azurewebsites.net' }
         { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
         { name: 'AZURE_FUNCTIONS_ENVIRONMENT', value: 'Production' }
         { name: 'WEBSITE_RUN_FROM_PACKAGE', value: 'https://infrastructurepackages.blob.core.windows.net/foss/helios-api-1.0.zip' }
