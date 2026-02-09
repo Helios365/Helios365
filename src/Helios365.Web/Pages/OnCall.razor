@@ -31,14 +31,29 @@ else
                     </div>
                     <MudTextField @bind-Value="newPlan.Name" Label="Name" Required="true" Class="mb-3" />
                     <MudTextField @bind-Value="newPlan.TimeZone" Label="Time zone" Placeholder="e.g., Europe/Stockholm" Class="mb-3" />
-                    <MudGrid GutterSize="2" Class="mb-2">
-                        <MudItem xs="6">
-                            <MudTextField @bind-Value="newPlan.Start" Label="On-hours start" InputType="InputType.Time" />
-                        </MudItem>
-                        <MudItem xs="6">
-                            <MudTextField @bind-Value="newPlan.End" Label="On-hours end" InputType="InputType.Time" />
-                        </MudItem>
-                    </MudGrid>
+                    <MudText Typo="Typo.subtitle2" Class="mb-1">Time-slots</MudText>
+                    @for (var i = 0; i < newPlan.Slots.Count; i++)
+                    {
+                        var idx = i;
+                        <MudGrid GutterSize="2" Class="mb-2">
+                            <MudItem xs="4">
+                                <MudTextField @bind-Value="newPlan.Slots[idx].Label" Label="Label" Placeholder="e.g., Morning" />
+                            </MudItem>
+                            <MudItem xs="3">
+                                <MudTextField @bind-Value="newPlan.Slots[idx].Start" Label="Start" InputType="InputType.Time" />
+                            </MudItem>
+                            <MudItem xs="3">
+                                <MudTextField @bind-Value="newPlan.Slots[idx].End" Label="End" InputType="InputType.Time" />
+                            </MudItem>
+                            <MudItem xs="2" Class="d-flex align-items-end">
+                                @if (newPlan.Slots.Count > 1)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemovePlanSlot(idx))" />
+                                }
+                            </MudItem>
+                        </MudGrid>
+                    }
+                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="AddPlanSlot" Class="mb-2">Add slot</MudButton>
                     <MudCheckBox T="bool" @bind-Value="newPlan.IncludeWeekends" Label="Include weekends" Class="mb-2" />
                     <MudTextField @bind-Value="newPlan.Holidays" Label="Holidays (YYYY-MM-DD, comma-separated)" Placeholder="2025-12-25,2025-12-26" Class="mb-3" />
                     <div class="d-flex justify-content-end gap-2 mb-3">
@@ -61,8 +76,9 @@ else
                                             <MudText Typo="Typo.caption">@plan.TimeZone - On-hours @FormatOnHours(plan)</MudText>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
-                                            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => StartEditPlan(plan))">Edit</MudButton>
-                                            <MudChip T="string" Variant="Variant.Outlined">v @plan.Version</MudChip>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => StartEditPlan(plan))" />
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeletePlanAsync(plan))" />
+
                                         </div>
                                     </div>
                                 </MudListItem>
@@ -130,7 +146,8 @@ else
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
                                             <MudChip T="string" Variant="Variant.Outlined">@((team.ModeOverride ?? RotationMode.RollingIndividual).ToString())</MudChip>
-                                            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => StartEditTeam(team))">Edit</MudButton>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => StartEditTeam(team))" />
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteTeamAsync(team))" />
                                         </div>
                                     </div>
                                 </MudListItem>
@@ -159,20 +176,38 @@ else
                             <MudSelectItem T="string" Value="@c.Id">@(!string.IsNullOrWhiteSpace(c.Name) ? c.Name : c.Id)</MudSelectItem>
                         }
                     </MudSelect>
-                    <MudSelect T="string" Label="Plan" @bind-Value="newBinding.PlanId" Dense="true" Class="mb-3">
+                    <MudSelect T="string" Label="Plan" @bind-Value="newBinding.PlanId" @bind-Value:after="OnBindingPlanChanged" Dense="true" Class="mb-3">
                         <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select plan</MudSelectItem>
                         @foreach (var p in plans)
                         {
                             <MudSelectItem T="string" Value="@p.Id">@p.Name</MudSelectItem>
                         }
                     </MudSelect>
-                    <MudSelect T="string" Label="On-hours team" @bind-Value="newBinding.OnTeamId" Dense="true" Class="mb-3">
-                        <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select team</MudSelectItem>
-                        @foreach (var t in teams)
+                    @if (newBinding.SlotTeams.Count > 0)
+                    {
+                        @for (var i = 0; i < newBinding.SlotTeams.Count; i++)
                         {
-                            <MudSelectItem T="string" Value="@t.Id">@t.Name</MudSelectItem>
+                            var idx = i;
+                            var slot = newBinding.SlotTeams[idx];
+                            <MudSelect T="string" Label="@($"On-hours: {slot.Label} ({slot.TimeRange})")" @bind-Value="newBinding.SlotTeams[idx].TeamId" Dense="true" Class="mb-3">
+                                <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select team</MudSelectItem>
+                                @foreach (var t in teams)
+                                {
+                                    <MudSelectItem T="string" Value="@t.Id">@t.Name</MudSelectItem>
+                                }
+                            </MudSelect>
                         }
-                    </MudSelect>
+                    }
+                    else
+                    {
+                        <MudSelect T="string" Label="On-hours team" @bind-Value="newBinding.FallbackOnTeamId" Dense="true" Class="mb-3">
+                            <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select team</MudSelectItem>
+                            @foreach (var t in teams)
+                            {
+                                <MudSelectItem T="string" Value="@t.Id">@t.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
                     <MudSelect T="string" Label="Off-hours team" @bind-Value="newBinding.OffTeamId" Dense="true" Class="mb-3">
                         <MudSelectItem T="string" Disabled="true" Value="@string.Empty">Select team</MudSelectItem>
                         @foreach (var t in teams)
@@ -203,14 +238,17 @@ else
                             {
                                 var customerName = customers.FirstOrDefault(c => c.Id == b.CustomerId)?.Name ?? b.CustomerId;
                                 var planName = plans.FirstOrDefault(p => p.Id == b.PlanDefinitionId)?.Name ?? b.PlanDefinitionId;
-                                var onTeam = ResolveTeamName(b.OnHoursTeamId);
+                                var onTeamDisplay = FormatBindingOnTeams(b);
                                 var offTeam = ResolveTeamName(b.OffHoursTeamId);
                                 var backupTeam = ResolveTeamName(b.BackupTeamId);
                                 <MudListItem>
                                     <div class="fw-semibold">@customerName</div>
                                     <div class="text-muted small">@planName</div>
-                                    <div class="text-muted small">On: @onTeam | Off: @offTeam | Backup: @backupTeam</div>
-                                    <MudButton Class="mt-1" Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => StartEditBinding(b))">Edit</MudButton>
+                                    <div class="text-muted small">On: @onTeamDisplay | Off: @offTeam | Backup: @backupTeam</div>
+                                    <div class="d-flex align-items-center gap-2 mt-1">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => StartEditBinding(b))" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteBindingAsync(b))" />
+                                    </div>
                                 </MudListItem>
                             }
                         }
@@ -417,21 +455,39 @@ else
     {
         if (isSaving) return;
 
-        if (!TryParseTime(newPlan.Start, out var start) || !TryParseTime(newPlan.End, out var end))
+        // Validate all slots
+        var parsedSlots = new List<(int Index, string Label, TimeSpan Start, TimeSpan End)>();
+        for (var i = 0; i < newPlan.Slots.Count; i++)
         {
-            Snackbar.Add("Provide valid on-hours start and end times", Severity.Warning);
+            var slot = newPlan.Slots[i];
+            if (!TryParseTime(slot.Start, out var start) || !TryParseTime(slot.End, out var end))
+            {
+                Snackbar.Add($"Provide valid start/end times for slot {i + 1}", Severity.Warning);
+                return;
+            }
+            parsedSlots.Add((i, string.IsNullOrWhiteSpace(slot.Label) ? $"Slot {i + 1}" : slot.Label.Trim(), start, end));
+        }
+
+        if (!parsedSlots.Any())
+        {
+            Snackbar.Add("Add at least one time-slot", Severity.Warning);
             return;
         }
 
         isSaving = true;
         try
         {
+            var timeSlots = parsedSlots
+                .Select(s => new OnCallTimeSlot(s.Index, s.Label, s.Start, s.End))
+                .ToList();
+
             var plan = new OnCallPlan
             {
                 Id = editingPlan?.Id ?? string.Empty,
                 Name = newPlan.Name.Trim(),
                 TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone.Trim(),
-                OnHours = BuildOnHours(start, end, newPlan.IncludeWeekends),
+                TimeSlots = timeSlots,
+                OnHours = BuildOnHoursFromSlots(parsedSlots, newPlan.IncludeWeekends),
                 IncludeWeekends = newPlan.IncludeWeekends,
                 Holidays = ParseHolidays(newPlan.Holidays),
                 Escalation = editingPlan?.Escalation ?? new EscalationPolicy(),
@@ -462,16 +518,53 @@ else
         }
     }
 
+    private void AddPlanSlot()
+    {
+        newPlan.Slots.Add(new SlotInput());
+    }
+
+    private void RemovePlanSlot(int index)
+    {
+        if (index >= 0 && index < newPlan.Slots.Count && newPlan.Slots.Count > 1)
+        {
+            newPlan.Slots.RemoveAt(index);
+        }
+    }
+
     private void StartEditPlan(OnCallPlan plan)
     {
         editingPlan = plan;
-        var firstWindow = plan.OnHours.FirstOrDefault();
+
+        var slots = new List<SlotInput>();
+        if (plan.TimeSlots.Any())
+        {
+            foreach (var ts in plan.TimeSlots.OrderBy(s => s.Index))
+            {
+                slots.Add(new SlotInput
+                {
+                    Label = ts.Label,
+                    Start = ts.Start.ToString(@"hh\:mm", CultureInfo.InvariantCulture),
+                    End = ts.End.ToString(@"hh\:mm", CultureInfo.InvariantCulture)
+                });
+            }
+        }
+        else
+        {
+            // Legacy: derive from first OnHours window
+            var firstWindow = plan.OnHours.FirstOrDefault();
+            slots.Add(new SlotInput
+            {
+                Label = "On-hours",
+                Start = firstWindow != null ? firstWindow.Start.ToString(@"hh\:mm", CultureInfo.InvariantCulture) : "08:00",
+                End = firstWindow != null ? firstWindow.End.ToString(@"hh\:mm", CultureInfo.InvariantCulture) : "17:00"
+            });
+        }
+
         newPlan = new PlanInput
         {
             Name = plan.Name,
             TimeZone = plan.TimeZone,
-            Start = firstWindow != null ? firstWindow.Start.ToString(@"hh\:mm", CultureInfo.InvariantCulture) : "08:00",
-            End = firstWindow != null ? firstWindow.End.ToString(@"hh\:mm", CultureInfo.InvariantCulture) : "17:00",
+            Slots = slots,
             IncludeWeekends = plan.IncludeWeekends,
             Holidays = string.Join(',', plan.Holidays.OrderBy(h => h).Select(h => h.ToString("yyyy-MM-dd")))
         };
@@ -481,6 +574,29 @@ else
     {
         editingPlan = null;
         ResetPlanForm();
+    }
+
+    private async Task DeletePlanAsync(OnCallPlan plan)
+    {
+        try
+        {
+            var deleted = await ScheduleService.DeletePlanAsync(plan.Id);
+            if (deleted)
+            {
+                plans = plans.Where(p => p.Id != plan.Id).ToList();
+                if (editingPlan?.Id == plan.Id) CancelPlanEdit();
+                Snackbar.Add("Plan deleted", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Plan not found", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete plan {PlanId}", plan.Id);
+            Snackbar.Add($"Failed to delete plan: {ex.Message}", Severity.Error);
+        }
     }
 
     private void ResetPlanForm() => newPlan = new PlanInput();
@@ -564,6 +680,29 @@ else
         ResetTeamForm();
     }
 
+    private async Task DeleteTeamAsync(OnCallTeam team)
+    {
+        try
+        {
+            var deleted = await ScheduleService.DeleteTeamAsync(team.Id);
+            if (deleted)
+            {
+                teams = teams.Where(t => t.Id != team.Id).ToList();
+                if (editingTeam?.Id == team.Id) CancelTeamEdit();
+                Snackbar.Add("Team deleted", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Team not found", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete team {TeamId}", team.Id);
+            Snackbar.Add($"Failed to delete team: {ex.Message}", Severity.Error);
+        }
+    }
+
     private void ResetTeamForm() => newTeam = new TeamInput();
 
     private Task OnUserSelectionChanged(IEnumerable<string> values)
@@ -581,12 +720,22 @@ else
         isSaving = true;
         try
         {
+            var slotAssignments = newBinding.SlotTeams
+                .Select(s => new SlotTeamAssignment(s.SlotIndex, s.TeamId))
+                .ToList();
+
+            // Legacy field: use first slot team or fallback
+            var legacyOnTeamId = slotAssignments.Any()
+                ? slotAssignments.First().TeamId
+                : newBinding.FallbackOnTeamId;
+
             var binding = new CustomerPlanBinding
             {
                 Id = editingBinding?.Id ?? string.Empty,
                 CustomerId = newBinding.CustomerId,
                 PlanDefinitionId = newBinding.PlanId,
-                OnHoursTeamId = newBinding.OnTeamId,
+                OnHoursTeamId = legacyOnTeamId,
+                OnHoursTeamAssignments = slotAssignments,
                 OffHoursTeamId = newBinding.OffTeamId,
                 BackupTeamId = newBinding.BackupTeamId,
                 EffectiveFrom = newBinding.EffectiveFrom,
@@ -630,14 +779,47 @@ else
         {
             CustomerId = binding.CustomerId,
             PlanId = binding.PlanDefinitionId,
-            OnTeamId = binding.OnHoursTeamId,
+            FallbackOnTeamId = binding.OnHoursTeamId,
             OffTeamId = binding.OffHoursTeamId,
             BackupTeamId = binding.BackupTeamId,
             EffectiveFrom = binding.EffectiveFrom
         };
 
+        // Populate per-slot team assignments from plan
+        var plan = plans.FirstOrDefault(p => p.Id == binding.PlanDefinitionId);
+        if (plan != null && plan.TimeSlots.Any())
+        {
+            var assignmentMap = binding.OnHoursTeamAssignments.ToDictionary(a => a.SlotIndex, a => a.TeamId);
+            newBinding.SlotTeams = plan.TimeSlots.OrderBy(s => s.Index).Select(s => new BindingSlotInput
+            {
+                SlotIndex = s.Index,
+                Label = s.Label,
+                TimeRange = $"{s.Start:hh\\:mm}-{s.End:hh\\:mm}",
+                TeamId = assignmentMap.TryGetValue(s.Index, out var tid) ? tid : binding.OnHoursTeamId
+            }).ToList();
+        }
+
         selectedScheduleCustomerId = binding.CustomerId;
         _ = LoadScheduleAsync();
+    }
+
+    private void OnBindingPlanChanged()
+    {
+        var plan = plans.FirstOrDefault(p => p.Id == newBinding.PlanId);
+        if (plan != null && plan.TimeSlots.Any())
+        {
+            newBinding.SlotTeams = plan.TimeSlots.OrderBy(s => s.Index).Select(s => new BindingSlotInput
+            {
+                SlotIndex = s.Index,
+                Label = s.Label,
+                TimeRange = $"{s.Start:hh\\:mm}-{s.End:hh\\:mm}",
+                TeamId = string.Empty
+            }).ToList();
+        }
+        else
+        {
+            newBinding.SlotTeams.Clear();
+        }
     }
 
     private void CancelBindingEdit()
@@ -646,12 +828,40 @@ else
         ResetBindingForm();
     }
 
+    private async Task DeleteBindingAsync(CustomerPlanBinding binding)
+    {
+        try
+        {
+            var deleted = await ScheduleService.DeleteBindingAsync(binding.CustomerId);
+            if (deleted)
+            {
+                bindings = bindings.Where(b => b.CustomerId != binding.CustomerId).ToList();
+                if (editingBinding?.CustomerId == binding.CustomerId) CancelBindingEdit();
+                Snackbar.Add("Binding deleted", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Binding not found", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete binding for {CustomerId}", binding.CustomerId);
+            Snackbar.Add($"Failed to delete binding: {ex.Message}", Severity.Error);
+        }
+    }
+
     private void ResetBindingForm()
     {
         newBinding = new BindingInput
         {
             EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.Date)
         };
+    }
+
+    private void ResetPlanSlots()
+    {
+        newPlan.Slots = new List<SlotInput> { new SlotInput { Label = "On-hours" } };
     }
 
     private async Task LoadScheduleAsync()
@@ -725,10 +935,13 @@ else
     private Task OnScheduleCustomerChanged() => LoadScheduleAsync();
 
     // Helper methods for building models
-    private static IReadOnlyList<DailyWindow> BuildOnHours(TimeSpan start, TimeSpan end, bool includeWeekends)
+    private static IReadOnlyList<DailyWindow> BuildOnHoursFromSlots(
+        List<(int Index, string Label, TimeSpan Start, TimeSpan End)> slots, bool includeWeekends)
     {
         var days = Enum.GetValues<DayOfWeek>().Where(d => includeWeekends || (d != DayOfWeek.Saturday && d != DayOfWeek.Sunday));
-        return days.Select(d => new DailyWindow(d, start, end)).ToList();
+        return days
+            .SelectMany(d => slots.Select(s => new DailyWindow(d, s.Start, s.End, s.Index)))
+            .ToList();
     }
 
     private static IReadOnlyList<DateOnly> ParseHolidays(string holidays)
@@ -748,16 +961,45 @@ else
 
     private static bool TryParseTime(string value, out TimeSpan time)
     {
-        return TimeSpan.TryParseExact(value, new[] { "hh\\:mm", "h\\:mm" }, CultureInfo.InvariantCulture, out time);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            time = default;
+            return false;
+        }
+
+        return TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out time);
     }
 
     // Display helpers
     private string FormatOnHours(OnCallPlan plan)
     {
+        if (plan.TimeSlots.Any())
+        {
+            var slotStrings = plan.TimeSlots.OrderBy(s => s.Index)
+                .Select(s => $"{s.Label} {s.Start:hh\\:mm}-{s.End:hh\\:mm}");
+            var slots = string.Join(", ", slotStrings);
+            return plan.IncludeWeekends ? $"{slots} (all days)" : $"{slots} (weekdays)";
+        }
+
         var window = plan.OnHours.FirstOrDefault();
         if (window == null) return "-";
         var span = $"{window.Start:hh\\:mm}-{window.End:hh\\:mm}";
         return plan.IncludeWeekends ? $"{span} (all days)" : $"{span} (weekdays)";
+    }
+
+    private string FormatBindingOnTeams(CustomerPlanBinding b)
+    {
+        if (b.OnHoursTeamAssignments.Any())
+        {
+            var plan = plans.FirstOrDefault(p => p.Id == b.PlanDefinitionId);
+            var parts = b.OnHoursTeamAssignments.OrderBy(a => a.SlotIndex).Select(a =>
+            {
+                var slotLabel = plan?.TimeSlots.FirstOrDefault(s => s.Index == a.SlotIndex)?.Label ?? $"Slot {a.SlotIndex}";
+                return $"{slotLabel}: {ResolveTeamName(a.TeamId)}";
+            });
+            return string.Join(", ", parts);
+        }
+        return ResolveTeamName(b.OnHoursTeamId);
     }
 
     private string ResolveTeamName(string? id)
@@ -912,12 +1154,18 @@ else
     }
 
     // Input classes
+    private class SlotInput
+    {
+        public string Label { get; set; } = string.Empty;
+        public string Start { get; set; } = "08:00";
+        public string End { get; set; } = "17:00";
+    }
+
     private class PlanInput
     {
         public string Name { get; set; } = string.Empty;
         public string TimeZone { get; set; } = "UTC";
-        public string Start { get; set; } = "08:00";
-        public string End { get; set; } = "17:00";
+        public List<SlotInput> Slots { get; set; } = new() { new SlotInput { Label = "On-hours" } };
         public bool IncludeWeekends { get; set; }
         public string Holidays { get; set; } = string.Empty;
     }
@@ -931,11 +1179,20 @@ else
         public int? RotationIntervalDays { get; set; }
     }
 
+    private class BindingSlotInput
+    {
+        public int SlotIndex { get; set; }
+        public string Label { get; set; } = string.Empty;
+        public string TimeRange { get; set; } = string.Empty;
+        public string TeamId { get; set; } = string.Empty;
+    }
+
     private class BindingInput
     {
         public string CustomerId { get; set; } = string.Empty;
         public string PlanId { get; set; } = string.Empty;
-        public string OnTeamId { get; set; } = string.Empty;
+        public string FallbackOnTeamId { get; set; } = string.Empty;
+        public List<BindingSlotInput> SlotTeams { get; set; } = new();
         public string OffTeamId { get; set; } = string.Empty;
         public string BackupTeamId { get; set; } = string.Empty;
         public DateOnly EffectiveFrom { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow.Date);

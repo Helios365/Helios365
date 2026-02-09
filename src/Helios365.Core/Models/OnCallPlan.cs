@@ -16,6 +16,8 @@ public record OnCallPlan
     public string Name { get; init; } = string.Empty;
     [JsonProperty("timeZone")]
     public string TimeZone { get; init; } = "UTC";
+    [JsonProperty("timeSlots")]
+    public IReadOnlyList<OnCallTimeSlot> TimeSlots { get; init; } = Array.Empty<OnCallTimeSlot>();
     [JsonProperty("onHours")]
     public IReadOnlyList<DailyWindow> OnHours { get; init; } = Array.Empty<DailyWindow>();
     [JsonProperty("includeWeekends")]
@@ -32,11 +34,24 @@ public record OnCallPlan
     public string Version { get; init; } = "v1";
 }
 
+/// <summary>Named time-slot within a plan (e.g., "Morning 08:00-12:00").</summary>
+public record OnCallTimeSlot(
+    [property: JsonProperty("index")] int Index,
+    [property: JsonProperty("label")] string Label,
+    [property: JsonProperty("start")] TimeSpan Start,
+    [property: JsonProperty("end")] TimeSpan End);
+
+/// <summary>Maps a time-slot index to a specific team in a customer binding.</summary>
+public record SlotTeamAssignment(
+    [property: JsonProperty("slotIndex")] int SlotIndex,
+    [property: JsonProperty("teamId")] string TeamId);
+
 /// <summary>Local-time window for a given weekday.</summary>
 public record DailyWindow(
     [property: JsonProperty("day")] DayOfWeek Day,
     [property: JsonProperty("start")] TimeSpan Start,
-    [property: JsonProperty("end")] TimeSpan End);
+    [property: JsonProperty("end")] TimeSpan End,
+    [property: JsonProperty("slotIndex")] int SlotIndex = 0);
 
 public enum RotationMode
 {
@@ -109,6 +124,8 @@ public record CustomerPlanBinding
     public string PlanDefinitionId { get; init; } = string.Empty;
     [JsonProperty("onHoursTeamId")]
     public string OnHoursTeamId { get; init; } = string.Empty;
+    [JsonProperty("onHoursTeamAssignments")]
+    public IReadOnlyList<SlotTeamAssignment> OnHoursTeamAssignments { get; init; } = Array.Empty<SlotTeamAssignment>();
     [JsonProperty("offHoursTeamId")]
     public string OffHoursTeamId { get; init; } = string.Empty;
     [JsonProperty("backupTeamId")]
@@ -137,6 +154,8 @@ public record ScheduleSlice
     public string PlanVersion { get; init; } = string.Empty;
     [JsonProperty("role")]
     public string Role { get; init; } = string.Empty; // "OnHours" | "OffHours" | "Backup"
+    [JsonProperty("slotIndex")]
+    public int SlotIndex { get; init; }
     [JsonProperty("teamId")]
     public string TeamId { get; init; } = string.Empty;
     [JsonProperty("memberIds")]

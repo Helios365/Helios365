@@ -11,7 +11,7 @@ public interface IOnCallScheduleGenerator
     Task<IReadOnlyList<ScheduleSlice>> GenerateAsync(
         OnCallPlan plan,
         CustomerPlanBinding binding,
-        OnCallTeam onHoursTeam,
+        IReadOnlyDictionary<int, OnCallTeam> onHoursTeams,
         OnCallTeam offHoursTeam,
         OnCallTeam backupTeam,
         DateTime fromUtc,
@@ -60,14 +60,17 @@ public interface IOnCallScheduleService
     // Plan operations
     Task<OnCallPlan> SavePlanAsync(OnCallPlan plan, CancellationToken cancellationToken = default);
     Task<OnCallPlan?> GetPlanAsync(string planId, CancellationToken cancellationToken = default);
+    Task<bool> DeletePlanAsync(string planId, CancellationToken cancellationToken = default);
 
     // Team operations
     Task<OnCallTeam> SaveTeamAsync(OnCallTeam team, CancellationToken cancellationToken = default);
     Task<OnCallTeam?> GetTeamAsync(string teamId, CancellationToken cancellationToken = default);
+    Task<bool> DeleteTeamAsync(string teamId, CancellationToken cancellationToken = default);
 
     // Binding operations
     Task<CustomerPlanBinding> SaveBindingAsync(CustomerPlanBinding binding, CancellationToken cancellationToken = default);
     Task<CustomerPlanBinding?> GetBindingAsync(string customerId, CancellationToken cancellationToken = default);
+    Task<bool> DeleteBindingAsync(string customerId, CancellationToken cancellationToken = default);
 
     // Schedule operations
     Task RegenerateAsync(string customerId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
@@ -150,6 +153,11 @@ public class OnCallScheduleService : IOnCallScheduleService
         return await _planRepository.GetAsync(planId, cancellationToken);
     }
 
+    public async Task<bool> DeletePlanAsync(string planId, CancellationToken cancellationToken = default)
+    {
+        return await _planRepository.DeleteAsync(planId, cancellationToken);
+    }
+
     public async Task<OnCallTeam> SaveTeamAsync(OnCallTeam team, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(team.Name))
@@ -175,6 +183,11 @@ public class OnCallScheduleService : IOnCallScheduleService
         return await _teamRepository.GetAsync(teamId, cancellationToken);
     }
 
+    public async Task<bool> DeleteTeamAsync(string teamId, CancellationToken cancellationToken = default)
+    {
+        return await _teamRepository.DeleteAsync(teamId, cancellationToken);
+    }
+
     public async Task<CustomerPlanBinding> SaveBindingAsync(CustomerPlanBinding binding, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(binding.CustomerId))
@@ -187,11 +200,34 @@ public class OnCallScheduleService : IOnCallScheduleService
             throw new ArgumentException("Plan is required", nameof(binding));
         }
 
-        if (string.IsNullOrWhiteSpace(binding.OnHoursTeamId) ||
-            string.IsNullOrWhiteSpace(binding.OffHoursTeamId) ||
+        var hasLegacyOnHours = !string.IsNullOrWhiteSpace(binding.OnHoursTeamId);
+        var hasSlotAssignments = binding.OnHoursTeamAssignments.Any();
+
+        if (!hasLegacyOnHours && !hasSlotAssignments)
+        {
+            throw new ArgumentException("On-hours team assignment is required (either OnHoursTeamId or OnHoursTeamAssignments)", nameof(binding));
+        }
+
+        if (string.IsNullOrWhiteSpace(binding.OffHoursTeamId) ||
             string.IsNullOrWhiteSpace(binding.BackupTeamId))
         {
-            throw new ArgumentException("All three teams (on-hours, off-hours, backup) are required", nameof(binding));
+            throw new ArgumentException("Off-hours and backup teams are required", nameof(binding));
+        }
+
+        if (hasSlotAssignments)
+        {
+            var plan = await _planRepository.GetAsync(binding.PlanDefinitionId, cancellationToken);
+            if (plan != null && plan.TimeSlots.Any())
+            {
+                var requiredSlots = plan.TimeSlots.Select(s => s.Index).ToHashSet();
+                var assignedSlots = binding.OnHoursTeamAssignments.Select(a => a.SlotIndex).ToHashSet();
+                if (!requiredSlots.SetEquals(assignedSlots))
+                {
+                    throw new ArgumentException(
+                        $"OnHoursTeamAssignments must cover all plan time-slots. Required: [{string.Join(',', requiredSlots.OrderBy(x => x))}], got: [{string.Join(',', assignedSlots.OrderBy(x => x))}]",
+                        nameof(binding));
+                }
+            }
         }
 
         if (string.IsNullOrWhiteSpace(binding.Id))
@@ -207,6 +243,11 @@ public class OnCallScheduleService : IOnCallScheduleService
         return await _bindingRepository.GetAsync(customerId, cancellationToken);
     }
 
+    public async Task<bool> DeleteBindingAsync(string customerId, CancellationToken cancellationToken = default)
+    {
+        return await _bindingRepository.DeleteAsync(customerId, cancellationToken);
+    }
+
     public async Task RegenerateAsync(string customerId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
     {
         var binding = await _bindingRepository.GetAsync(customerId, cancellationToken)
@@ -214,13 +255,13 @@ public class OnCallScheduleService : IOnCallScheduleService
         var plan = await _planRepository.GetAsync(binding.PlanDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Plan {binding.PlanDefinitionId} not found");
 
-        var onTeam = await GetRequiredTeamAsync(binding.OnHoursTeamId, cancellationToken);
+        var onHoursTeams = await ResolveOnHoursTeamsAsync(binding, cancellationToken);
         var offTeam = await GetRequiredTeamAsync(binding.OffHoursTeamId, cancellationToken);
         var backupTeam = await GetRequiredTeamAsync(binding.BackupTeamId, cancellationToken);
 
         await _sliceRepository.DeleteFutureAsync(customerId, fromUtc, cancellationToken);
 
-        var slices = await _generator.GenerateAsync(plan, binding, onTeam, offTeam, backupTeam, fromUtc, toUtc, cancellationToken);
+        var slices = await _generator.GenerateAsync(plan, binding, onHoursTeams, offTeam, backupTeam, fromUtc, toUtc, cancellationToken);
         await _sliceRepository.UpsertManyAsync(slices, cancellationToken);
     }
 
@@ -231,12 +272,12 @@ public class OnCallScheduleService : IOnCallScheduleService
         var plan = await _planRepository.GetAsync(binding.PlanDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Plan {binding.PlanDefinitionId} not found");
 
-        var onTeam = await GetRequiredTeamAsync(binding.OnHoursTeamId, cancellationToken);
+        var onHoursTeams = await ResolveOnHoursTeamsAsync(binding, cancellationToken);
         var offTeam = await GetRequiredTeamAsync(binding.OffHoursTeamId, cancellationToken);
         var backupTeam = await GetRequiredTeamAsync(binding.BackupTeamId, cancellationToken);
 
         // Generate new slices without deleting existing ones
-        var slices = await _generator.GenerateAsync(plan, binding, onTeam, offTeam, backupTeam, fromUtc, toUtc, cancellationToken);
+        var slices = await _generator.GenerateAsync(plan, binding, onHoursTeams, offTeam, backupTeam, fromUtc, toUtc, cancellationToken);
         await _sliceRepository.UpsertManyAsync(slices, cancellationToken);
     }
 
@@ -307,6 +348,27 @@ public class OnCallScheduleService : IOnCallScheduleService
         return team ?? throw new InvalidOperationException($"Team {id} not found");
     }
 
+    private async Task<IReadOnlyDictionary<int, OnCallTeam>> ResolveOnHoursTeamsAsync(CustomerPlanBinding binding, CancellationToken cancellationToken)
+    {
+        if (binding.OnHoursTeamAssignments.Any())
+        {
+            var dict = new Dictionary<int, OnCallTeam>();
+            foreach (var assignment in binding.OnHoursTeamAssignments)
+            {
+                if (!dict.ContainsKey(assignment.SlotIndex))
+                {
+                    var team = await GetRequiredTeamAsync(assignment.TeamId, cancellationToken);
+                    dict[assignment.SlotIndex] = team;
+                }
+            }
+            return dict;
+        }
+
+        // Legacy fallback: single OnHoursTeamId maps to slot 0
+        var legacyTeam = await GetRequiredTeamAsync(binding.OnHoursTeamId, cancellationToken);
+        return new Dictionary<int, OnCallTeam> { [0] = legacyTeam };
+    }
+
     private async Task<(TimeZoneInfo TimeZone, string TimeZoneId)> ResolveTimeZoneAsync(CustomerPlanBinding? binding, CancellationToken cancellationToken)
     {
         if (binding == null)
@@ -341,7 +403,7 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
     public Task<IReadOnlyList<ScheduleSlice>> GenerateAsync(
         OnCallPlan plan,
         CustomerPlanBinding binding,
-        OnCallTeam onHoursTeam,
+        IReadOnlyDictionary<int, OnCallTeam> onHoursTeams,
         OnCallTeam offHoursTeam,
         OnCallTeam backupTeam,
         DateTime fromUtc,
@@ -356,12 +418,18 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
         var startLocal = TimeZoneInfo.ConvertTimeFromUtc(fromUtc, tz);
         var endLocal = TimeZoneInfo.ConvertTimeFromUtc(toUtc, tz);
 
+        // Default on-hours team for legacy/override fallback (slot 0)
+        var defaultOnTeam = onHoursTeams.Values.First();
+
         var teamMap = new Dictionary<string, OnCallTeam>(StringComparer.OrdinalIgnoreCase)
         {
-            [onHoursTeam.Id] = onHoursTeam,
             [offHoursTeam.Id] = offHoursTeam,
             [backupTeam.Id] = backupTeam
         };
+        foreach (var t in onHoursTeams.Values)
+        {
+            teamMap[t.Id] = t;
+        }
 
         for (var date = startLocal.Date; date <= endLocal.Date; date = date.AddDays(1))
         {
@@ -377,19 +445,36 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
                 continue;
             }
 
-            var onTeam = ResolveTeam(teamMap, overrideForDay?.OnHoursTeamId ?? binding.OnHoursTeamId, onHoursTeam);
             var offTeam = ResolveTeam(teamMap, overrideForDay?.OffHoursTeamId ?? binding.OffHoursTeamId, offHoursTeam);
             var backup = ResolveTeam(teamMap, overrideForDay?.BackupTeamId ?? binding.BackupTeamId, backupTeam);
 
             var onWindows = plan.OnHours.Where(w => w.Day == date.DayOfWeek).OrderBy(w => w.Start).ToList();
-            var onIntervals = BuildIntervals(date, onWindows);
-            var offIntervals = BuildOffHours(date, onIntervals);
 
-            foreach (var interval in onIntervals)
+            // Group on-hours windows by SlotIndex to assign correct team per slot
+            var windowsBySlot = onWindows.GroupBy(w => w.SlotIndex);
+            var allOnIntervals = new List<(DateTime startLocal, DateTime endLocal)>();
+
+            foreach (var slotGroup in windowsBySlot)
             {
-                var slice = CreateSlice(plan, binding.CustomerId, "OnHours", onTeam, backup, date, interval, tz, fromUtc, toUtc);
-                if (slice != null) slices.Add(slice);
+                var slotIndex = slotGroup.Key;
+                var slotTeam = onHoursTeams.TryGetValue(slotIndex, out var st) ? st : defaultOnTeam;
+                // Override can still replace on-hours team for the whole day
+                if (overrideForDay?.OnHoursTeamId != null)
+                {
+                    slotTeam = ResolveTeam(teamMap, overrideForDay.OnHoursTeamId, slotTeam);
+                }
+
+                var slotIntervals = BuildIntervals(date, slotGroup);
+                allOnIntervals.AddRange(slotIntervals);
+
+                foreach (var interval in slotIntervals)
+                {
+                    var slice = CreateSlice(plan, binding.CustomerId, "OnHours", slotTeam, backup, date, interval, tz, fromUtc, toUtc, slotIndex);
+                    if (slice != null) slices.Add(slice);
+                }
             }
+
+            var offIntervals = BuildOffHours(date, allOnIntervals);
 
             foreach (var interval in offIntervals)
             {
@@ -507,7 +592,8 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
         (DateTime startLocal, DateTime endLocal) interval,
         TimeZoneInfo tz,
         DateTime windowStartUtc,
-        DateTime windowEndUtc)
+        DateTime windowEndUtc,
+        int slotIndex = 0)
     {
         var startUtc = TimeZoneInfo.ConvertTimeToUtc(interval.startLocal, tz);
         var endUtc = TimeZoneInfo.ConvertTimeToUtc(interval.endLocal, tz);
@@ -542,6 +628,7 @@ public class OnCallScheduleGenerator : IOnCallScheduleGenerator
             PlanDefinitionId = plan.Id,
             PlanVersion = plan.Version,
             Role = role,
+            SlotIndex = slotIndex,
             TeamId = team.Id,
             MemberIds = memberIds,
             StartUtc = startUtc,
