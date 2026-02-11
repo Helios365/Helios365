@@ -338,6 +338,7 @@ resource customersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
   parent: cosmosDatabase
   name: 'customers'
   properties: {
+    options: { autoscaleSettings: { maxThroughput: 1000 } }
     resource: {
       id: 'customers'
       partitionKey: { paths: ['/id'], kind: 'Hash' }
@@ -360,6 +361,7 @@ resource resourcesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
   parent: cosmosDatabase
   name: 'resources'
   properties: {
+    options: { autoscaleSettings: { maxThroughput: 1000 } }
     resource: {
       id: 'resources'
       partitionKey: { paths: ['/customerId'], kind: 'Hash' }
@@ -382,6 +384,7 @@ resource alertsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
   parent: cosmosDatabase
   name: 'alerts'
   properties: {
+    options: { autoscaleSettings: { maxThroughput: 1000 } }
     resource: {
       id: 'alerts'
       partitionKey: { paths: ['/customerId'], kind: 'Hash' }
@@ -404,6 +407,7 @@ resource servicePrincipalsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDa
   parent: cosmosDatabase
   name: 'servicePrincipals'
   properties: {
+    options: { autoscaleSettings: { maxThroughput: 1000 } }
     resource: {
       id: 'servicePrincipals'
       partitionKey: { paths: ['/customerId'], kind: 'Hash' }
@@ -426,6 +430,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
   parent: cosmosDatabase
   name: 'users'
   properties: {
+    options: { autoscaleSettings: { maxThroughput: 1000 } }
     resource: {
       id: 'users'
       partitionKey: { paths: ['/id'], kind: 'Hash' }
@@ -448,6 +453,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
     parent: cosmosDatabase
     name: 'actions'
   properties: {
+    options: { autoscaleSettings: { maxThroughput: 1000 } }
     resource: {
       id: 'actions'
       partitionKey: { paths: ['/customerId'], kind: 'Hash' }
@@ -471,6 +477,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
     parent: cosmosDatabase
     name: 'onCallPlans'
     properties: {
+      options: { autoscaleSettings: { maxThroughput: 1000 } }
       resource: {
         id: 'onCallPlans'
         partitionKey: {
@@ -498,6 +505,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
     parent: cosmosDatabase
     name: 'onCallTeams'
     properties: {
+      options: { autoscaleSettings: { maxThroughput: 1000 } }
       resource: {
         id: 'onCallTeams'
         partitionKey: {
@@ -525,6 +533,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
     parent: cosmosDatabase
     name: 'planBindings'
     properties: {
+      options: { autoscaleSettings: { maxThroughput: 1000 } }
       resource: {
         id: 'planBindings'
         partitionKey: {
@@ -552,6 +561,7 @@ resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
     parent: cosmosDatabase
     name: 'scheduleSlices'
     properties: {
+      options: { autoscaleSettings: { maxThroughput: 1000 } }
       resource: {
         id: 'scheduleSlices'
         partitionKey: {
