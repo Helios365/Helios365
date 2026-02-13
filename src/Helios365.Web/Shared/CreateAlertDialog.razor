@@ -1,0 +1,167 @@
+@using Helios365.Core.Models
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudSelect T="string"
+                       @bind-Value="selectedCustomerId"
+                       Label="Customer"
+                       Required="true"
+                       RequiredError="Customer is required"
+                       AnchorOrigin="Origin.BottomCenter">
+                @foreach (var customer in Customers)
+                {
+                    <MudSelectItem Value="@customer.Id">@customer.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="AlertSeverity"
+                       @bind-Value="selectedSeverity"
+                       Label="Severity"
+                       Required="true">
+                @foreach (var severity in Enum.GetValues<AlertSeverity>())
+                {
+                    <MudSelectItem Value="@severity">@severity</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudTextField @bind-Value="title"
+                          Label="Title"
+                          Required="true"
+                          RequiredError="Title is required" />
+
+            <MudTextField @bind-Value="description"
+                          Label="Description"
+                          Lines="3" />
+
+            <MudSelect T="string"
+                       @bind-Value="selectedResourceId"
+                       Label="Resource (optional)"
+                       Clearable="true"
+                       Disabled="@(string.IsNullOrWhiteSpace(selectedCustomerId) || isLoadingResources)"
+                       AnchorOrigin="Origin.BottomCenter">
+                @foreach (var resource in resources)
+                {
+                    <MudSelectItem Value="@resource.Id">@resource.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
+
+    [Parameter] public List<Customer> Customers { get; set; } = new();
+    [Parameter] public Func<string, Task<IEnumerable<Resource>>>? LoadResourcesFunc { get; set; }
+    [Parameter] public string CurrentUser { get; set; } = "unknown";
+
+    private MudForm? form;
+    private string selectedCustomerId = string.Empty;
+    private AlertSeverity selectedSeverity = AlertSeverity.Medium;
+    private string title = string.Empty;
+    private string description = string.Empty;
+    private string? selectedResourceId;
+    private List<Resource> resources = new();
+    private bool isLoadingResources;
+
+    private string previousCustomerId = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (selectedCustomerId != previousCustomerId && !string.IsNullOrWhiteSpace(selectedCustomerId))
+        {
+            previousCustomerId = selectedCustomerId;
+            await LoadResourcesAsync();
+        }
+        else if (string.IsNullOrWhiteSpace(selectedCustomerId) && previousCustomerId != string.Empty)
+        {
+            previousCustomerId = string.Empty;
+            resources.Clear();
+            selectedResourceId = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadResourcesAsync()
+    {
+        if (LoadResourcesFunc is null)
+        {
+            return;
+        }
+
+        isLoadingResources = true;
+        selectedResourceId = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await LoadResourcesFunc(selectedCustomerId);
+            resources = result.ToList();
+        }
+        catch
+        {
+            resources.Clear();
+        }
+        finally
+        {
+            isLoadingResources = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Save()
+    {
+        if (form is not null)
+        {
+            await form.Validate();
+            if (!form.IsValid)
+                return;
+        }
+
+        var customer = Customers.FirstOrDefault(c => c.Id == selectedCustomerId);
+        var resource = resources.FirstOrDefault(r => r.Id == selectedResourceId);
+
+        var alert = new Alert
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            CustomerId = selectedCustomerId,
+            CustomerName = customer?.Name ?? string.Empty,
+            AlertType = "Portal",
+            Status = AlertStatus.Pending,
+            Severity = selectedSeverity,
+            Title = title.Trim(),
+            Description = string.IsNullOrWhiteSpace(description) ? string.Empty : description.Trim(),
+            ResourceId = resource?.ResourceId ?? string.Empty,
+            ResourceName = resource?.Name ?? string.Empty,
+            ResourceType = resource?.ResourceType ?? string.Empty,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Metadata = new Dictionary<string, string>
+            {
+                ["source"] = "Portal",
+                ["createdBy"] = CurrentUser
+            },
+            Changes = new List<AlertChange>
+            {
+                new AlertChange
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    User = CurrentUser,
+                    Comment = $"{CurrentUser} created this alert from the portal",
+                    NewStatus = AlertStatus.Pending,
+                    CreatedAt = DateTime.UtcNow
+                }
+            }
+        };
+
+        MudDialog?.Close(DialogResult.Ok(alert));
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+}

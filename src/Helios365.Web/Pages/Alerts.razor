@@ -8,6 +8,9 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject ILogger<Alerts> Logger
+@inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IFunctionAppService FunctionAppService
 
 <PageTitle>Alerts</PageTitle>
 
@@ -112,6 +115,13 @@ else
                     <MudSelectItem Value="@option.Key">@option.Value</MudSelectItem>
                 }
             </MudSelect>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="CreateAlertAsync">
+                Create Alert
+            </MudButton>
 
             <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                            Color="Color.Primary"
@@ -372,6 +382,62 @@ else
         isRefreshing = true;
         await LoadDataAsync();
         isRefreshing = false;
+    }
+
+    private async Task CreateAlertAsync()
+    {
+        var currentUser = "unknown";
+        try
+        {
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            var name = state.User?.Identity?.Name;
+            if (!string.IsNullOrWhiteSpace(name))
+                currentUser = name!;
+        }
+        catch { }
+
+        var customers = (await CustomerRepository.ListAsync(limit: 200))
+            .Where(c => c.Active)
+            .OrderBy(c => c.Name)
+            .ToList();
+
+        var parameters = new DialogParameters<CreateAlertDialog>
+        {
+            { x => x.Customers, customers },
+            { x => x.LoadResourcesFunc, async (string customerId) => await ResourceRepository.ListByCustomerAsync(customerId, limit: 200) },
+            { x => x.CurrentUser, currentUser }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<CreateAlertDialog>("Create Alert", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is null || result.Canceled)
+            return;
+
+        var alert = (Alert)result.Data!;
+
+        try
+        {
+            await AlertRepository.CreateAsync(alert);
+
+            var orchestrationStarted = await FunctionAppService.StartAlertOrchestrationAsync(alert.Id);
+            if (orchestrationStarted)
+            {
+                Snackbar.Add("Alert created and notifications started.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Alert created, but notification orchestration could not be started. Check Function App configuration.", Severity.Warning);
+            }
+
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create alert");
+            Snackbar.Add($"Failed to create alert: {ex.Message}", Severity.Error);
+        }
     }
 
     private void HandleRowClick(TableRowClickEventArgs<AlertViewModel> args)

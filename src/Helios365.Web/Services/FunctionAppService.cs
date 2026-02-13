@@ -5,6 +5,7 @@ namespace Helios365.Web.Services;
 public interface IFunctionAppService
 {
     Task<bool> EscalateAlertAsync(string alertId, CancellationToken cancellationToken = default);
+    Task<bool> StartAlertOrchestrationAsync(string alertId, CancellationToken cancellationToken = default);
 }
 
 public class FunctionAppService : IFunctionAppService
@@ -59,6 +60,46 @@ public class FunctionAppService : IFunctionAppService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception while escalating alert {AlertId}", alertId);
+            return false;
+        }
+    }
+
+    public async Task<bool> StartAlertOrchestrationAsync(string alertId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_options.BaseUrl))
+        {
+            _logger.LogWarning("FunctionApp BaseUrl is not configured");
+            return false;
+        }
+
+        try
+        {
+            var url = $"{_options.BaseUrl.TrimEnd('/')}/api/alerts/{alertId}/orchestrate";
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+
+            if (!string.IsNullOrWhiteSpace(_options.HostKey))
+            {
+                request.Headers.Add("x-functions-key", _options.HostKey);
+            }
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Successfully started orchestration for alert {AlertId} via Function App", alertId);
+                return true;
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogWarning(
+                "Failed to start orchestration for alert {AlertId}. Status: {StatusCode}, Response: {Response}",
+                alertId, response.StatusCode, content);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception while starting orchestration for alert {AlertId}", alertId);
             return false;
         }
     }
