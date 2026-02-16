@@ -126,8 +126,7 @@
       "storageAccount": "[toLower(format('{0}{1}{2}st', parameters('prefix'), parameters('appName'), variables('uniqueSuffix')))]",
       "functionApp": "[format('{0}-{1}-{2}-func', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
       "webApp": "[format('{0}-{1}-{2}-web', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
-      "functionAppPlan": "[format('{0}-{1}-{2}-func-asp', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
-      "webAppPlan": "[format('{0}-{1}-{2}-web-asp', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
+      "appServicePlan": "[format('{0}-{1}-{2}-asp', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
       "keyVault": "[format('{0}-{1}-{2}-kv', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
       "applicationInsights": "[format('{0}-{1}-{2}-ai', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
       "logAnalytics": "[format('{0}-{1}-{2}-law', parameters('prefix'), parameters('appName'), variables('uniqueSuffix'))]",
@@ -905,26 +904,11 @@
     {
       "type": "Microsoft.Web/serverfarms",
       "apiVersion": "2023-01-01",
-      "name": "[variables('resourceNames').functionAppPlan]",
+      "name": "[variables('resourceNames').appServicePlan]",
       "location": "[parameters('location')]",
       "tags": "[variables('commonTags')]",
       "sku": {
-        "name": "EP2",
-        "tier": "ElasticPremium"
-      },
-      "kind": "linux",
-      "properties": {
-        "reserved": true
-      }
-    },
-    {
-      "type": "Microsoft.Web/serverfarms",
-      "apiVersion": "2023-01-01",
-      "name": "[variables('resourceNames').webAppPlan]",
-      "location": "[parameters('location')]",
-      "tags": "[variables('commonTags')]",
-      "sku": {
-        "name": "P1v3",
+        "name": "P0v3",
         "tier": "PremiumV3"
       },
       "kind": "linux",
@@ -943,7 +927,7 @@
         "type": "SystemAssigned"
       },
       "properties": {
-        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').functionAppPlan)]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').appServicePlan)]",
         "httpsOnly": true,
         "virtualNetworkSubnetId": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet), '2023-05-01').subnets[0].id]",
         "siteConfig": {
@@ -1046,7 +1030,7 @@
         "[resourceId('Microsoft.Communication/communicationServices', variables('resourceNames').communicationService)]",
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('resourceNames').cosmosDb)]",
         "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-pe', variables('resourceNames').cosmosDb), 'default')]",
-        "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').functionAppPlan)]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').appServicePlan)]",
         "[resourceId('Microsoft.KeyVault/vaults', variables('resourceNames').keyVault)]",
         "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-pe', variables('resourceNames').keyVault), 'default')]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('resourceNames').storageAccount)]",
@@ -1066,7 +1050,7 @@
         "type": "SystemAssigned"
       },
       "properties": {
-        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').webAppPlan)]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').appServicePlan)]",
         "httpsOnly": true,
         "virtualNetworkSubnetId": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet), '2023-05-01').subnets[0].id]",
         "siteConfig": {
@@ -1202,7 +1186,7 @@
         "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-blob-pe', variables('resourceNames').storageAccount), 'default')]",
         "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('{0}-file-pe', variables('resourceNames').storageAccount), 'default')]",
         "[resourceId('Microsoft.Network/virtualNetworks', variables('resourceNames').vnet)]",
-        "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').webAppPlan)]"
+        "[resourceId('Microsoft.Web/serverfarms', variables('resourceNames').appServicePlan)]"
       ]
     },
     {

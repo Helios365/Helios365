@@ -56,8 +56,7 @@ var resourceNames = {
   storageAccount: toLower('${prefix}${appName}${uniqueSuffix}st')
   functionApp: '${prefix}-${appName}-${uniqueSuffix}-func'
   webApp: '${prefix}-${appName}-${uniqueSuffix}-web'
-  functionAppPlan: '${prefix}-${appName}-${uniqueSuffix}-func-asp'
-  webAppPlan: '${prefix}-${appName}-${uniqueSuffix}-web-asp'
+  appServicePlan: '${prefix}-${appName}-${uniqueSuffix}-asp'
   keyVault: '${prefix}-${appName}-${uniqueSuffix}-kv'
   applicationInsights: '${prefix}-${appName}-${uniqueSuffix}-ai'
   logAnalytics: '${prefix}-${appName}-${uniqueSuffix}-law'
@@ -664,24 +663,12 @@ resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = if (dnsZoneEnabled) {
   tags: commonTags
 }
 
-// App Service Plan for Function App (Elastic Premium)
-resource functionAppPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
-  name: resourceNames.functionAppPlan
+// Shared App Service Plan for Function App and Web App
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
+  name: resourceNames.appServicePlan
   location: location
   tags: commonTags
-  sku: { name: 'EP2', tier: 'ElasticPremium' }
-  kind: 'linux'
-  properties: {
-    reserved: true
-  }
-}
-
-// App Service Plan for Web App
-resource webAppPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
-  name: resourceNames.webAppPlan
-  location: location
-  tags: commonTags
-  sku: { name: 'P1v3', tier: 'PremiumV3' }
+  sku: { name: 'P0v3', tier: 'PremiumV3' }
   kind: 'linux'
   properties: {
     reserved: true
@@ -703,7 +690,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     cosmosDbPrivateDnsZoneGroup
   ]
   properties: {
-    serverFarmId: functionAppPlan.id
+    serverFarmId: appServicePlan.id
     httpsOnly: true
     virtualNetworkSubnetId: vnet.properties.subnets[0].id
     siteConfig: {
@@ -753,7 +740,7 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
     cosmosDbPrivateDnsZoneGroup
   ]
   properties: {
-    serverFarmId: webAppPlan.id
+    serverFarmId: appServicePlan.id
     httpsOnly: true
     virtualNetworkSubnetId: vnet.properties.subnets[0].id
     siteConfig: {
