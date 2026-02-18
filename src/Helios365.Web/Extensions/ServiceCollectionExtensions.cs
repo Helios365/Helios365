@@ -229,6 +229,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IOnCallScheduleGenerator, OnCallScheduleGenerator>();
         services.AddScoped<IOnCallScheduleService, OnCallScheduleService>();
+        services.AddScoped<IAlertService, AlertService>();
 
         return services;
     }

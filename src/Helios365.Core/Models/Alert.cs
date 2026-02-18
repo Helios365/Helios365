@@ -82,6 +82,9 @@ public class Alert
     [JsonProperty("changes")]
     public List<AlertChange> Changes { get; set; } = new();
 
+    [JsonProperty("comments")]
+    public List<AlertComment> Comments { get; set; } = new();
+
     public void MarkStatus(AlertStatus status)
     {
         Status = status;
@@ -102,6 +105,21 @@ public class Alert
     {
         return Status is not (AlertStatus.Resolved or AlertStatus.Failed);
     }
+}
+
+public class AlertComment
+{
+    [JsonProperty("id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    [JsonProperty("user")]
+    public string User { get; set; } = "unknown";
+
+    [JsonProperty("text")]
+    public string Text { get; set; } = string.Empty;
+
+    [JsonProperty("createdAt")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class AlertChange

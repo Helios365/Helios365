@@ -16,6 +16,12 @@ public interface IAlertService
     Task<Alert> RecordNotificationResultAsync(string alertId, string userName, bool emailSent, bool smsSent, string? errorMessage = null, bool isBackup = false, CancellationToken cancellationToken = default);
     Task<Alert> MarkEscalatedAsync(string alertId, string reason, CancellationToken cancellationToken = default);
     Task<Alert> MarkFailedAsync(string alertId, string reason, CancellationToken cancellationToken = default);
+    Task<Alert> AddCommentAsync(string alertId, string user, string text, CancellationToken cancellationToken = default);
+    Task<Alert> AcceptAlertAsync(string alertId, string user, CancellationToken cancellationToken = default);
+    Task<Alert> ResolveAlertAsync(string alertId, string user, CancellationToken cancellationToken = default);
+    Task<Alert> ReopenAlertAsync(string alertId, string user, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Alert>> ListAlertsAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default);
+    Task<Alert> CreateAlertAsync(Alert alert, CancellationToken cancellationToken = default);
 }
 
 public class AlertService : IAlertService
@@ -259,6 +265,97 @@ public class AlertService : IAlertService
         await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
         _logger.LogError("Alert {AlertId} marked as failed: {Reason}", alertId, reason);
         return alert;
+    }
+
+    public async Task<Alert> AddCommentAsync(string alertId, string user, string text, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        alert.Comments ??= new List<AlertComment>();
+        alert.Comments.Add(new AlertComment
+        {
+            Id = Guid.NewGuid().ToString(),
+            User = user,
+            Text = text,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        return alert;
+    }
+
+    public async Task<Alert> AcceptAlertAsync(string alertId, string user, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        alert.MarkStatus(AlertStatus.Accepted);
+        alert.Changes ??= new List<AlertChange>();
+        alert.Changes.Add(new AlertChange
+        {
+            Id = Guid.NewGuid().ToString(),
+            User = user,
+            Comment = $"{user} accepted this alert",
+            NewStatus = AlertStatus.Accepted,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        return alert;
+    }
+
+    public async Task<Alert> ResolveAlertAsync(string alertId, string user, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        alert.MarkStatus(AlertStatus.Resolved);
+        alert.Changes ??= new List<AlertChange>();
+        alert.Changes.Add(new AlertChange
+        {
+            Id = Guid.NewGuid().ToString(),
+            User = user,
+            Comment = $"{user} resolved this alert",
+            NewStatus = AlertStatus.Resolved,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        return alert;
+    }
+
+    public async Task<Alert> ReopenAlertAsync(string alertId, string user, CancellationToken cancellationToken = default)
+    {
+        var alert = await _alertRepository.GetAsync(alertId, cancellationToken)
+            ?? throw new InvalidOperationException($"Alert {alertId} not found");
+
+        var previousStatus = alert.Status;
+        alert.MarkStatus(AlertStatus.Pending);
+        alert.ResolvedAt = null;
+        alert.Changes ??= new List<AlertChange>();
+        alert.Changes.Add(new AlertChange
+        {
+            Id = Guid.NewGuid().ToString(),
+            User = user,
+            Comment = $"{user} reopened this alert",
+            NewStatus = AlertStatus.Pending,
+            PreviousStatus = previousStatus,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _alertRepository.UpdateAsync(alertId, alert, cancellationToken);
+        return alert;
+    }
+
+    public async Task<IEnumerable<Alert>> ListAlertsAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
+    {
+        return await _alertRepository.ListAsync(limit, offset, cancellationToken);
+    }
+
+    public async Task<Alert> CreateAlertAsync(Alert alert, CancellationToken cancellationToken = default)
+    {
+        return await _alertRepository.CreateAsync(alert, cancellationToken);
     }
 
     private static bool IsResolved(string? monitorCondition) =>

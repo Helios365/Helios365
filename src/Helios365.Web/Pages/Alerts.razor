@@ -1,7 +1,7 @@
 @page "/alerts"
 @using Helios365.Core.Models
 @using Microsoft.AspNetCore.WebUtilities
-@inject IAlertRepository AlertRepository
+@inject IAlertService AlertService
 @inject ICustomerRepository CustomerRepository
 @inject IResourceRepository ResourceRepository
 @inject ISnackbar Snackbar
@@ -240,7 +240,7 @@ else
         isLoading = true;
         try
         {
-            var alerts = (await AlertRepository.ListAsync(limit: 200)).ToList();
+            var alerts = (await AlertService.ListAlertsAsync(limit: 200)).ToList();
             var customers = (await CustomerRepository.ListAsync(limit: 200)).ToList();
             var customerLookup = customers.ToDictionary(c => c.Id, c => c.Name);
             customerOptions = customers
@@ -419,7 +419,7 @@ else
 
         try
         {
-            await AlertRepository.CreateAsync(alert);
+            await AlertService.CreateAlertAsync(alert);
 
             var orchestrationStarted = await FunctionAppService.StartAlertOrchestrationAsync(alert.Id);
             if (orchestrationStarted)
