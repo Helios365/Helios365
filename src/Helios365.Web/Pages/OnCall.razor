@@ -73,7 +73,7 @@ else
                                     <div class="d-flex justify-content-between w-100 align-items-center">
                                         <div>
                                             <MudText Typo="Typo.subtitle2">@plan.Name</MudText>
-                                            <MudText Typo="Typo.caption">@plan.TimeZone - On-hours @FormatOnHours(plan)</MudText>
+                                            <MudText Typo="Typo.caption">@plan.TimeZone - On-hours @OnCallDisplayHelper.FormatOnHours(plan)</MudText>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
                                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => StartEditPlan(plan))" />
@@ -327,9 +327,9 @@ else
                                         <div class="d-flex align-items-center gap-3">
                                             <MudText Typo="Typo.subtitle2">Daily timeline (@displayTimeZoneId)</MudText>
                                             <div class="d-flex align-items-center gap-2 small">
-                                                <MudChip T="string" Style="@($"background-color:{RoleColor.On};color:#fff;")" Variant="Variant.Filled" Size="Size.Small">On</MudChip>
-                                                <MudChip T="string" Style="@($"background-color:{RoleColor.Off};color:#fff;")" Variant="Variant.Filled" Size="Size.Small">Off</MudChip>
-                                                <MudChip T="string" Style="@($"background-color:{RoleColor.Backup};color:#000;")" Variant="Variant.Filled" Size="Size.Small">Backup</MudChip>
+                                                <MudChip T="string" Style="@($"background-color:{OnCallDisplayHelper.RoleColor.On};color:#fff;")" Variant="Variant.Filled" Size="Size.Small">On</MudChip>
+                                                <MudChip T="string" Style="@($"background-color:{OnCallDisplayHelper.RoleColor.Off};color:#fff;")" Variant="Variant.Filled" Size="Size.Small">Off</MudChip>
+                                                <MudChip T="string" Style="@($"background-color:{OnCallDisplayHelper.RoleColor.Backup};color:#000;")" Variant="Variant.Filled" Size="Size.Small">Backup</MudChip>
                                             </div>
                                         </div>
                                         <MudText Typo="Typo.caption" Class="text-muted">Ticks: 00 | 06 | 12 | 18 | 24 - @scheduleSlices.Count slice(s)</MudText>
@@ -356,14 +356,14 @@ else
                                                 </div>
                                                 <MudPaper Class="flex-grow-1 position-relative px-2 py-2" Style="min-height:60px; min-width:0; background-size:25% 100%; background-image: linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px);">
                                                     <div class="position-relative" style="height: 54px; overflow: visible;">
-                                                        @foreach (var slice in day.Slices.OrderBy(s => RoleRank(s.Role)).ThenBy(s => s.StartLocal))
+                                                        @foreach (var slice in day.Slices.OrderBy(s => OnCallDisplayHelper.RoleRank(s.Role)).ThenBy(s => s.StartLocal))
                                                         {
-                                                            <MudTooltip Text="@($"{slice.Role}: {ResolveTeamName(slice.TeamId)} {FormatSliceRange(slice)}")">
+                                                            <MudTooltip Text="@($"{slice.Role}: {ResolveTeamName(slice.TeamId)} {OnCallDisplayHelper.FormatSliceRange(slice.StartLocal, slice.EndLocal)}")">
                                                                 <MudPaper Class="position-absolute rounded-pill shadow-sm"
-                                                                          Style="@($"{GetTimelineStyle(slice, day.Date)}height:14px; min-width:12px; background-color:{RoleColor.For(slice.Role)}; opacity:0.95; border:1px solid rgba(0,0,0,0.08);")"
+                                                                          Style="@($"{OnCallDisplayHelper.GetTimelineStyle(slice.StartLocal, slice.EndLocal, slice.Role, day.Date)}height:14px; min-width:12px; background-color:{OnCallDisplayHelper.RoleColor.For(slice.Role)}; opacity:0.95; border:1px solid rgba(0,0,0,0.08);")"
                                                                           Elevation="1">
                                                                     <div class="d-flex align-items-center justify-content-center text-truncate"
-                                                                         style="font-size:11px; line-height:14px; padding:0 4px; color:@RoleTextColor(slice.Role);">
+                                                                         style="font-size:11px; line-height:14px; padding:0 4px; color:@OnCallDisplayHelper.RoleTextColor(slice.Role);">
                                                                         @FormatSliceInitials(slice)
                                                                     </div>
                                                                 </MudPaper>
@@ -397,9 +397,9 @@ else
     private IReadOnlyList<User> availableUsers = Array.Empty<User>();
 
     // Form state
-    private PlanInput newPlan = new();
-    private TeamInput newTeam = new();
-    private BindingInput newBinding = new();
+    private OnCallPlanInput newPlan = new();
+    private OnCallTeamInput newTeam = new();
+    private OnCallBindingInput newBinding = new();
 
     private OnCallPlan? editingPlan;
     private OnCallTeam? editingTeam;
@@ -460,7 +460,7 @@ else
         for (var i = 0; i < newPlan.Slots.Count; i++)
         {
             var slot = newPlan.Slots[i];
-            if (!TryParseTime(slot.Start, out var start) || !TryParseTime(slot.End, out var end))
+            if (!OnCallDisplayHelper.TryParseTime(slot.Start, out var start) || !OnCallDisplayHelper.TryParseTime(slot.End, out var end))
             {
                 Snackbar.Add($"Provide valid start/end times for slot {i + 1}", Severity.Warning);
                 return;
@@ -487,9 +487,9 @@ else
                 Name = newPlan.Name.Trim(),
                 TimeZone = string.IsNullOrWhiteSpace(newPlan.TimeZone) ? "UTC" : newPlan.TimeZone.Trim(),
                 TimeSlots = timeSlots,
-                OnHours = BuildOnHoursFromSlots(parsedSlots, newPlan.IncludeWeekends),
+                OnHours = OnCallDisplayHelper.BuildOnHoursFromSlots(parsedSlots, newPlan.IncludeWeekends),
                 IncludeWeekends = newPlan.IncludeWeekends,
-                Holidays = ParseHolidays(newPlan.Holidays),
+                Holidays = OnCallDisplayHelper.ParseHolidays(newPlan.Holidays),
                 Escalation = editingPlan?.Escalation ?? new EscalationPolicy(),
                 Rotation = editingPlan?.Rotation ?? new RotationDefaults(),
                 Overrides = editingPlan?.Overrides ?? Array.Empty<PlanOverride>(),
@@ -520,7 +520,7 @@ else
 
     private void AddPlanSlot()
     {
-        newPlan.Slots.Add(new SlotInput());
+        newPlan.Slots.Add(new OnCallSlotInput());
     }
 
     private void RemovePlanSlot(int index)
@@ -535,12 +535,12 @@ else
     {
         editingPlan = plan;
 
-        var slots = new List<SlotInput>();
+        var slots = new List<OnCallSlotInput>();
         if (plan.TimeSlots.Any())
         {
             foreach (var ts in plan.TimeSlots.OrderBy(s => s.Index))
             {
-                slots.Add(new SlotInput
+                slots.Add(new OnCallSlotInput
                 {
                     Label = ts.Label,
                     Start = ts.Start.ToString(@"hh\:mm", CultureInfo.InvariantCulture),
@@ -552,7 +552,7 @@ else
         {
             // Legacy: derive from first OnHours window
             var firstWindow = plan.OnHours.FirstOrDefault();
-            slots.Add(new SlotInput
+            slots.Add(new OnCallSlotInput
             {
                 Label = "On-hours",
                 Start = firstWindow != null ? firstWindow.Start.ToString(@"hh\:mm", CultureInfo.InvariantCulture) : "08:00",
@@ -560,7 +560,7 @@ else
             });
         }
 
-        newPlan = new PlanInput
+        newPlan = new OnCallPlanInput
         {
             Name = plan.Name,
             TimeZone = plan.TimeZone,
@@ -599,7 +599,7 @@ else
         }
     }
 
-    private void ResetPlanForm() => newPlan = new PlanInput();
+    private void ResetPlanForm() => newPlan = new OnCallPlanInput();
 
     private async Task SaveTeamAsync()
     {
@@ -664,7 +664,7 @@ else
         var knownIds = memberIds.Where(id => availableUsers.Any(u => u.Id.Equals(id, StringComparison.OrdinalIgnoreCase))).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var manualIds = memberIds.Where(id => !knownIds.Contains(id));
 
-        newTeam = new TeamInput
+        newTeam = new OnCallTeamInput
         {
             Name = team.Name,
             SelectedUserIds = knownIds,
@@ -703,7 +703,7 @@ else
         }
     }
 
-    private void ResetTeamForm() => newTeam = new TeamInput();
+    private void ResetTeamForm() => newTeam = new OnCallTeamInput();
 
     private Task OnUserSelectionChanged(IEnumerable<string> values)
     {
@@ -775,7 +775,7 @@ else
     private void StartEditBinding(CustomerPlanBinding binding)
     {
         editingBinding = binding;
-        newBinding = new BindingInput
+        newBinding = new OnCallBindingInput
         {
             CustomerId = binding.CustomerId,
             PlanId = binding.PlanDefinitionId,
@@ -790,7 +790,7 @@ else
         if (plan != null && plan.TimeSlots.Any())
         {
             var assignmentMap = binding.OnHoursTeamAssignments.ToDictionary(a => a.SlotIndex, a => a.TeamId);
-            newBinding.SlotTeams = plan.TimeSlots.OrderBy(s => s.Index).Select(s => new BindingSlotInput
+            newBinding.SlotTeams = plan.TimeSlots.OrderBy(s => s.Index).Select(s => new OnCallBindingSlotInput
             {
                 SlotIndex = s.Index,
                 Label = s.Label,
@@ -808,7 +808,7 @@ else
         var plan = plans.FirstOrDefault(p => p.Id == newBinding.PlanId);
         if (plan != null && plan.TimeSlots.Any())
         {
-            newBinding.SlotTeams = plan.TimeSlots.OrderBy(s => s.Index).Select(s => new BindingSlotInput
+            newBinding.SlotTeams = plan.TimeSlots.OrderBy(s => s.Index).Select(s => new OnCallBindingSlotInput
             {
                 SlotIndex = s.Index,
                 Label = s.Label,
@@ -853,7 +853,7 @@ else
 
     private void ResetBindingForm()
     {
-        newBinding = new BindingInput
+        newBinding = new OnCallBindingInput
         {
             EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.Date)
         };
@@ -861,7 +861,7 @@ else
 
     private void ResetPlanSlots()
     {
-        newPlan.Slots = new List<SlotInput> { new SlotInput { Label = "On-hours" } };
+        newPlan.Slots = new List<OnCallSlotInput> { new OnCallSlotInput { Label = "On-hours" } };
     }
 
     private async Task LoadScheduleAsync()
@@ -934,58 +934,6 @@ else
 
     private Task OnScheduleCustomerChanged() => LoadScheduleAsync();
 
-    // Helper methods for building models
-    private static IReadOnlyList<DailyWindow> BuildOnHoursFromSlots(
-        List<(int Index, string Label, TimeSpan Start, TimeSpan End)> slots, bool includeWeekends)
-    {
-        var days = Enum.GetValues<DayOfWeek>().Where(d => includeWeekends || (d != DayOfWeek.Saturday && d != DayOfWeek.Sunday));
-        return days
-            .SelectMany(d => slots.Select(s => new DailyWindow(d, s.Start, s.End, s.Index)))
-            .ToList();
-    }
-
-    private static IReadOnlyList<DateOnly> ParseHolidays(string holidays)
-    {
-        if (string.IsNullOrWhiteSpace(holidays)) return Array.Empty<DateOnly>();
-
-        var result = new List<DateOnly>();
-        foreach (var value in holidays.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            if (DateOnly.TryParse(value, out var date))
-            {
-                result.Add(date);
-            }
-        }
-        return result;
-    }
-
-    private static bool TryParseTime(string value, out TimeSpan time)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            time = default;
-            return false;
-        }
-
-        return TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out time);
-    }
-
-    // Display helpers
-    private string FormatOnHours(OnCallPlan plan)
-    {
-        if (plan.TimeSlots.Any())
-        {
-            var slotStrings = plan.TimeSlots.OrderBy(s => s.Index)
-                .Select(s => $"{s.Label} {s.Start:hh\\:mm}-{s.End:hh\\:mm}");
-            var slots = string.Join(", ", slotStrings);
-            return plan.IncludeWeekends ? $"{slots} (all days)" : $"{slots} (weekdays)";
-        }
-
-        var window = plan.OnHours.FirstOrDefault();
-        if (window == null) return "-";
-        var span = $"{window.Start:hh\\:mm}-{window.End:hh\\:mm}";
-        return plan.IncludeWeekends ? $"{span} (all days)" : $"{span} (weekdays)";
-    }
 
     private string FormatBindingOnTeams(CustomerPlanBinding b)
     {
@@ -1088,126 +1036,4 @@ else
         scheduleDays = days;
     }
 
-    private static int RoleRank(string role) => role switch
-    {
-        "OnHours" => 0,
-        "OffHours" => 1,
-        "Backup" => 2,
-        _ => 3
-    };
-
-    private static class RoleColor
-    {
-        public const string On = "#0d6efd";
-        public const string Off = "#6c757d";
-        public const string Backup = "#f6c344";
-
-        public static string For(string role) => role switch
-        {
-            "OnHours" => On,
-            "OffHours" => Off,
-            "Backup" => Backup,
-            _ => "#adb5bd"
-        };
-    }
-
-    private static string RoleTextColor(string role) => role switch
-    {
-        "Backup" => "#000",
-        _ => "#fff"
-    };
-
-    private static int RoleOffset(string role) => role switch
-    {
-        "OnHours" => 4,
-        "OffHours" => 20,
-        "Backup" => 36,
-        _ => 4
-    };
-
-    private static string FormatSliceRange(ScheduleSliceView slice) =>
-        $"{slice.StartLocal:yyyy-MM-dd HH:mm}-{slice.EndLocal:HH:mm}";
-
-    private static string GetTimelineStyle(ScheduleSliceView slice, DateOnly date)
-    {
-        var dayStart = date.ToDateTime(TimeOnly.MinValue);
-        var dayEnd = dayStart.AddDays(1);
-        var start = slice.StartLocal;
-        var end = slice.EndLocal;
-
-        if (end <= dayStart || start >= dayEnd) return "left:0;width:0;";
-
-        var startMinutes = Math.Max(0, (start - dayStart).TotalMinutes);
-        var endMinutes = Math.Min(1440, (end - dayStart).TotalMinutes);
-        var widthMinutes = Math.Max(2, endMinutes - startMinutes);
-
-        var leftPct = startMinutes / 1440d * 100d;
-        var widthPct = widthMinutes / 1440d * 100d;
-
-        var top = RoleOffset(slice.Role);
-        return string.Format(
-            CultureInfo.InvariantCulture,
-            "left:{0:F2}%;width:{1:F2}%;min-width:12px;max-width:100%;top:{2}px;",
-            leftPct,
-            widthPct,
-            top);
-    }
-
-    // Input classes
-    private class SlotInput
-    {
-        public string Label { get; set; } = string.Empty;
-        public string Start { get; set; } = "08:00";
-        public string End { get; set; } = "17:00";
-    }
-
-    private class PlanInput
-    {
-        public string Name { get; set; } = string.Empty;
-        public string TimeZone { get; set; } = "UTC";
-        public List<SlotInput> Slots { get; set; } = new() { new SlotInput { Label = "On-hours" } };
-        public bool IncludeWeekends { get; set; }
-        public string Holidays { get; set; } = string.Empty;
-    }
-
-    private class TeamInput
-    {
-        public string Name { get; set; } = string.Empty;
-        public HashSet<string> SelectedUserIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-        public string ManualMembers { get; set; } = string.Empty;
-        public bool WholeTeam { get; set; }
-        public int? RotationIntervalDays { get; set; }
-    }
-
-    private class BindingSlotInput
-    {
-        public int SlotIndex { get; set; }
-        public string Label { get; set; } = string.Empty;
-        public string TimeRange { get; set; } = string.Empty;
-        public string TeamId { get; set; } = string.Empty;
-    }
-
-    private class BindingInput
-    {
-        public string CustomerId { get; set; } = string.Empty;
-        public string PlanId { get; set; } = string.Empty;
-        public string FallbackOnTeamId { get; set; } = string.Empty;
-        public List<BindingSlotInput> SlotTeams { get; set; } = new();
-        public string OffTeamId { get; set; } = string.Empty;
-        public string BackupTeamId { get; set; } = string.Empty;
-        public DateOnly EffectiveFrom { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-    }
-
-    private class ScheduleDayView
-    {
-        public DateOnly Date { get; set; }
-        public List<ScheduleSliceView> Slices { get; set; } = new();
-    }
-
-    private record ScheduleSliceView(ScheduleSlice Slice, DateTime StartLocal, DateTime EndLocal)
-    {
-        public string Role => Slice.Role;
-        public string TeamId => Slice.TeamId;
-        public IReadOnlyList<string> MemberIds => Slice.MemberIds;
-    }
 }

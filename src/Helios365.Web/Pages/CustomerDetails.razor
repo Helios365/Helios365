@@ -1,7 +1,5 @@
 @page "/customers/{id}"
-@inject ICustomerRepository CustomerRepository
-@inject IServicePrincipalRepository ServicePrincipalRepository
-@inject ISecretRepository SecretRepository
+@inject ICustomerService CustomerService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject ILogger<CustomerDetails> Logger
@@ -89,14 +87,14 @@
                 return;
             }
 
-            customer = await CustomerRepository.GetAsync(id);
+            customer = await CustomerService.GetCustomerAsync(id);
             if (customer is null)
             {
                 servicePrincipals.Clear();
                 return;
             }
 
-            servicePrincipals = (await ServicePrincipalRepository.ListByCustomerAsync(customer.Id, limit: 1000)).ToList();
+            servicePrincipals = (await CustomerService.ListServicePrincipalsAsync(customer.Id, limit: 1000)).ToList();
         }
         catch (Exception ex)
         {
@@ -140,20 +138,7 @@
             {
                 var created = createResult.Principal;
                 created.CustomerId = customer.Id;
-                created.CreatedAt = DateTime.UtcNow;
-                created.UpdatedAt = DateTime.UtcNow;
-
-                if (!string.IsNullOrWhiteSpace(createResult.NewClientSecret))
-                {
-                    var reference = await SecretRepository.SetServicePrincipalSecretAsync(created, createResult.NewClientSecret!);
-                    created.ClientSecretKeyVaultReference = reference;
-                }
-                else if (string.IsNullOrWhiteSpace(created.ClientSecretKeyVaultReference))
-                {
-                    throw new InvalidOperationException("Client secret is required for new service principals");
-                }
-
-                await ServicePrincipalRepository.CreateAsync(created);
+                await CustomerService.CreateServicePrincipalAsync(created, createResult.NewClientSecret);
                 Snackbar.Add($"Service Principal '{created.Name}' created", Severity.Success);
                 await LoadCustomerAndPrincipals();
             }
@@ -182,12 +167,7 @@
             {
                 var edited = editResult.Principal;
                 edited.CustomerId = customer?.Id ?? edited.CustomerId;
-                if (!string.IsNullOrWhiteSpace(editResult.NewClientSecret))
-                {
-                    var reference = await SecretRepository.SetServicePrincipalSecretAsync(edited, editResult.NewClientSecret!);
-                    edited.ClientSecretKeyVaultReference = reference;
-                }
-                await ServicePrincipalRepository.UpdateAsync(sp.Id, edited);
+                await CustomerService.UpdateServicePrincipalAsync(sp.Id, edited, editResult.NewClientSecret);
                 Snackbar.Add($"Service Principal '{edited.Name}' updated", Severity.Success);
                 await LoadCustomerAndPrincipals();
             }
@@ -212,7 +192,7 @@
         {
             try
             {
-                var ok = await ServicePrincipalRepository.DeleteAsync(sp.Id);
+                var ok = await CustomerService.DeleteServicePrincipalAsync(sp.Id);
                 if (ok)
                 {
                     Snackbar.Add($"Service Principal '{sp.Name}' deleted", Severity.Success);

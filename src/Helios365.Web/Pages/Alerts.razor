@@ -2,8 +2,8 @@
 @using Helios365.Core.Models
 @using Microsoft.AspNetCore.WebUtilities
 @inject IAlertService AlertService
-@inject ICustomerRepository CustomerRepository
-@inject IResourceRepository ResourceRepository
+@inject ICustomerService CustomerService
+@inject IResourceService ResourceService
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
@@ -153,7 +153,7 @@ else
             <RowTemplate>
                 <MudTd>
                     <MudChip T="string"
-                             Color="@SeverityColor(context.Alert.Severity)"
+                             Color="@AlertDisplayHelper.GetSeverityColor(context.Alert.Severity)"
                              Variant="Variant.Filled"
                              Size="Size.Small">
                         @context.Alert.Severity
@@ -166,7 +166,7 @@ else
                 <MudTd>@context.ResourceName</MudTd>
                 <MudTd>
                     <MudChip T="string"
-                             Color="@StatusColor(context.Alert.Status)"
+                             Color="@AlertDisplayHelper.GetStatusColor(context.Alert.Status)"
                              Variant="Variant.Outlined"
                              Size="Size.Small">
                         @context.Alert.Status
@@ -241,7 +241,7 @@ else
         try
         {
             var alerts = (await AlertService.ListAlertsAsync(limit: 200)).ToList();
-            var customers = (await CustomerRepository.ListAsync(limit: 200)).ToList();
+            var customers = (await CustomerService.ListCustomersAsync(limit: 200)).ToList();
             var customerLookup = customers.ToDictionary(c => c.Id, c => c.Name);
             customerOptions = customers
                 .OrderBy(c => c.Name)
@@ -252,7 +252,7 @@ else
             var customerIds = alerts.Select(a => a.CustomerId).Distinct().ToList();
             foreach (var customerId in customerIds)
             {
-                var resources = await ResourceRepository.ListByCustomerAsync(customerId, limit: 200);
+                var resources = await ResourceService.ListResourcesByCustomerAsync(customerId, limit: 200);
                 foreach (var resource in resources)
                 {
                     var key = $"{customerId}|{Normalizers.NormalizeResourceId(resource.ResourceId)}";
@@ -321,25 +321,6 @@ else
 
     private Task ReloadTableAsync() => table?.ReloadServerData() ?? Task.CompletedTask;
 
-    private Color SeverityColor(AlertSeverity severity) => severity switch
-    {
-        AlertSeverity.Critical => Color.Error,
-        AlertSeverity.High => Color.Error,
-        AlertSeverity.Medium => Color.Warning,
-        AlertSeverity.Low => Color.Info,
-        AlertSeverity.Info => Color.Default,
-        _ => Color.Default
-    };
-
-    private Color StatusColor(AlertStatus status) => status switch
-    {
-        AlertStatus.Escalated => Color.Error,
-        AlertStatus.Accepted => Color.Warning,
-        AlertStatus.Resolved => Color.Success,
-        AlertStatus.Failed => Color.Error,
-        _ => Color.Primary
-    };
-
     private Task OnSearchChanged(string value)
     {
         search = value ?? string.Empty;
@@ -396,7 +377,7 @@ else
         }
         catch { }
 
-        var customers = (await CustomerRepository.ListAsync(limit: 200))
+        var customers = (await CustomerService.ListCustomersAsync(limit: 200))
             .Where(c => c.Active)
             .OrderBy(c => c.Name)
             .ToList();
@@ -404,7 +385,7 @@ else
         var parameters = new DialogParameters<CreateAlertDialog>
         {
             { x => x.Customers, customers },
-            { x => x.LoadResourcesFunc, async (string customerId) => await ResourceRepository.ListByCustomerAsync(customerId, limit: 200) },
+            { x => x.LoadResourcesFunc, async (string customerId) => await ResourceService.ListResourcesByCustomerAsync(customerId, limit: 200) },
             { x => x.CurrentUser, currentUser }
         };
 

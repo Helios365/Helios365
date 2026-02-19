@@ -1,5 +1,5 @@
 @page "/customers"
-@inject ICustomerRepository CustomerRepository
+@inject ICustomerService CustomerService
 @inject NavigationManager Nav
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -72,7 +72,7 @@
     {
         try
         {
-            customers = (await CustomerRepository.ListAsync(limit: 1000)).ToList();
+            customers = (await CustomerService.ListCustomersAsync(limit: 1000)).ToList();
         }
         catch (Exception ex)
         {
@@ -95,9 +95,7 @@
         {
             try
             {
-                created.CreatedAt = DateTime.UtcNow;
-                created.UpdatedAt = DateTime.UtcNow;
-                await CustomerRepository.CreateAsync(created);
+                await CustomerService.CreateCustomerAsync(created);
                 Snackbar.Add($"Customer '{created.Name}' created", Severity.Success);
                 await LoadCustomers();
             }
@@ -123,7 +121,7 @@
         {
             try
             {
-                await CustomerRepository.UpdateAsync(customer.Id, edited);
+                await CustomerService.UpdateCustomerAsync(customer.Id, edited);
                 Snackbar.Add($"Customer '{edited.Name}' updated", Severity.Success);
                 await LoadCustomers();
             }
@@ -148,7 +146,7 @@
         {
             try
             {
-                var ok = await CustomerRepository.DeleteAsync(customer.Id);
+                var ok = await CustomerService.DeleteCustomerAsync(customer.Id);
                 if (ok)
                 {
                     Snackbar.Add($"Customer '{customer.Name}' deleted", Severity.Success);

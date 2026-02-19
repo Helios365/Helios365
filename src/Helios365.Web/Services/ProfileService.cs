@@ -10,6 +10,7 @@ namespace Helios365.Web.Services;
 public interface IProfileService
 {
     Task<User?> GetCurrentAsync(CancellationToken cancellationToken = default);
+    Task<User?> GetUserAsync(string id, CancellationToken cancellationToken = default);
     Task<User> UpdateContactAsync(string mail, string mobilePhone, bool policiesAccepted, CancellationToken cancellationToken = default);
 }
 
@@ -31,6 +32,9 @@ public class ProfileService : IProfileService
         this.directoryService = directoryService;
         this.logger = logger;
     }
+
+    public Task<User?> GetUserAsync(string id, CancellationToken cancellationToken = default) =>
+        userRepository.GetAsync(id, cancellationToken);
 
     public async Task<User?> GetCurrentAsync(CancellationToken cancellationToken = default)
     {

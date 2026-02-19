@@ -1,7 +1,7 @@
 @page "/alerts/{Id}"
 @inject IAlertService AlertService
-@inject ICustomerRepository CustomerRepository
-@inject IResourceRepository ResourceRepository
+@inject ICustomerService CustomerService
+@inject IResourceService ResourceService
 @inject IFunctionAppService FunctionAppService
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
@@ -25,7 +25,7 @@ else
 {
     <MudPaper Class="pa-4 mb-3">
         <div class="d-flex align-items-center gap-3">
-            <MudIcon Icon="@GetSeverityIcon(alert.Severity)" Color="@GetSeverityColor(alert.Severity)" Size="Size.Large" />
+            <MudIcon Icon="@AlertDisplayHelper.GetSeverityIcon(alert.Severity)" Color="@AlertDisplayHelper.GetSeverityColor(alert.Severity)" Size="Size.Large" />
             <MudText Typo="Typo.h5" Class="mb-0">@(!string.IsNullOrWhiteSpace(alert.Title) ? alert.Title : "Alert")</MudText>
         </div>
     </MudPaper>
@@ -118,9 +118,9 @@ else
                     <MudTimeline TimelinePosition="TimelinePosition.Start">
                         @foreach (var entry in Timeline)
                         {
-                            <MudTimelineItem Color="@GetTimelineColor(entry)" Size="Size.Small">
+                            <MudTimelineItem Color="@AlertDisplayHelper.GetStatusColor(entry.NewStatus ?? default)" Size="Size.Small">
                                 <ItemContent>
-                                    <MudText Typo="Typo.body2">@FormatTimelineMessage(entry)</MudText>
+                                    <MudText Typo="Typo.body2">@AlertDisplayHelper.FormatTimelineMessage(entry)</MudText>
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">@entry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudText>
                                 </ItemContent>
                             </MudTimelineItem>
@@ -133,13 +133,14 @@ else
                 }
             </MudTabPanel>
             <MudTabPanel Text="Comments">
-                <div class="d-flex gap-3 align-end mb-4">
+                <div class="mb-4">
                     <MudTextField @bind-Value="newCommentText"
                                   Label="Add a comment"
                                   Variant="Variant.Outlined"
                                   Lines="2"
                                   FullWidth="true"
-                                  Disabled="@isAddingComment" />
+                                  Disabled="@isAddingComment"
+                                  Class="mb-2" />
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Primary"
                                Disabled="@(isAddingComment || string.IsNullOrWhiteSpace(newCommentText))"
@@ -216,12 +217,12 @@ else
                 return;
             }
 
-            var customer = await CustomerRepository.GetAsync(alert.CustomerId);
+            var customer = await CustomerService.GetCustomerAsync(alert.CustomerId);
             customerName = customer?.Name ?? alert.CustomerId;
 
             if (!string.IsNullOrWhiteSpace(alert.ResourceId))
             {
-                var resource = await ResourceRepository.GetByResourceIdAsync(alert.CustomerId, alert.ResourceId);
+                var resource = await ResourceService.GetResourceByResourceIdAsync(alert.CustomerId, alert.ResourceId);
                 if (resource is not null)
                 {
                     resourceName = resource.Name;
@@ -404,50 +405,4 @@ else
         }
     }
 
-    private string FormatTimelineMessage(AlertChange entry)
-    {
-        if (!string.IsNullOrWhiteSpace(entry.Comment))
-        {
-            return entry.Comment;
-        }
-
-        return entry.NewStatus switch
-        {
-            AlertStatus.Accepted => $"{entry.User} accepted this alert",
-            AlertStatus.Resolved => $"{entry.User} resolved this alert",
-            AlertStatus.Escalated => $"{entry.User} escalated this alert",
-            AlertStatus.Pending => "Alert pending",
-            AlertStatus.Failed => "Alert processing failed",
-            _ => $"Status changed to {entry.NewStatus}"
-        };
-    }
-
-    private Color GetTimelineColor(AlertChange entry) => entry.NewStatus switch
-    {
-        AlertStatus.Accepted => Color.Warning,
-        AlertStatus.Resolved => Color.Success,
-        AlertStatus.Escalated => Color.Error,
-        AlertStatus.Failed => Color.Error,
-        _ => Color.Primary
-    };
-
-    private static string GetSeverityIcon(AlertSeverity severity) => severity switch
-    {
-        AlertSeverity.Critical => Icons.Material.Filled.Error,
-        AlertSeverity.High => Icons.Material.Filled.Warning,
-        AlertSeverity.Medium => Icons.Material.Filled.Info,
-        AlertSeverity.Low => Icons.Material.Filled.Flag,
-        AlertSeverity.Info => Icons.Material.Outlined.Info,
-        _ => Icons.Material.Filled.Notifications
-    };
-
-    private static Color GetSeverityColor(AlertSeverity severity) => severity switch
-    {
-        AlertSeverity.Critical => Color.Error,
-        AlertSeverity.High => Color.Warning,
-        AlertSeverity.Medium => Color.Info,
-        AlertSeverity.Low => Color.Success,
-        AlertSeverity.Info => Color.Default,
-        _ => Color.Default
-    };
 }

@@ -1,5 +1,4 @@
 using Helios365.Core.Models;
-using Helios365.Core.Repositories;
 using Helios365.Core.Services;
 using Helios365.Web.Shared;
 using Microsoft.AspNetCore.Components;
@@ -12,9 +11,8 @@ namespace Helios365.Web.Pages;
 
 public partial class Resources : ComponentBase
 {
-    [Inject] private IResourceRepository ResourceRepository { get; set; } = default!;
-    [Inject] private ICustomerRepository CustomerRepository { get; set; } = default!;
-    [Inject] private IServicePrincipalRepository ServicePrincipalRepository { get; set; } = default!;
+    [Inject] private IResourceService ResourceService { get; set; } = default!;
+    [Inject] private ICustomerService CustomerService { get; set; } = default!;
     [Inject] private IResourceSyncService ResourceSyncService { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private ISnackbar Snackbar { get; set; } = default!;
@@ -160,9 +158,9 @@ public partial class Resources : ComponentBase
         isLoading = true;
         try
         {
-            var resources = (await ResourceRepository.ListAsync(limit: 2000)).ToList();
-            var customers = (await CustomerRepository.ListAsync(limit: 2000)).ToDictionary(c => c.Id, c => c, StringComparer.OrdinalIgnoreCase);
-            var servicePrincipals = (await ServicePrincipalRepository.ListAsync(limit: 2000)).ToDictionary(sp => sp.Id, sp => sp, StringComparer.OrdinalIgnoreCase);
+            var resources = (await ResourceService.ListResourcesAsync(limit: 2000)).ToList();
+            var customers = (await CustomerService.ListCustomersAsync(limit: 2000)).ToDictionary(c => c.Id, c => c, StringComparer.OrdinalIgnoreCase);
+            var servicePrincipals = (await CustomerService.ListAllServicePrincipalsAsync(limit: 2000)).ToDictionary(sp => sp.Id, sp => sp, StringComparer.OrdinalIgnoreCase);
 
             customerFilterOptions = customers
                 .OrderBy(kvp => kvp.Value.Name)

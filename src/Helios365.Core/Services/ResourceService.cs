@@ -2,6 +2,7 @@ using Azure.Core;
 using Azure.ResourceManager.Resources;
 using Helios365.Core.Contracts.Diagnostics;
 using Helios365.Core.Models;
+using Helios365.Core.Repositories;
 using Helios365.Core.Services.Clients;
 using Helios365.Core.Services.Handlers;
 using Helios365.Core.Utilities;
@@ -38,6 +39,12 @@ public interface IResourceService
     bool SupportsLifecycle(string resourceType);
 
     bool SupportsDiagnostics(string resourceType);
+
+    // Repository-backed CRUD
+    Task<Resource?> GetResourceByIdAsync(string id, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Resource>> ListResourcesAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default);
+    Task<Resource?> GetResourceByResourceIdAsync(string customerId, string resourceId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Resource>> ListResourcesByCustomerAsync(string customerId, int limit = 100, CancellationToken cancellationToken = default);
 }
 
 public class ResourceService : IResourceService
@@ -45,17 +52,20 @@ public class ResourceService : IResourceService
     private readonly IArmClientFactory _armClientFactory;
     private readonly ILogger<ResourceService> _logger;
     private readonly IWebTestService _pingTestService;
+    private readonly IResourceRepository _resourceRepository;
     private readonly IReadOnlyDictionary<string, IResourceHandler> _handlersByType;
 
     public ResourceService(
         IArmClientFactory armClientFactory,
         ILogger<ResourceService> logger,
         IEnumerable<IResourceHandler> handlers,
-        IWebTestService pingTestService)
+        IWebTestService pingTestService,
+        IResourceRepository resourceRepository)
     {
         _armClientFactory = armClientFactory;
         _logger = logger;
         _pingTestService = pingTestService;
+        _resourceRepository = resourceRepository;
         _handlersByType = handlers.ToDictionary(h => h.ResourceType, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -193,4 +203,16 @@ public class ResourceService : IResourceService
 
     public bool SupportsDiagnostics(string resourceType) =>
         ResolveHandler<IResourceDiagnostics>(resourceType) is not null;
+
+    public Task<Resource?> GetResourceByIdAsync(string id, CancellationToken cancellationToken = default) =>
+        _resourceRepository.GetAsync(id, cancellationToken);
+
+    public Task<IEnumerable<Resource>> ListResourcesAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default) =>
+        _resourceRepository.ListAsync(limit, offset, cancellationToken);
+
+    public Task<Resource?> GetResourceByResourceIdAsync(string customerId, string resourceId, CancellationToken cancellationToken = default) =>
+        _resourceRepository.GetByResourceIdAsync(customerId, resourceId, cancellationToken);
+
+    public Task<IEnumerable<Resource>> ListResourcesByCustomerAsync(string customerId, int limit = 100, CancellationToken cancellationToken = default) =>
+        _resourceRepository.ListByCustomerAsync(customerId, limit, cancellationToken);
 }
