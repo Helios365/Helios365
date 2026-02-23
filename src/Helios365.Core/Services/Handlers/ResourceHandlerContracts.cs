@@ -31,3 +31,8 @@ public interface IResourceDiagnostics : IResourceHandler
 
     Task<MetricsResult> GetMetricsAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
 }
+
+public interface IResourceHealth : IResourceHandler
+{
+    Task<ResourceHealthResult> GetHealthAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+}

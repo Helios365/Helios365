@@ -2,7 +2,6 @@
 @using Helios365.Web.Pages.Components.Resources
 @inject IResourceService ResourceService
 @inject ICustomerService CustomerService
-@inject IResourceService ResourceService
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
@@ -68,6 +67,13 @@ else
                         Disabled="@DisableActions" />
     }
 
+    @if (supportsHealth)
+    {
+        <HealthPanel Resource="resource"
+                     ServicePrincipal="servicePrincipal"
+                     Disabled="@DisableActions" />
+    }
+
     @if (supportsDiagnostics)
     {
         <DiagnosticsPanel Resource="resource"
@@ -75,7 +81,7 @@ else
                           Disabled="@DisableActions" />
     }
 
-    @if (!supportsLifecycle && !supportsDiagnostics)
+    @if (!supportsLifecycle && !supportsDiagnostics && !supportsHealth)
     {
         <GeneralDetailsPanel Resource="resource" />
     }
@@ -90,6 +96,7 @@ else
     private string? resourceStatus;
     private bool supportsLifecycle;
     private bool supportsDiagnostics;
+    private bool supportsHealth;
     private bool hasLoaded;
     private bool loading = true;
 
@@ -120,6 +127,7 @@ else
 
             supportsLifecycle = ResourceService.SupportsLifecycle(resource.ResourceType);
             supportsDiagnostics = ResourceService.SupportsDiagnostics(resource.ResourceType);
+            supportsHealth = ResourceService.SupportsHealth(resource.ResourceType);
 
             if (!string.IsNullOrWhiteSpace(resource.ServicePrincipalId))
             {

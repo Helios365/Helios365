@@ -1,0 +1,191 @@
+@using Helios365.Core.Contracts.Diagnostics
+@using Helios365.Core.Models
+@using Helios365.Core.Services
+@inject IResourceService ResourceService
+@inject ISnackbar Snackbar
+@inject ILogger<HealthPanel> Logger
+
+<MudPaper Class="pa-4 mb-3">
+    <MudText Typo="Typo.h6" Class="mb-2">Resource Health</MudText>
+    @if (Disabled || Resource is null || ServicePrincipal is null)
+    {
+        <MudAlert Severity="Severity.Info">Health information not available.</MudAlert>
+    }
+    else if (loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" />
+        <MudText Color="Color.Secondary">Loading health status...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(error))
+    {
+        <MudAlert Severity="Severity.Error">@error</MudAlert>
+    }
+    else if (healthResult is null)
+    {
+        <MudText Color="Color.Secondary">No health data available.</MudText>
+    }
+    else
+    {
+        <MudGrid>
+            <MudItem xs="12">
+                <div class="d-flex align-center gap-3 mb-3">
+                    <MudChip T="string"
+                             Color="@GetAvailabilityColor(healthResult.AvailabilityState)"
+                             Variant="Variant.Filled"
+                             Size="Size.Medium">
+                        @healthResult.AvailabilityState
+                    </MudChip>
+                    @if (!string.IsNullOrWhiteSpace(healthResult.Title) &&
+                         !string.Equals(healthResult.Title, healthResult.AvailabilityState, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <MudText Typo="Typo.subtitle1">@healthResult.Title</MudText>
+                    }
+                </div>
+            </MudItem>
+
+            @if (!string.IsNullOrWhiteSpace(healthResult.Summary))
+            {
+                <MudItem xs="12">
+                    <MudText Color="Color.Secondary" Typo="Typo.caption">Summary</MudText>
+                    <MudText>@healthResult.Summary</MudText>
+                </MudItem>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(healthResult.DetailedStatus))
+            {
+                <MudItem xs="12">
+                    <MudText Color="Color.Secondary" Typo="Typo.caption">Detailed Status</MudText>
+                    <MudText>@healthResult.DetailedStatus</MudText>
+                </MudItem>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(healthResult.ReasonType))
+            {
+                <MudItem xs="12" md="6">
+                    <MudText Color="Color.Secondary" Typo="Typo.caption">Reason</MudText>
+                    <MudText>@healthResult.ReasonType</MudText>
+                </MudItem>
+            }
+
+            @if (healthResult.ReportedOn.HasValue)
+            {
+                <MudItem xs="12" md="6">
+                    <MudText Color="Color.Secondary" Typo="Typo.caption">Last Checked</MudText>
+                    <MudText>@healthResult.ReportedOn.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</MudText>
+                </MudItem>
+            }
+
+            @if (healthResult.OccuredOn.HasValue)
+            {
+                <MudItem xs="12" md="6">
+                    <MudText Color="Color.Secondary" Typo="Typo.caption">Last Status Change</MudText>
+                    <MudText>@healthResult.OccuredOn.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</MudText>
+                </MudItem>
+            }
+
+            @if (healthResult.ResolutionEta.HasValue)
+            {
+                <MudItem xs="12" md="6">
+                    <MudText Color="Color.Secondary" Typo="Typo.caption">Estimated Resolution</MudText>
+                    <MudText>@healthResult.ResolutionEta.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</MudText>
+                </MudItem>
+            }
+
+            @if (healthResult.RecommendedActions.Count > 0)
+            {
+                <MudItem xs="12">
+                    <MudText Color="Color.Secondary" Typo="Typo.caption" Class="mb-1">Recommended Actions</MudText>
+                    @foreach (var action in healthResult.RecommendedActions)
+                    {
+                        <MudPaper Class="pa-3 mb-2" Outlined="true">
+                            <MudText Typo="Typo.body2">@action.Action</MudText>
+                            @if (!string.IsNullOrWhiteSpace(action.ActionUrl))
+                            {
+                                <MudLink Href="@action.ActionUrl" Target="_blank" Typo="Typo.caption">Learn more</MudLink>
+                            }
+                        </MudPaper>
+                    }
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public Resource? Resource { get; set; }
+    [Parameter] public ServicePrincipal? ServicePrincipal { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private bool loading;
+    private string? error;
+    private ResourceHealthResult? healthResult;
+    private CancellationTokenSource? loadCts;
+    private bool disposed;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loadCts?.Cancel();
+        loadCts = new CancellationTokenSource();
+
+        if (Resource is not null && ServicePrincipal is not null && !Disabled)
+        {
+            await LoadHealthAsync(loadCts.Token);
+        }
+        else
+        {
+            healthResult = null;
+        }
+    }
+
+    private async Task LoadHealthAsync(CancellationToken cancellationToken)
+    {
+        if (Resource is null || ServicePrincipal is null)
+        {
+            return;
+        }
+
+        loading = true;
+        error = null;
+        try
+        {
+            healthResult = await ResourceService.GetHealthAsync(ServicePrincipal, Resource, cancellationToken);
+            if (disposed || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Ignore expected cancellations when parameters change.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load health for resource {ResourceId}", Resource.ResourceId);
+            error = $"Failed to load health status: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+            if (!disposed && !cancellationToken.IsCancellationRequested)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private static Color GetAvailabilityColor(string availabilityState) =>
+        availabilityState switch
+        {
+            "Available" => Color.Success,
+            "Unavailable" => Color.Error,
+            "Degraded" => Color.Warning,
+            _ => Color.Default
+        };
+
+    public void Dispose()
+    {
+        disposed = true;
+        loadCts?.Cancel();
+        loadCts?.Dispose();
+    }
+}

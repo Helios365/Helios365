@@ -5,6 +5,8 @@ using Azure.ResourceManager;
 using Azure.ResourceManager.Compute;
 using Azure.ResourceManager.Compute.Models;
 using Azure.ResourceManager.ResourceGraph.Models;
+using Azure.ResourceManager.ResourceHealth;
+using Azure.ResourceManager.ResourceHealth.Models;
 using Azure.ResourceManager.Resources;
 using Helios365.Core.Contracts.Diagnostics;
 using Helios365.Core.Models;
@@ -14,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services.Handlers;
 
-public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecycle, IResourceDiagnostics
+public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecycle, IResourceDiagnostics, IResourceHealth
 {
     private const string ResourceTypeValue = "Microsoft.Compute/virtualMachines";
     private const string Query = """
@@ -133,6 +135,47 @@ public class VirtualMachineResourceHandler : IResourceDiscovery, IResourceLifecy
         }
 
         return true;
+    }
+
+    public async Task<ResourceHealthResult> GetHealthAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+            var scope = new ResourceIdentifier(resource.ResourceId);
+            var response = await armClient.GetAvailabilityStatusAsync(scope, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var props = response.Value.Properties;
+            return new ResourceHealthResult
+            {
+                ResourceId = resource.ResourceId,
+                ResourceType = resource.ResourceType,
+                AvailabilityState = props.AvailabilityState?.ToString() ?? "Unknown",
+                Title = props.Title,
+                Summary = props.Summary,
+                DetailedStatus = props.DetailedStatus,
+                ReasonType = props.ReasonType,
+                ReasonChronicity = props.ReasonChronicity?.ToString(),
+                OccuredOn = props.OccuredOn,
+                ReportedOn = props.ReportedOn,
+                ResolutionEta = props.ResolutionEta,
+                RecommendedActions = (props.RecommendedActions ?? Enumerable.Empty<ResourceHealthRecommendedAction>())
+                    .Select(a => new HealthRecommendedAction
+                    {
+                        Action = a.Action ?? string.Empty,
+                        ActionUrl = a.ActionUri?.ToString()
+                    }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch health for Virtual Machine {ResourceId}", resource.ResourceId);
+        }
+
+        return new ResourceHealthResult
+        {
+            ResourceId = resource.ResourceId,
+            ResourceType = resource.ResourceType
+        };
     }
 
     private async Task<IReadOnlyList<Resource>> QueryAsync(

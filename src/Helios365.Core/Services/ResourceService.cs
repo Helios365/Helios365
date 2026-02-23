@@ -40,6 +40,10 @@ public interface IResourceService
 
     bool SupportsDiagnostics(string resourceType);
 
+    Task<ResourceHealthResult?> GetHealthAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default);
+
+    bool SupportsHealth(string resourceType);
+
     // Repository-backed CRUD
     Task<Resource?> GetResourceByIdAsync(string id, CancellationToken cancellationToken = default);
     Task<IEnumerable<Resource>> ListResourcesAsync(int limit = 100, int offset = 0, CancellationToken cancellationToken = default);
@@ -203,6 +207,21 @@ public class ResourceService : IResourceService
 
     public bool SupportsDiagnostics(string resourceType) =>
         ResolveHandler<IResourceDiagnostics>(resourceType) is not null;
+
+    public async Task<ResourceHealthResult?> GetHealthAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var handler = ResolveHandler<IResourceHealth>(resource.ResourceType);
+        if (handler is null)
+        {
+            _logger.LogWarning("Health not supported for resource type {ResourceType}", resource.ResourceType);
+            return null;
+        }
+
+        return await handler.GetHealthAsync(servicePrincipal, resource, cancellationToken).ConfigureAwait(false);
+    }
+
+    public bool SupportsHealth(string resourceType) =>
+        ResolveHandler<IResourceHealth>(resourceType) is not null;
 
     public Task<Resource?> GetResourceByIdAsync(string id, CancellationToken cancellationToken = default) =>
         _resourceRepository.GetAsync(id, cancellationToken);

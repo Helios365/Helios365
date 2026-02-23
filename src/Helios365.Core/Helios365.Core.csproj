@@ -17,6 +17,7 @@
     <PackageReference Include="Azure.ResourceManager.ResourceGraph" Version="1.1.0" />
     <PackageReference Include="Azure.ResourceManager.AppService" Version="1.4.1" />
     <PackageReference Include="Azure.ResourceManager.Compute" Version="1.13.0" />
+    <PackageReference Include="Azure.ResourceManager.ResourceHealth" Version="1.0.0" />
     <PackageReference Include="Azure.Monitor.Query" Version="1.7.1" />
     <PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
     <PackageReference Include="Azure.Communication.Sms" Version="1.0.2" />

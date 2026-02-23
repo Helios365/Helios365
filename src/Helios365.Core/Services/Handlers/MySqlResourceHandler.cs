@@ -1,6 +1,10 @@
 using System.Text.Json;
 using Azure;
+using Azure.Core;
+using Azure.ResourceManager;
 using Azure.ResourceManager.ResourceGraph.Models;
+using Azure.ResourceManager.ResourceHealth;
+using Azure.ResourceManager.ResourceHealth.Models;
 using Helios365.Core.Contracts.Diagnostics;
 using Helios365.Core.Models;
 using Helios365.Core.Services.Clients;
@@ -9,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Helios365.Core.Services.Handlers;
 
-public class MySqlResourceHandler : IResourceDiscovery, IResourceDiagnostics
+public class MySqlResourceHandler : IResourceDiscovery, IResourceDiagnostics, IResourceHealth
 {
     private const string ResourceTypeValue = "Microsoft.DBforMySQL/flexibleServers";
     private const string Query = """
@@ -23,15 +27,18 @@ public class MySqlResourceHandler : IResourceDiscovery, IResourceDiagnostics
 
     private readonly IResourceGraphClient _resourceGraphClient;
     private readonly IMetricsClient _metricsClient;
+    private readonly IArmClientFactory _armClientFactory;
     private readonly ILogger<MySqlResourceHandler> _logger;
 
     public MySqlResourceHandler(
         IResourceGraphClient resourceGraphClient,
         IMetricsClient metricsClient,
+        IArmClientFactory armClientFactory,
         ILogger<MySqlResourceHandler> logger)
     {
         _resourceGraphClient = resourceGraphClient;
         _metricsClient = metricsClient;
+        _armClientFactory = armClientFactory;
         _logger = logger;
     }
 
@@ -66,6 +73,47 @@ public class MySqlResourceHandler : IResourceDiscovery, IResourceDiagnostics
     {
         var metrics = new[] { "cpu_percent", "memory_percent" };
         return _metricsClient.QueryAsync(servicePrincipal, resource.ResourceId, resource.ResourceType, metrics, "Microsoft.DBforMySQL/flexibleServers", TimeSpan.FromHours(1), cancellationToken);
+    }
+
+    public async Task<ResourceHealthResult> GetHealthAsync(ServicePrincipal servicePrincipal, Resource resource, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var armClient = await _armClientFactory.CreateAsync(servicePrincipal, cancellationToken).ConfigureAwait(false);
+            var scope = new ResourceIdentifier(resource.ResourceId);
+            var response = await armClient.GetAvailabilityStatusAsync(scope, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var props = response.Value.Properties;
+            return new ResourceHealthResult
+            {
+                ResourceId = resource.ResourceId,
+                ResourceType = resource.ResourceType,
+                AvailabilityState = props.AvailabilityState?.ToString() ?? "Unknown",
+                Title = props.Title,
+                Summary = props.Summary,
+                DetailedStatus = props.DetailedStatus,
+                ReasonType = props.ReasonType,
+                ReasonChronicity = props.ReasonChronicity?.ToString(),
+                OccuredOn = props.OccuredOn,
+                ReportedOn = props.ReportedOn,
+                ResolutionEta = props.ResolutionEta,
+                RecommendedActions = (props.RecommendedActions ?? Enumerable.Empty<ResourceHealthRecommendedAction>())
+                    .Select(a => new HealthRecommendedAction
+                    {
+                        Action = a.Action ?? string.Empty,
+                        ActionUrl = a.ActionUri?.ToString()
+                    }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch health for MySQL server {ResourceId}", resource.ResourceId);
+        }
+
+        return new ResourceHealthResult
+        {
+            ResourceId = resource.ResourceId,
+            ResourceType = resource.ResourceType
+        };
     }
 
     private async Task<IReadOnlyList<Resource>> QueryAsync(
