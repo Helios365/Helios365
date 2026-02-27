@@ -1,6 +1,11 @@
 # Helios365
 
-🌞 24/7/365 Automated Incident Response for Azure
+[![Build](https://github.com/Helios365/Helios365/actions/workflows/build.yml/badge.svg)](https://github.com/Helios365/Helios365/actions/workflows/build.yml)
+[![License](https://img.shields.io/github/license/Helios365/Helios365)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
+[![Azure](https://img.shields.io/badge/Azure-Functions%20%7C%20Cosmos%20DB%20%7C%20Blazor-0078D4)](https://azure.microsoft.com/)
+
+24/7/365 Automated Incident Response for Azure
 
 ## Install
 
@@ -58,17 +63,6 @@ Set-AzKeyVaultSecret -VaultName <prefix>-helios-xxxx-kv -Name "AzureAd--ClientSe
 ### Enable SMS sending
 Before being able to send SMS, Dynamic Alpha Sender Id (string as sender id) need to be enabled. And this can only be done from Azure Portal under "Telephony and SMS -> Alphanumberic Sender ID -> Enable Alphanumeric Sender ID".
 
-### Deploy Web app (manually)
-
-```powershell
-dotnet clean ./src/Helios365.Web/Helios365.Web.csproj
-dotnet publish -c Release ./src/Helios365.Web/Helios365.Web.csproj -o publish --no-cache
-Compress-Archive -Path ./publish/* -DestinationPath ./deploy.zip -Force
-Publish-AzWebApp -ResourceGroupName <rg> -Name <prefix>-helios-xxxx-web -ArchivePath (Resolve-Path ./deploy.zip)
-Remove-Item ./publish -Recurse -Force
-Remove-Item ./deploy.zip -Force
-```
-
 ## Workflow
 
 ```
@@ -81,66 +75,6 @@ Alert arrives → Validate ApiKey → Find Resource → Load Actions → Execute
 4. **Execute Actions**: In order, using Service Principal
 5. **Escalation**: Email if all actions fail
 
-## Project Structure
+## Contributing
 
-```
-helios365/
-├── src/
-│   ├── Helios365.Core/           # Domain models, repositories, services
-│   ├── Helios365.Functions/      # Azure Functions - alert processing
-│   └── Helios365.Web/           # Blazor Server - web dashboard
-└── tests/
-    ├── Helios365.Core.Tests/     
-    └── Helios365.Functions.Tests/
-```
-
-
-## Configuration
-
-### Cosmos DB Containers
-- customers (partition: /id)
-- servicePrincipals (partition: /customerId)
-- resources (partition: /customerId)
-- actions (partition: /customerId)
-- alerts (partition: /customerId)
-
-### Key Vault
-Store Service Principal secrets:
-- Format: `sp-{servicePrincipalId}`
-- Value: Client Secret
-
-### Azure Communication Services
-- Used for plain-text email and SMS notifications
-- Settings:
-  - `CommunicationServices:ConnectionString`
-  - `CommunicationServices:EmailSender`
-  - `CommunicationServices:SmsSender`
-
-
-# Development
-
-## Create local configuration files
-
-``` powershell
-# Create development settings (not committed to Git)
-cp src/Helios365.Web/appsettings.json src/Helios365.Web/appsettings.Development.json
-cp src/Helios365.Functions/local.settings.json.example src/Helios365.Functions/local.settings.json
-```
-
-## Deploy Bicep
-New-AzResourceGroupDeployment -ResourceGroupName <RG> -TemplateFile .\infrastructure\deploy.bicep -TemplateParameterFile .\infrastructure\deploy.parameters.dev.json
-
-## Login locally
-To run application locally, you would need to do following, in order to make local web app pick upp the permissions needed.
-``` powershell
-Connect-AzAccount
-
-Connect-MgGraph -Scopes "User.Read.All", "GroupMember.Read.All"
-
-```
-
-# Generate ARM template
-
-``` bash
-bicep build .\deploy.bicep --outfile .\azuredeploy.json
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for project structure, configuration, development setup, and coding guidelines.

@@ -2,12 +2,20 @@
 
 This document provides guidelines for contributing to the Helios365 project, including architecture patterns, coding conventions, and development workflows.
 
-## Architecture & Project Structure
+## Project Structure
 
-### Multi-Project Solution
-- **Helios365.Core**: Shared models, repositories, services, and exceptions
-- **Helios365.Platform**: ASP.NET Core web application (Razor Pages)
-- **Helios365.Processor**: Azure Functions with Durable Functions support
+```
+helios365/
+├── src/
+│   ├── Helios365.Core/           # Domain models, repositories, services
+│   ├── Helios365.Functions/      # Azure Functions - alert processing
+│   └── Helios365.Web/            # Blazor Server - web dashboard
+├── infrastructure/               # Bicep / ARM templates
+├── scripts/                      # PowerShell setup scripts
+└── tests/
+    ├── Helios365.Core.Tests/
+    └── Helios365.Functions.Tests/
+```
 
 ### Design Patterns
 - **Repository Pattern**: Use existing interfaces in `Helios365.Core.Repositories`
@@ -52,11 +60,32 @@ Orchestrators/     # Durable Function orchestrators
 ## Database & Storage Guidelines
 
 ### Cosmos DB
+
+**Containers:**
+- customers (partition: /id)
+- servicePrincipals (partition: /customerId)
+- resources (partition: /customerId)
+- actions (partition: /customerId)
+- alerts (partition: /customerId)
+
+**Conventions:**
 - **Environment Configuration**: Serverless for dev, provisioned throughput for production
 - **Container Naming**: Use plural nouns (`customers`, `alerts`, `resources`)
 - **Repository Pattern**: Inherit from existing repositories in Core project
 - **Async Operations**: All Cosmos DB operations must be async
 - **Partitioning**: Consider partition key strategy for scalability
+
+### Key Vault
+Store Service Principal secrets:
+- Format: `sp-{servicePrincipalId}`
+- Value: Client Secret
+
+### Azure Communication Services
+- Used for plain-text email and SMS notifications
+- Settings:
+  - `CommunicationServices:ConnectionString`
+  - `CommunicationServices:EmailSender`
+  - `CommunicationServices:SmsSender`
 
 ### Example Repository Implementation
 ```csharp
@@ -116,8 +145,8 @@ public class CustomerRepository : ICustomerRepository
 ```
 tests/
   Helios365.Core.Tests/          # Unit tests for shared components
-  Helios365.Platform.Tests/      # Integration tests for web app
-  Helios365.Processor.Tests/     # Tests for Azure Functions
+  Helios365.Web.Tests/           # Integration tests for web app
+  Helios365.Functions.Tests/     # Tests for Azure Functions
 ```
 
 ### Testing Approach
@@ -130,13 +159,10 @@ tests/
 
 ### Initial Setup
 1. Clone repository and build solution
-2. Copy configuration templates to local override files:
+2. Create local configuration files (not committed to Git):
    ```powershell
-   # ASP.NET Core
-   Copy-Item "appsettings.Development.json" "appsettings.Development.local.json"
-   
-   # Azure Functions
-   Copy-Item "local.settings.json.example" "local.settings.json"
+   cp src/Helios365.Web/appsettings.json src/Helios365.Web/appsettings.Development.json
+   cp src/Helios365.Functions/local.settings.json.example src/Helios365.Functions/local.settings.json
    ```
 3. Update local files with actual Azure resource connection strings
 4. Grant Key Vault access to your user account
@@ -146,15 +172,42 @@ tests/
 - **No Emulators**: Prefer actual Azure services for realistic testing
 - **Configuration Loading**: Local override files automatically take precedence
 
+### Login locally
+To run the application locally, you need to authenticate so the web app can pick up the permissions needed:
+```powershell
+Connect-AzAccount
+Connect-MgGraph -Scopes "User.Read.All", "GroupMember.Read.All"
+```
+
 ### Running the Application
 ```powershell
-# ASP.NET Core Platform
-cd src/Helios365.Platform
+# Web Dashboard
+cd src/Helios365.Web
 dotnet run
 
 # Azure Functions
-cd src/Helios365.Processor
+cd src/Helios365.Functions
 func start
+```
+
+### Deploy Web App (manually)
+```powershell
+dotnet clean ./src/Helios365.Web/Helios365.Web.csproj
+dotnet publish -c Release ./src/Helios365.Web/Helios365.Web.csproj -o publish --no-cache
+Compress-Archive -Path ./publish/* -DestinationPath ./deploy.zip -Force
+Publish-AzWebApp -ResourceGroupName <rg> -Name <prefix>-helios-xxxx-web -ArchivePath (Resolve-Path ./deploy.zip)
+Remove-Item ./publish -Recurse -Force
+Remove-Item ./deploy.zip -Force
+```
+
+### Deploy Bicep
+```powershell
+New-AzResourceGroupDeployment -ResourceGroupName <RG> -TemplateFile .\infrastructure\deploy.bicep -TemplateParameterFile .\infrastructure\deploy.parameters.dev.json
+```
+
+### Generate ARM Template
+```bash
+bicep build .\deploy.bicep --outfile .\azuredeploy.json
 ```
 
 ## File Organization Principles
@@ -163,9 +216,9 @@ func start
 ```
 Core (no dependencies)
   ↑
-Platform (references Core)
+Web (references Core)
   ↑
-Processor (references Core)
+Functions (references Core)
 ```
 
 ### Configuration Files
